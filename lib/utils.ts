@@ -91,3 +91,9 @@ export const COURSE_ICONS: Record<string, string> = {
 export const EXAM_DURATION_MINUTES = 60;
 export const QUESTIONS_PER_EXAM = 40;
 export const QUESTIONS_PER_PRACTICE = 10;
+
+export const QUESTION_TYPE_LABELS: Record<string, string> = {
+  single_choice: 'Single Choice',
+  multiple_choice: 'Multiple Choice',
+  fill_in_blank: 'Fill in the Blank',
+};
