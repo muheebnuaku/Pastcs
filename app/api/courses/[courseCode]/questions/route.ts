@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
-  request: Request,
-  { params }: { params: { courseCode: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ courseCode: string }> }
 ) {
   try {
+    const { courseCode } = await params;
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') || 'practice';
@@ -16,7 +17,7 @@ export async function GET(
     const { data: course, error: courseError } = await supabase
       .from('courses')
       .select('id')
-      .eq('course_code', params.courseCode)
+      .eq('course_code', courseCode)
       .single();
 
     if (courseError || !course) {

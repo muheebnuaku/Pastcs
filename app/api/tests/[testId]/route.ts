@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
-  request: Request,
-  { params }: { params: { testId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ testId: string }> }
 ) {
   try {
+    const { testId } = await params;
     const supabase = await createClient();
 
     // Get current user
@@ -22,7 +23,7 @@ export async function GET(
     const { data: test, error: testError } = await supabase
       .from('tests')
       .select('*, course:courses(*)')
-      .eq('id', params.testId)
+      .eq('id', testId)
       .single();
 
     if (testError || !test) {
@@ -50,7 +51,7 @@ export async function GET(
     const { data: answers, error: answersError } = await supabase
       .from('test_answers')
       .select('*, question:questions(*)')
-      .eq('test_id', params.testId);
+      .eq('test_id', testId);
 
     if (answersError) {
       return NextResponse.json(

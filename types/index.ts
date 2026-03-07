@@ -13,11 +13,13 @@ export interface User {
   id: string;
   email: string;
   full_name: string | null;
+  student_id: string | null;
   role: UserRole;
   avatar_url: string | null;
   practice_streak: number;
   last_practice_date: string | null;
   total_tests_taken: number;
+  xp: number;
   created_at: string;
   updated_at: string;
 }

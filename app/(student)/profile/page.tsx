@@ -54,11 +54,11 @@ export default function ProfilePage() {
       .eq('user_id', user.id);
 
     if (tests) {
-      const uniqueCourses = new Set(tests.map(t => t.course_id));
+      const uniqueCourses = new Set(tests.map((t: { course_id: string }) => t.course_id));
       const avgScore = tests.length > 0
-        ? tests.reduce((acc, t) => acc + (t.percentage || 0), 0) / tests.length
+        ? tests.reduce((acc: number, t: { percentage?: number }) => acc + (t.percentage || 0), 0) / tests.length
         : 0;
-      const perfectScores = tests.filter(t => t.percentage === 100).length;
+      const perfectScores = tests.filter((t: { percentage?: number }) => t.percentage === 100).length;
 
       setStats({
         totalTests: tests.length,
