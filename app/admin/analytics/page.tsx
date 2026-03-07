@@ -44,6 +44,12 @@ interface DifficultyCounts {
   hard: number;
 }
 
+interface TestData {
+  created_at: string;
+  user_id: string;
+  percentage: number;
+}
+
 const COLORS = ['#22c55e', '#eab308', '#ef4444'];
 
 export default function AdminAnalyticsPage() {
@@ -94,7 +100,9 @@ export default function AdminAnalyticsPage() {
         .eq('course_id', selectedCourse)
         .order('created_at', { ascending: true });
 
-      if (tests) {
+      const typedTests = (tests || []) as TestData[];
+
+      if (typedTests.length > 0) {
         // Calculate test trends (last 7 days)
         const today = new Date();
         const trends: TestTrend[] = [];
@@ -104,7 +112,7 @@ export default function AdminAnalyticsPage() {
           date.setDate(date.getDate() - i);
           const dateStr = date.toISOString().split('T')[0];
           
-          const dayTests = tests.filter(t => 
+          const dayTests = typedTests.filter(t => 
             t.created_at.startsWith(dateStr)
           );
           
@@ -119,17 +127,17 @@ export default function AdminAnalyticsPage() {
         setTestTrends(trends);
 
         // Calculate overall stats
-        const uniqueUsers = new Set(tests.map(t => t.user_id));
-        const avgScore = tests.length > 0
-          ? tests.reduce((acc, t) => acc + (t.percentage || 0), 0) / tests.length
+        const uniqueUsers = new Set(typedTests.map(t => t.user_id));
+        const avgScore = typedTests.length > 0
+          ? typedTests.reduce((acc, t) => acc + (t.percentage || 0), 0) / typedTests.length
           : 0;
-        const passedTests = tests.filter(t => t.percentage >= 50).length;
+        const passedTests = typedTests.filter(t => t.percentage >= 50).length;
 
         setOverallStats({
-          totalTests: tests.length,
+          totalTests: typedTests.length,
           avgScore,
           activeStudents: uniqueUsers.size,
-          passRate: tests.length > 0 ? (passedTests / tests.length) * 100 : 0,
+          passRate: typedTests.length > 0 ? (passedTests / typedTests.length) * 100 : 0,
         });
       }
 
@@ -141,14 +149,14 @@ export default function AdminAnalyticsPage() {
 
       if (topics) {
         const topicStats = await Promise.all(
-          topics.map(async (topic) => {
+          (topics as Topic[]).map(async (topic) => {
             const { data: answers } = await supabase
               .from('test_answers')
               .select('is_correct, question:questions!inner(topic_id)')
               .eq('question.topic_id', topic.id);
 
             const totalQuestions = answers?.length || 0;
-            const correctAnswers = answers?.filter(a => a.is_correct).length || 0;
+            const correctAnswers = answers?.filter((a: { is_correct: boolean }) => a.is_correct).length || 0;
             const avgScore = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
 
             return {
@@ -170,7 +178,7 @@ export default function AdminAnalyticsPage() {
 
       if (questions) {
         const counts = { easy: 0, medium: 0, hard: 0 };
-        questions.forEach(q => {
+        questions.forEach((q: { difficulty: string }) => {
           counts[q.difficulty as keyof typeof counts]++;
         });
         setDifficultyCounts(counts);
