@@ -42,7 +42,7 @@ export default function AdminCoursesPage() {
       .order('course_code');
 
     if (coursesData) {
-      setCourses(coursesData.map(c => ({
+      setCourses((coursesData as (Course & { topics: Topic[] })[]).map(c => ({
         ...c,
         topics: c.topics.sort((a: Topic, b: Topic) => a.order_index - b.order_index)
       })));
