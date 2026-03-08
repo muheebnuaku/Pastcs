@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/store';
 import type { User } from '@/types';
@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, setUser, isLoading, setLoading } = useAuthStore();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const fetchUser = async (userId: string) => {
@@ -31,19 +31,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return data;
     };
 
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser(await fetchUser(session.user.id));
+        } else {
+          setUser(null);
+        }
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'INITIAL_SESSION') {
-          if (session?.user) {
-            const userData = await fetchUser(session.user.id);
-            setUser(userData);
-          } else {
-            setUser(null);
-          }
-          setLoading(false);
-        } else if (event === 'SIGNED_IN' && session?.user) {
-          const userData = await fetchUser(session.user.id);
-          setUser(userData);
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(await fetchUser(session.user.id));
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
         }
