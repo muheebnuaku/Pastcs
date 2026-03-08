@@ -9,7 +9,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  BookOpen,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -190,6 +189,98 @@ export default function AdminCoursesPage() {
     fetchCourses();
   };
 
+  // Group courses: level → semester → courses[]
+  const grouped = courses.reduce((acc, course) => {
+    if (!acc[course.level]) acc[course.level] = {};
+    if (!acc[course.level][course.semester]) acc[course.level][course.semester] = [];
+    acc[course.level][course.semester].push(course);
+    return acc;
+  }, {} as Record<number, Record<number, (Course & { topics: Topic[] })[]>>);
+
+  const renderCourse = (course: Course & { topics: Topic[] }) => (
+    <Card key={course.id}>
+      <div
+        className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+        onClick={() => toggleCourseExpand(course.id)}
+      >
+        <div className="flex items-center gap-4">
+          {expandedCourses.has(course.id) ? (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          )}
+          <span className="text-3xl">{COURSE_ICONS[course.course_code]}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900">{course.course_code}</h3>
+              <Badge variant="info" size="sm">{course.total_questions} questions</Badge>
+              <Badge variant="default" size="sm">{course.topics.length} topics</Badge>
+            </div>
+            <p className="text-sm text-gray-600">{course.course_name}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="ghost" onClick={() => openCourseModal(course)}>
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => handleDeleteCourse(course.id)}>
+            <Trash2 className="w-4 h-4 text-red-500" />
+          </Button>
+        </div>
+      </div>
+
+      {expandedCourses.has(course.id) && (
+        <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium text-gray-700">Topics</h4>
+            <Button size="sm" variant="outline" onClick={() => openTopicModal(course.id)}>
+              <Plus className="w-4 h-4 mr-1" />
+              Add Topic
+            </Button>
+          </div>
+          {course.topics.length > 0 ? (
+            <div className="space-y-2">
+              {course.topics.map((topic, idx) => (
+                <div
+                  key={topic.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-500">{idx + 1}.</span>
+                    <div>
+                      <p className="font-medium text-gray-900">{topic.topic_name}</p>
+                      {topic.description && (
+                        <p className="text-sm text-gray-500">{topic.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => openTopicModal(course.id, topic)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteTopic(topic.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">No topics yet</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -203,92 +294,38 @@ export default function AdminCoursesPage() {
         </Button>
       </div>
 
-      <div className="space-y-4">
-        {courses.map((course) => (
-          <Card key={course.id}>
-            <div
-              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-              onClick={() => toggleCourseExpand(course.id)}
-            >
-              <div className="flex items-center gap-4">
-                {expandedCourses.has(course.id) ? (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                )}
-                <span className="text-3xl">{COURSE_ICONS[course.course_code]}</span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-gray-900">{course.course_code}</h3>
-                    <Badge variant="info" size="sm">{course.total_questions} questions</Badge>
-                    <Badge variant="default" size="sm">{course.topics.length} topics</Badge>
-                    <Badge variant="success" size="sm">Level {course.level}</Badge>
-                    <Badge variant="warning" size="sm">Sem {course.semester}</Badge>
-                  </div>
-                  <p className="text-sm text-gray-600">{course.course_name}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Button size="sm" variant="ghost" onClick={() => openCourseModal(course)}>
-                  <Edit className="w-4 h-4" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDeleteCourse(course.id)}>
-                  <Trash2 className="w-4 h-4 text-red-500" />
-                </Button>
+      <div className="space-y-8">
+        {[100, 200, 300, 400].map((level) => {
+          if (!grouped[level]) return null;
+          return (
+            <div key={level}>
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white text-sm font-bold rounded-lg">
+                  {level / 100}
+                </span>
+                Level {level}
+              </h2>
+              <div className="space-y-6 pl-2 border-l-2 border-blue-100">
+                {[1, 2].map((sem) => {
+                  if (!grouped[level][sem]) return null;
+                  return (
+                    <div key={sem}>
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 ml-4">
+                        Semester {sem}
+                      </h3>
+                      <div className="space-y-3 ml-4">
+                        {grouped[level][sem].map(renderCourse)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-
-            {expandedCourses.has(course.id) && (
-              <div className="px-6 pb-4 border-t border-gray-100 pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-700">Topics</h4>
-                  <Button size="sm" variant="outline" onClick={() => openTopicModal(course.id)}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Topic
-                  </Button>
-                </div>
-                {course.topics.length > 0 ? (
-                  <div className="space-y-2">
-                    {course.topics.map((topic, idx) => (
-                      <div
-                        key={topic.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-gray-500">{idx + 1}.</span>
-                          <div>
-                            <p className="font-medium text-gray-900">{topic.topic_name}</p>
-                            {topic.description && (
-                              <p className="text-sm text-gray-500">{topic.description}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => openTopicModal(course.id, topic)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => handleDeleteTopic(topic.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">No topics yet</p>
-                )}
-              </div>
-            )}
-          </Card>
-        ))}
+          );
+        })}
+        {courses.length === 0 && (
+          <p className="text-sm text-gray-500 text-center py-12">No courses yet. Add one to get started.</p>
+        )}
       </div>
 
       {/* Course Modal */}
