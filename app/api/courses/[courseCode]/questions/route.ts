@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { courseCode } = await params;
     const supabase = await createClient();
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const mode = searchParams.get('mode') || 'practice';
     const topicId = searchParams.get('topic');
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -21,7 +21,7 @@ export async function GET(
       .single();
 
     if (courseError || !course) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course not found' },
         { status: 404 }
       );
@@ -42,14 +42,14 @@ export async function GET(
       const { data: allQuestions } = await query;
       
       if (!allQuestions || allQuestions.length === 0) {
-        return NextResponse.json({ questions: [] });
+        return Response.json({ questions: [] });
       }
 
       // Shuffle and select questions
       const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
       const selected = shuffled.slice(0, Math.min(limit, shuffled.length));
 
-      return NextResponse.json({ 
+      return Response.json({ 
         questions: selected,
         courseId: course.id,
       });
@@ -59,7 +59,7 @@ export async function GET(
     const { data: questions, error: questionsError } = await query;
 
     if (questionsError) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Failed to fetch questions' },
         { status: 500 }
       );
@@ -69,13 +69,13 @@ export async function GET(
     const shuffled = questions ? [...questions].sort(() => Math.random() - 0.5) : [];
     const selected = shuffled.slice(0, Math.min(limit, shuffled.length));
 
-    return NextResponse.json({ 
+    return Response.json({ 
       questions: selected,
       courseId: course.id,
     });
   } catch (error) {
     console.error('Error fetching questions:', error);
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     );

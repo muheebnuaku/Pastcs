@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Loading } from '@/components/ui';
 import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
-import type { AdminStats, CourseStats } from '@/types';
+import type { AdminStats, CourseStats, Course } from '@/types';
 import {
   Users,
   FileQuestion,
@@ -44,7 +44,7 @@ export default function AdminOverviewPage() {
         .select('*');
 
       if (courses) {
-        const statsPromises = courses.map(async (course) => {
+        const statsPromises = courses.map(async (course: Course) => {
           const { count: questionCount } = await supabase
             .from('questions')
             .select('*', { count: 'exact', head: true })
@@ -56,7 +56,7 @@ export default function AdminOverviewPage() {
             .eq('course_id', course.id);
 
           const avgScore = tests && tests.length > 0
-            ? tests.reduce((acc, t) => acc + (t.percentage || 0), 0) / tests.length
+            ? tests.reduce((acc: number, t: { percentage: number | null }) => acc + (t.percentage || 0), 0) / tests.length
             : 0;
 
           return {

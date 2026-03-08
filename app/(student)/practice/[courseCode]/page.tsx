@@ -226,7 +226,7 @@ export default function PracticePage() {
           }>
             {currentQuestion.question_type === 'single_choice' && 'Single Choice'}
             {currentQuestion.question_type === 'multiple_choice' && 'Multiple Choice'}
-            {currentQuestion.question_type === 'fill_blank' && 'Fill in the Blank'}
+            {currentQuestion.question_type === 'fill_in_blank' && 'Fill in the Blank'}
           </Badge>
           {currentQuestion.question_type === 'multiple_choice' && (
             <span className="text-sm text-gray-500">Select all that apply</span>
@@ -238,7 +238,7 @@ export default function PracticePage() {
         </h2>
 
         {/* Options */}
-        {currentQuestion.question_type !== 'fill_blank' && currentQuestion.options && (
+        {currentQuestion.question_type !== 'fill_in_blank' && currentQuestion.options && (
           <div className="space-y-3">
             {currentQuestion.options.map((option) => {
               const isSelected = (answers[currentQuestion.id] || []).includes(option.id);
@@ -290,7 +290,7 @@ export default function PracticePage() {
         )}
 
         {/* Fill in the Blank */}
-        {currentQuestion.question_type === 'fill_blank' && (
+        {currentQuestion.question_type === 'fill_in_blank' && (
           <div>
             <input
               type="text"

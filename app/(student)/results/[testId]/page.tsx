@@ -222,7 +222,7 @@ export default function ResultsPage() {
                   )}
 
                   {/* Fill in the blank answer */}
-                  {answer.question.question_type === 'fill_blank' && (
+                  {answer.question.question_type === 'fill_in_blank' && (
                     <div className="space-y-2 mb-3">
                       <div className={`p-3 rounded-lg text-sm ${
                         answer.is_correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'

@@ -253,7 +253,7 @@ export default function ExamPage() {
           }>
             {currentQuestion.question_type === 'single_choice' && 'Single Choice'}
             {currentQuestion.question_type === 'multiple_choice' && 'Multiple Choice (Select all)'}
-            {currentQuestion.question_type === 'fill_blank' && 'Fill in the Blank'}
+            {currentQuestion.question_type === 'fill_in_blank' && 'Fill in the Blank'}
           </Badge>
         </div>
 
@@ -262,7 +262,7 @@ export default function ExamPage() {
         </h2>
 
         {/* Options */}
-        {currentQuestion.question_type !== 'fill_blank' && currentQuestion.options && (
+        {currentQuestion.question_type !== 'fill_in_blank' && currentQuestion.options && (
           <div className="space-y-3">
             {currentQuestion.options.map((option) => {
               const isSelected = (answers[currentQuestion.id] || []).includes(option.id);
@@ -294,7 +294,7 @@ export default function ExamPage() {
         )}
 
         {/* Fill in the Blank */}
-        {currentQuestion.question_type === 'fill_blank' && (
+        {currentQuestion.question_type === 'fill_in_blank' && (
           <input
             type="text"
             placeholder="Type your answer..."

@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
@@ -13,7 +13,7 @@ export async function GET(
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
@@ -27,7 +27,7 @@ export async function GET(
       .single();
 
     if (testError || !test) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Test not found' },
         { status: 404 }
       );
@@ -41,7 +41,7 @@ export async function GET(
       .single();
 
     if (test.user_id !== user.id && currentUser?.role !== 'admin') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Access denied' },
         { status: 403 }
       );
@@ -54,19 +54,19 @@ export async function GET(
       .eq('test_id', testId);
 
     if (answersError) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Failed to fetch answers' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
+    return Response.json({
       test,
       answers: answers || [],
     });
   } catch (error) {
     console.error('Error fetching test:', error);
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     );

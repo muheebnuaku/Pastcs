@@ -39,7 +39,7 @@ export default function AdminStudentsPage() {
       if (usersData) {
         // Fetch test statistics for each student
         const studentsWithStats = await Promise.all(
-          usersData.map(async (user) => {
+          usersData.map(async (user: User) => {
             const { data: tests } = await supabase
               .from('tests')
               .select('percentage')
@@ -47,7 +47,7 @@ export default function AdminStudentsPage() {
 
             const total_tests = tests?.length || 0;
             const avg_score = tests && tests.length > 0
-              ? tests.reduce((acc, t) => acc + (t.percentage || 0), 0) / tests.length
+              ? tests.reduce((acc: number, t: { percentage: number | null }) => acc + (t.percentage || 0), 0) / tests.length
               : 0;
 
             return {
@@ -158,7 +158,7 @@ export default function AdminStudentsPage() {
                     <Badge
                       variant={
                         student.avg_score >= 70 ? 'success' :
-                        student.avg_score >= 50 ? 'warning' : 'error'
+                        student.avg_score >= 50 ? 'warning' : 'danger'
                       }
                     >
                       {formatPercentage(student.avg_score)}

@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -10,14 +9,14 @@ export async function POST(request: Request) {
     const { slideContent, courseId, topicId } = await request.json();
 
     if (!slideContent) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Slide content is required' },
         { status: 400 }
       );
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'OpenAI API key not configured' },
         { status: 500 }
       );
@@ -93,18 +92,18 @@ Important:
       difficulty: q.difficulty || 'medium',
     }));
 
-    return NextResponse.json({ questions: validatedQuestions });
+    return Response.json({ questions: validatedQuestions });
   } catch (error: any) {
     console.error('Error generating questions:', error);
     
     if (error?.code === 'insufficient_quota') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'OpenAI API quota exceeded. Please check your billing.' },
         { status: 402 }
       );
     }
 
-    return NextResponse.json(
+    return Response.json(
       { error: error.message || 'Failed to generate questions' },
       { status: 500 }
     );

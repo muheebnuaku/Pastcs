@@ -114,8 +114,8 @@ export default function AdminQuestionsPage() {
       setFormTopicId(question.topic_id || '');
       setFormType(question.question_type);
       setFormQuestionText(question.question_text);
-      setFormOptions(question.options || ['', '', '', '']);
-      setFormCorrectAnswer(question.correct_answer);
+      setFormOptions(question.options?.map(o => o.text) || ['', '', '', '']);
+      setFormCorrectAnswer(question.question_type === 'multiple_choice' ? question.correct_answers : (question.correct_answers[0] || ''));
       setFormExplanation(question.explanation || '');
       setFormDifficulty(question.difficulty);
     } else {
@@ -171,7 +171,7 @@ export default function AdminQuestionsPage() {
     switch (difficulty) {
       case 'easy': return 'success';
       case 'medium': return 'warning';
-      case 'hard': return 'error';
+      case 'hard': return 'danger';
       default: return 'default';
     }
   };
@@ -275,21 +275,19 @@ export default function AdminQuestionsPage() {
                         <div
                           key={i}
                           className={`text-sm px-3 py-2 rounded ${
-                            (Array.isArray(question.correct_answer)
-                              ? question.correct_answer.includes(opt)
-                              : question.correct_answer === opt)
+                            question.correct_answers.includes(opt.text)
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-600'
                           }`}
                         >
-                          {String.fromCharCode(65 + i)}. {opt}
+                          {String.fromCharCode(65 + i)}. {opt.text}
                         </div>
                       ))}
                     </div>
                   )}
                   {question.question_type === 'fill_in_blank' && (
                     <p className="mt-2 text-sm text-green-600">
-                      Answer: {question.correct_answer}
+                      Answer: {question.correct_answers[0]}
                     </p>
                   )}
                 </div>

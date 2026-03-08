@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
@@ -9,7 +8,7 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
@@ -54,7 +53,7 @@ export async function POST(request: Request) {
 
     if (testError) {
       console.error('Error creating test:', testError);
-      return NextResponse.json(
+      return Response.json(
         { error: 'Failed to save test' },
         { status: 500 }
       );
@@ -94,7 +93,7 @@ export async function POST(request: Request) {
     // Check and award achievements
     await checkAndAwardAchievements(supabase, user.id, test, percentage);
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       testId: test.id,
       percentage,
@@ -102,7 +101,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Error submitting test:', error);
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     );

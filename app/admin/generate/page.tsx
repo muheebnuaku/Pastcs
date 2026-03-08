@@ -147,7 +147,7 @@ export default function AdminGeneratePage() {
     switch (difficulty) {
       case 'easy': return 'success';
       case 'medium': return 'warning';
-      case 'hard': return 'error';
+      case 'hard': return 'danger';
       default: return 'default';
     }
   };
