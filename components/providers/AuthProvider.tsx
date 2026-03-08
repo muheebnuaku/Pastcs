@@ -21,20 +21,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    const fetchUser = async (userId: string) => {
-      const { data } = await supabase
+    // Fetch existing profile row, or auto-create one if missing (e.g. account created
+    // via Supabase dashboard or registration race condition). This prevents a null DB
+    // user from being mistaken as "not logged in" and redirecting back to /login.
+    const fetchOrCreateUser = async (authUser: {
+      id: string;
+      email?: string;
+      user_metadata?: Record<string, unknown>;
+    }) => {
+      const { data: existing } = await supabase
         .from('users')
         .select('*')
-        .eq('id', userId)
+        .eq('id', authUser.id)
         .single();
-      return data;
+
+      if (existing) return existing;
+
+      // No profile row — upsert a default one so auth state resolves correctly
+      const fullName =
+        (authUser.user_metadata?.full_name as string) ??
+        authUser.email?.split('@')[0] ??
+        null;
+
+      const { data: created } = await supabase
+        .from('users')
+        .upsert({
+          id: authUser.id,
+          email: authUser.email ?? '',
+          full_name: fullName,
+          role: 'student',
+        })
+        .select()
+        .single();
+
+      return created;
     };
 
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          setUser(await fetchUser(session.user.id));
+          setUser(await fetchOrCreateUser(session.user));
         } else {
           setUser(null);
         }
@@ -51,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           setLoading(true);
-          setUser(await fetchUser(session.user.id));
+          setUser(await fetchOrCreateUser(session.user));
           setLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
