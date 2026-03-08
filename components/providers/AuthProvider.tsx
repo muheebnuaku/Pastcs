@@ -50,7 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
+          setLoading(true);
           setUser(await fetchUser(session.user.id));
+          setLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
         }
