@@ -26,37 +26,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * brief race after registration), auto-upsert a default student row.
    * Defined as useCallback so it's stable and can be used outside useEffect.
    */
+  // Fetch the public.users profile for an auth user.
+  // The DB trigger (on_auth_user_created) creates the row automatically on
+  // signup, so we only SELECT here. A single retry handles the rare case where
+  // the trigger hasn't fully committed before this fires.
   const fetchOrCreateUser = useCallback(
-    async (authUser: {
-      id: string;
-      email?: string;
-      user_metadata?: Record<string, unknown>;
-    }) => {
-      const { data: existing } = await supabase
+    async (authUser: { id: string }) => {
+      const { data } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
 
-      if (existing) return existing;
+      if (data) return data;
 
-      const fullName =
-        (authUser.user_metadata?.full_name as string) ??
-        authUser.email?.split('@')[0] ??
-        null;
-
-      const { data: created } = await supabase
+      // Retry once after a short delay (trigger may still be committing)
+      await new Promise((r) => setTimeout(r, 300));
+      const { data: retried } = await supabase
         .from('users')
-        .upsert({
-          id: authUser.id,
-          email: authUser.email ?? '',
-          full_name: fullName,
-          role: 'student',
-        })
-        .select()
+        .select('*')
+        .eq('id', authUser.id)
         .single();
 
-      return created;
+      return retried;
     },
     [supabase]
   );

@@ -14,7 +14,11 @@ export async function POST(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Create the auth user with email pre-confirmed (no email verification needed)
+    // Create the auth user with email pre-confirmed.
+    // NOTE: The database has an AFTER INSERT trigger (on_auth_user_created →
+    // handle_new_user) that automatically inserts the public.users profile row
+    // using the user_metadata. Do NOT insert manually — that causes a duplicate
+    // key error which would trigger the rollback and delete the auth user.
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -26,18 +30,21 @@ export async function POST(request: Request) {
       return Response.json({ error: authError.message }, { status: 400 });
     }
 
-    // Insert the user profile row
-    const { error: profileError } = await supabase.from('users').insert({
-      id: authData.user.id,
-      email,
-      full_name: fullName,
-      role: 'student',
-    });
+    // Verify the trigger created the profile row (it runs synchronously inside
+    // the same transaction, so it should be available immediately).
+    const { data: profile, error: profileCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', authData.user.id)
+      .single();
 
-    if (profileError) {
-      // Roll back the auth user if profile creation fails
+    if (profileCheckError || !profile) {
+      // Trigger didn't fire or failed — clean up and report the error
       await supabase.auth.admin.deleteUser(authData.user.id);
-      return Response.json({ error: profileError.message }, { status: 400 });
+      return Response.json(
+        { error: 'Profile creation failed. Please try again.' },
+        { status: 500 }
+      );
     }
 
     return Response.json({ success: true });
