@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
+import { useAuth } from '@/components/providers';
 import {
   Home,
   BookOpen,
@@ -26,8 +27,15 @@ const studentNavItems = [
 
 export function StudentSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useAuthStore();
+  const { signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    await signOut().catch(() => {});
+    router.replace('/login');
+  };
 
   return (
     <>
@@ -116,13 +124,13 @@ export function StudentSidebar() {
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
             </div>
-            <Link
-              href="/logout"
+            <button
+              onClick={handleSignOut}
               className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors w-full"
             >
               <LogOut className="w-4 h-4" />
               <span className="text-sm font-medium">Sign Out</span>
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
