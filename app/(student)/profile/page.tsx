@@ -89,7 +89,10 @@ export default function ProfilePage() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {!user ? (
+        <p className="text-gray-500">No profile available.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Card */}
         <Card className="lg:col-span-2">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -236,7 +239,7 @@ export default function ProfilePage() {
             </>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
