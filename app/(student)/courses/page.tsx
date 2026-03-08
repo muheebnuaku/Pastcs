@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Badge } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
 import type { Course } from '@/types';
-import { FileQuestion, ArrowRight, Search } from 'lucide-react';
+import { FileQuestion, ArrowRight, Search, RefreshCw } from 'lucide-react';
 
 const LEVELS = [100, 200, 300, 400] as const;
 const SEMESTERS = [1, 2] as const;
@@ -16,18 +16,30 @@ export default function CoursesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<number | null>(null);
   const [semesterFilter, setSemesterFilter] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchCourses = async () => {
+  const fetchCourses = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('courses')
         .select('*')
         .order('level')
         .order('semester')
         .order('course_code');
-      if (data) setCourses(data);
-    };
+      if (fetchError) throw fetchError;
+      setCourses(data ?? []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load courses. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchCourses();
   }, []);
 
@@ -100,44 +112,83 @@ export default function CoursesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) => (
-          <Link key={course.id} href={`/courses/${course.course_code.toLowerCase()}`}>
-            <Card className="h-full card-hover cursor-pointer">
-              <CardContent className="p-6">
-                <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
-                  style={{ backgroundColor: `${course.color}20` }}
-                >
-                  {COURSE_ICONS[course.course_code]}
-                </div>
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <h2 className="text-lg font-bold text-gray-900">{course.course_code}</h2>
-                  <Badge variant="info" size="sm">
-                    <FileQuestion className="w-3 h-3 mr-1" />
-                    {course.total_questions}
-                  </Badge>
-                  <Badge variant="success" size="sm">Level {course.level}</Badge>
-                  <Badge variant="warning" size="sm">Sem {course.semester}</Badge>
-                </div>
-                <p className="text-gray-600 text-sm mb-4">{course.course_name}</p>
-                {course.description && (
-                  <p className="text-gray-500 text-sm line-clamp-2 mb-4">{course.description}</p>
-                )}
-                <div className="flex items-center text-blue-600 font-medium text-sm">
-                  Start Practice
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      {filteredCourses.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No courses found.</p>
+      {/* Loading skeleton */}
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-200 p-6 animate-pulse">
+              <div className="w-16 h-16 bg-gray-200 rounded-2xl mb-4" />
+              <div className="h-5 bg-gray-200 rounded w-1/2 mb-2" />
+              <div className="h-4 bg-gray-100 rounded w-3/4 mb-4" />
+              <div className="h-4 bg-gray-100 rounded w-1/4" />
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Error state */}
+      {!isLoading && error && (
+        <div className="text-center py-12">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={fetchCourses}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Course grid */}
+      {!isLoading && !error && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCourses.map((course) => (
+              <Link key={course.id} href={`/courses/${course.course_code.toLowerCase()}`}>
+                <Card className="h-full card-hover cursor-pointer">
+                  <CardContent className="p-6">
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
+                      style={{ backgroundColor: `${course.color}20` }}
+                    >
+                      {COURSE_ICONS[course.course_code] ?? '📚'}
+                    </div>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <h2 className="text-lg font-bold text-gray-900">{course.course_code}</h2>
+                      <Badge variant="info" size="sm">
+                        <FileQuestion className="w-3 h-3 mr-1" />
+                        {course.total_questions}
+                      </Badge>
+                      <Badge variant="success" size="sm">Level {course.level}</Badge>
+                      <Badge variant="warning" size="sm">Sem {course.semester}</Badge>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-4">{course.course_name}</p>
+                    {course.description && (
+                      <p className="text-gray-500 text-sm line-clamp-2 mb-4">{course.description}</p>
+                    )}
+                    <div className="flex items-center text-blue-600 font-medium text-sm">
+                      Start Practice
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+
+          {filteredCourses.length === 0 && courses.length > 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No courses match your filters.</p>
+            </div>
+          )}
+
+          {courses.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No courses available yet.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
