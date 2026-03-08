@@ -21,16 +21,6 @@ export default function AdminLayout({
     }
   }, [user, isLoading, router]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!user || user.role !== 'admin') return null;
-
   return (
     <div className="min-h-screen bg-gray-100">
       <AdminSidebar />
