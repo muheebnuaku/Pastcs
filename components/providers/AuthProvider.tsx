@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/store';
 import type { User } from '@/types';
-import { PageLoading } from '@/components/ui';
 
 interface AuthContextType {
   user: User | null;
@@ -114,10 +113,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userData);
     }
   };
-
-  if (isLoading) {
-    return <PageLoading />;
-  }
 
   return (
     <AuthContext.Provider value={{ user, isLoading, signIn, signUp, signOut, refreshUser }}>
