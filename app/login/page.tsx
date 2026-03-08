@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/providers';
@@ -10,6 +10,14 @@ import {
 } from 'lucide-react';
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<'login' | 'register'>(
     searchParams.get('tab') === 'register' ? 'register' : 'login'
