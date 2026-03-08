@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers';
+import { useAuthStore } from '@/lib/store';
 import { Button, Input } from '@/components/ui';
 import { BookOpen } from 'lucide-react';
 
@@ -15,10 +16,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Already logged in — go to dashboard
+  // Already logged in — redirect based on role
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace('/dashboard');
+      router.replace(user.role === 'admin' ? '/admin' : '/dashboard');
     }
   }, [user, isLoading, router]);
 
@@ -31,7 +32,9 @@ export default function LoginPage() {
       setError(result.error);
       setSubmitting(false);
     } else {
-      router.replace('/dashboard');
+      // signIn sets the user in the store before returning — read role directly
+      const loggedInUser = useAuthStore.getState().user;
+      router.replace(loggedInUser?.role === 'admin' ? '/admin' : '/dashboard');
     }
   };
 
