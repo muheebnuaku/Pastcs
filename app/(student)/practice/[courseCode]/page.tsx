@@ -1,22 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
 import { Card, Button, Badge, Progress, Loading } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE } from '@/lib/utils';
 import type { Question, Course } from '@/types';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  CheckCircle, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle,
   XCircle,
   Flag,
   BookOpen,
 } from 'lucide-react';
 
 export default function PracticePage() {
+  return (
+    <Suspense>
+      <PracticeContent />
+    </Suspense>
+  );
+}
+
+function PracticeContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
