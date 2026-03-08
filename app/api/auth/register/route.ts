@@ -1,15 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   const { email, password, fullName } = await request.json();
 
   if (!email || !password || !fullName) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    return Response.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
   if (password.length < 6) {
-    return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    return Response.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
   }
 
   const adminClient = createClient(
@@ -26,8 +25,8 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return Response.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ success: true });
+  return Response.json({ success: true });
 }
