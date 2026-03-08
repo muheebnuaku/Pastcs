@@ -106,8 +106,8 @@ export default function ProfilePage() {
                   size="sm" 
                   onClick={() => {
                     setIsEditing(false);
-                    setFullName(user.full_name || '');
-                    setStudentId(user.student_id || '');
+                    setFullName(user?.full_name || '');
+                    setStudentId(user?.student_id || '');
                   }}
                 >
                   <X className="w-4 h-4" />
