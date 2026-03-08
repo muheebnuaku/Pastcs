@@ -22,40 +22,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    const getUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          setUser(userData);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Error getting user:', error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
+    const fetchUser = async (userId: string) => {
+      const { data } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      return data;
     };
-
-    getUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
+        if (event === 'INITIAL_SESSION') {
+          if (session?.user) {
+            const userData = await fetchUser(session.user.id);
+            setUser(userData);
+          } else {
+            setUser(null);
+          }
+          setLoading(false);
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          const userData = await fetchUser(session.user.id);
           setUser(userData);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
