@@ -215,13 +215,11 @@ export default function AdminAnalyticsPage() {
           value={selectedCourse}
           onChange={(e) => setSelectedCourse(e.target.value)}
           className="w-48"
-        >
-          {courses.map(c => (
-            <option key={c.id} value={c.id}>
-              {COURSE_ICONS[c.course_code]} {c.course_code}
-            </option>
-          ))}
-        </Select>
+          options={courses.map(c => ({
+            value: c.id,
+            label: `${COURSE_ICONS[c.course_code] || ''} ${c.course_code}`,
+          }))}
+        />
       </div>
 
       {/* Stats Cards */}
