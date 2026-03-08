@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Loading } from '@/components/ui';
+import { Card, CardContent } from '@/components/ui';
 import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
 import type { AdminStats, CourseStats, Course } from '@/types';
 import {
@@ -18,7 +18,6 @@ export default function AdminOverviewPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [courseStats, setCourseStats] = useState<CourseStats[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -88,20 +87,10 @@ export default function AdminOverviewPage() {
         total_tests: testsCount || 0,
         most_difficult_topics: [],
       });
-
-      setIsLoading(false);
     };
 
     fetchStats();
   }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading dashboard..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

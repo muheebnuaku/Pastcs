@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Badge, Button, Loading } from '@/components/ui';
+import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage } from '@/lib/utils';
 import type { Course, Test, WeakTopic, UserAchievement } from '@/types';
 import {
@@ -24,8 +24,6 @@ export default function DashboardPage() {
   const [weakTopics, setWeakTopics] = useState<WeakTopic[]>([]);
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState({ totalTests: 0, avgScore: 0, coursesCount: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-
   useEffect(() => {
     const fetchDashboardData = async () => {
       const supabase = createClient();
@@ -78,22 +76,12 @@ export default function DashboardPage() {
           coursesCount: uniqueCourses.size,
         });
       }
-
-      setIsLoading(false);
     };
 
     if (user) {
       fetchDashboardData();
     }
   }, [user]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading your dashboard..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8 animate-fade-in">

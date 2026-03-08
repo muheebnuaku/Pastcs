@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { Card, CardContent, Badge, Avatar, Select, Loading } from '@/components/ui';
+import { Card, CardContent, Badge, Avatar, Select } from '@/components/ui';
 import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
 import type { Course, LeaderboardEntry } from '@/types';
 import { Trophy, Medal, Award, Crown, TrendingUp } from 'lucide-react';
@@ -13,7 +13,6 @@ export default function LeaderboardPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,8 +32,6 @@ export default function LeaderboardPage() {
         .rpc('get_leaderboard', { p_course_id: courseId, p_limit: 25 });
 
       if (leaderboardData) setLeaderboard(leaderboardData);
-
-      setIsLoading(false);
     };
 
     fetchData();
@@ -65,14 +62,6 @@ export default function LeaderboardPage() {
         return 'bg-white border-gray-100';
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading leaderboard..." />
-      </div>
-    );
-  }
 
   const userRank = leaderboard.findIndex(e => e.user_id === user?.id) + 1;
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Badge, Loading } from '@/components/ui';
+import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
 import type { Course, Topic } from '@/types';
 import { 
@@ -23,7 +23,6 @@ export default function CourseDetailPage() {
   
   const [course, setCourse] = useState<Course | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchCourseData = async () => {
@@ -48,20 +47,10 @@ export default function CourseDetailPage() {
 
         if (topicsData) setTopics(topicsData);
       }
-
-      setIsLoading(false);
     };
 
     fetchCourseData();
   }, [courseCode]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading course..." />
-      </div>
-    );
-  }
 
   if (!course) {
     return (

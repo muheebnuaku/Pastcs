@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { Card, Button, Badge, Progress, Loading, Modal } from '@/components/ui';
+import { Card, Button, Badge, Progress, Modal } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
 import type { Question, Course } from '@/types';
 import { 
@@ -28,7 +28,6 @@ export default function ExamPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [timeRemaining, setTimeRemaining] = useState(EXAM_DURATION_MINUTES * 60);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
@@ -114,8 +113,6 @@ export default function ExamPage() {
         const shuffled = shuffleArray(questionsData as Question[]).slice(0, QUESTIONS_PER_EXAM);
         setQuestions(shuffled);
       }
-
-      setIsLoading(false);
     };
 
     fetchQuestions();
@@ -171,14 +168,6 @@ export default function ExamPage() {
   };
 
   const answeredCount = Object.keys(answers).filter(id => answers[id]?.length > 0).length;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Preparing exam..." />
-      </div>
-    );
-  }
 
   if (!examStarted) {
     return (

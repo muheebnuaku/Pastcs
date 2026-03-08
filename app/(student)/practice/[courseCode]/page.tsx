@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { Card, Button, Badge, Progress, Loading } from '@/components/ui';
+import { Card, Button, Badge, Progress } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE } from '@/lib/utils';
 import type { Question, Course } from '@/types';
 import {
@@ -38,8 +38,8 @@ function PracticeContent() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [showFeedback, setShowFeedback] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -77,8 +77,6 @@ function PracticeContent() {
         const shuffled = shuffleArray(typedQuestions).slice(0, QUESTIONS_PER_PRACTICE);
         setQuestions(shuffled);
       }
-
-      setIsLoading(false);
     };
 
     fetchQuestions();
@@ -137,59 +135,66 @@ function PracticeContent() {
 
   const handleFinish = async () => {
     setIsSubmitting(true);
+    setSubmitError('');
     const supabase = createClient();
 
     // Calculate score
     let score = 0;
     questions.forEach(q => {
       const answer = answers[q.id] || [];
-      if (JSON.stringify(answer.sort()) === JSON.stringify(q.correct_answers.sort())) {
+      if (JSON.stringify([...answer].sort()) === JSON.stringify([...q.correct_answers].sort())) {
         score++;
       }
     });
 
-    // Save test
-    const { data: testData } = await supabase
-      .from('tests')
-      .insert({
-        user_id: user?.id,
-        course_id: course?.id,
-        topic_id: topicId || null,
-        test_type: 'practice',
-        score,
-        total_questions: questions.length,
-        percentage: (score / questions.length) * 100,
-      })
-      .select()
-      .single();
+    try {
+      // Insert test record
+      const { data: testData, error: testError } = await supabase
+        .from('tests')
+        .insert({
+          user_id: user?.id ?? null,
+          course_id: course!.id,
+          topic_id: topicId || null,
+          test_type: 'practice',
+          score,
+          total_questions: questions.length,
+          percentage: Math.round((score / questions.length) * 100 * 100) / 100,
+          completed_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
 
-    if (testData) {
+      if (testError) throw testError;
+
       // Save individual answers
       const testAnswers = questions.map(q => ({
         test_id: testData.id,
         question_id: q.id,
         selected_answer: answers[q.id] || [],
-        is_correct: JSON.stringify((answers[q.id] || []).sort()) === JSON.stringify(q.correct_answers.sort()),
+        is_correct:
+          JSON.stringify([...(answers[q.id] || [])].sort()) ===
+          JSON.stringify([...q.correct_answers].sort()),
       }));
 
-      await supabase.from('test_answers').insert(testAnswers);
+      const { error: answersError } = await supabase
+        .from('test_answers')
+        .insert(testAnswers);
 
-      // Update practice streak
-      await supabase.rpc('update_practice_streak', { p_user_id: user?.id });
+      if (answersError) throw answersError;
+
+      // Update streak if user is logged in
+      if (user?.id) {
+        await supabase.rpc('update_practice_streak', { p_user_id: user.id });
+      }
 
       router.push(`/results/${testData.id}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to submit practice. Please try again.';
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading questions..." />
-      </div>
-    );
-  }
 
   if (questions.length === 0) {
     return (
@@ -332,6 +337,12 @@ function PracticeContent() {
           </div>
         )}
       </Card>
+
+      {submitError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          {submitError}
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="flex items-center justify-between">

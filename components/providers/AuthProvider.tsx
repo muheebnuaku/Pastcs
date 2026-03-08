@@ -65,12 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, setUser, setLoading]);
 
   const signIn = async (email: string, password: string) => {
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      setLoading(false);
       return { error: error.message };
     }
 
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
+    setLoading(true);
     // Use admin API route to create user with email pre-confirmed
     const res = await fetch('/api/auth/register', {
       method: 'POST',
@@ -87,12 +90,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json();
     if (!res.ok) {
+      setLoading(false);
       return { error: data.error ?? 'Registration failed' };
     }
 
     // Sign in immediately — no email confirmation needed
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) {
+      setLoading(false);
       return { error: signInError.message };
     }
 

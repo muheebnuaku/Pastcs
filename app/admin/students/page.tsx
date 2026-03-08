@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Badge, Avatar, Loading } from '@/components/ui';
+import { Card, Button, Input, Badge, Avatar } from '@/components/ui';
 import { formatPercentage } from '@/lib/utils';
 import type { User } from '@/types';
 import {
@@ -21,7 +21,6 @@ interface StudentData extends User {
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -60,8 +59,6 @@ export default function AdminStudentsPage() {
 
         setStudents(studentsWithStats);
       }
-
-      setIsLoading(false);
     };
 
     fetchStudents();
@@ -78,14 +75,6 @@ export default function AdminStudentsPage() {
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading students..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

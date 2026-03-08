@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Input, Avatar, Badge, Loading } from '@/components/ui';
+import { Card, CardContent, Button, Input, Avatar, Badge } from '@/components/ui';
 import { formatPercentage } from '@/lib/utils';
 import {
   User,
@@ -26,8 +25,7 @@ interface UserStats {
 }
 
 export default function ProfilePage() {
-  const { user, isLoading: authLoading, refreshUser } = useAuth();
-  const router = useRouter();
+  const { user, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -35,14 +33,12 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    } else if (user) {
+    if (user) {
       setFullName(user.full_name || '');
       setStudentId(user.student_id || '');
       fetchStats();
     }
-  }, [user, authLoading, router]);
+  }, [user]);
 
   const fetchStats = async () => {
     if (!user) return;
@@ -88,14 +84,6 @@ export default function ProfilePage() {
     }
     setIsSaving(false);
   };
-
-  if (authLoading || !user) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading profile..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { Card, CardContent, Badge, Loading } from '@/components/ui';
+import { Card, CardContent, Badge } from '@/components/ui';
 import { formatDate } from '@/lib/utils';
 import type { Achievement, UserAchievement } from '@/types';
 import { Trophy, Lock, CheckCircle } from 'lucide-react';
@@ -23,7 +23,6 @@ export default function AchievementsPage() {
   const { user } = useAuth();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [userAchievements, setUserAchievements] = useState<UserAchievement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -43,8 +42,6 @@ export default function AchievementsPage() {
 
       if (achievementsData) setAchievements(achievementsData);
       if (userAchievementsData) setUserAchievements(userAchievementsData);
-
-      setIsLoading(false);
     };
 
     if (user) fetchAchievements();
@@ -52,14 +49,6 @@ export default function AchievementsPage() {
 
   const earnedIds = new Set(userAchievements.map(ua => ua.achievement_id));
   const earnedCount = userAchievements.length;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading achievements..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

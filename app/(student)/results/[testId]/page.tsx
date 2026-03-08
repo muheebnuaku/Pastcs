@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Badge, Progress, Loading } from '@/components/ui';
+import { Card, CardContent, Button, Badge, Progress } from '@/components/ui';
 import { formatPercentage, formatTime, getGradeBadgeColor, COURSE_ICONS } from '@/lib/utils';
 import type { Test, TestAnswer, Question } from '@/types';
 import {
@@ -26,7 +26,6 @@ export default function ResultsPage() {
 
   const [test, setTest] = useState<Test | null>(null);
   const [answers, setAnswers] = useState<(TestAnswer & { question: Question })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -50,20 +49,10 @@ export default function ResultsPage() {
           setAnswers(answersData as (TestAnswer & { question: Question })[]);
         }
       }
-
-      setIsLoading(false);
     };
 
     fetchResults();
   }, [testId]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading results..." />
-      </div>
-    );
-  }
 
   if (!test) {
     return (

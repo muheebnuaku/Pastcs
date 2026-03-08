@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Select, Textarea, Badge, Loading } from '@/components/ui';
-import type { Course, Topic, Question } from '@/types';
+import { Card, CardContent, Button, Select, Textarea, Badge } from '@/components/ui';
+import type { Course, Question } from '@/types';
 import {
   Sparkles,
   Upload,
@@ -25,14 +25,13 @@ interface GeneratedQuestion {
 
 export default function AdminGeneratePage() {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [filteredTopics, setFilteredTopics] = useState<Topic[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveCount, setSaveCount] = useState(0);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [selectedCourse, setSelectedCourse] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState('');
   const [slideContent, setSlideContent] = useState('');
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [error, setError] = useState('');
@@ -41,26 +40,11 @@ export default function AdminGeneratePage() {
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
-      const [coursesRes, topicsRes] = await Promise.all([
-        supabase.from('courses').select('*').order('course_code'),
-        supabase.from('topics').select('*').order('order_index'),
-      ]);
-
-      if (coursesRes.data) setCourses(coursesRes.data);
-      if (topicsRes.data) setTopics(topicsRes.data);
-      setIsLoading(false);
+      const { data } = await supabase.from('courses').select('*').order('course_code');
+      if (data) setCourses(data);
     };
-
     fetchData();
   }, []);
-
-  useEffect(() => {
-    if (selectedCourse) {
-      setFilteredTopics(topics.filter(t => t.course_id === selectedCourse));
-    } else {
-      setFilteredTopics([]);
-    }
-  }, [selectedCourse, topics]);
 
   const handleGenerate = async () => {
     if (!selectedCourse || !slideContent.trim()) {
@@ -80,18 +64,18 @@ export default function AdminGeneratePage() {
         body: JSON.stringify({
           slideContent,
           courseId: selectedCourse,
-          topicId: selectedTopic || null,
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to generate questions');
+        throw new Error(data.error || 'Failed to generate questions');
       }
 
-      const data = await response.json();
       setGeneratedQuestions(data.questions.map((q: GeneratedQuestion) => ({ ...q, selected: true })));
-    } catch (err) {
-      setError('Failed to generate questions. Please check your OpenAI API key and try again.');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to generate questions');
     } finally {
       setIsGenerating(false);
     }
@@ -111,34 +95,66 @@ export default function AdminGeneratePage() {
     }
 
     setIsSaving(true);
+    setSaveProgress(0);
+    setSaveCount(selectedQuestions.length);
     setError('');
 
+    // Animate progress bar — advances quickly at first then slows near 90%
+    // so it never falsely hits 100% before the request finishes
+    progressRef.current = setInterval(() => {
+      setSaveProgress(prev => {
+        if (prev >= 90) { clearInterval(progressRef.current!); return prev; }
+        return prev + (90 - prev) * 0.08;
+      });
+    }, 150);
+
     try {
-      const supabase = createClient();
-      
-      const questionsToInsert = selectedQuestions.map(q => ({
-        course_id: selectedCourse,
-        topic_id: selectedTopic || null,
-        question_type: q.question_type,
-        question_text: q.question_text,
-        options: q.options,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation,
-        difficulty: q.difficulty,
-      }));
+      const questionsToInsert = selectedQuestions.map(q => {
+        const options = q.options
+          ? q.options.map((text, i) => ({ id: `opt_${i}`, text }))
+          : null;
 
-      const { error: insertError } = await supabase
-        .from('questions')
-        .insert(questionsToInsert);
+        let correct_answers: string[];
+        if (q.question_type === 'fill_in_blank') {
+          correct_answers = [Array.isArray(q.correct_answer) ? q.correct_answer[0] : q.correct_answer];
+        } else if (options) {
+          const correctTexts = Array.isArray(q.correct_answer) ? q.correct_answer : [q.correct_answer];
+          correct_answers = options
+            .filter(opt => correctTexts.includes(opt.text))
+            .map(opt => opt.id);
+        } else {
+          correct_answers = Array.isArray(q.correct_answer) ? q.correct_answer : [q.correct_answer];
+        }
 
-      if (insertError) throw insertError;
+        return {
+          course_id: selectedCourse,
+          question_type: q.question_type,
+          question_text: q.question_text,
+          options,
+          correct_answers,
+          explanation: q.explanation,
+          difficulty: q.difficulty,
+          is_approved: true,
+        };
+      });
 
-      setSuccessMessage(`Successfully saved ${selectedQuestions.length} questions!`);
+      const response = await fetch('/api/save-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: questionsToInsert, courseId: selectedCourse }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to save questions');
+
+      setSuccessMessage(`Successfully saved ${result.saved} questions!`);
+      setSaveProgress(100);
       setGeneratedQuestions([]);
       setSlideContent('');
-    } catch (err) {
-      setError('Failed to save questions');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save questions');
     } finally {
+      if (progressRef.current) clearInterval(progressRef.current);
       setIsSaving(false);
     }
   };
@@ -151,14 +167,6 @@ export default function AdminGeneratePage() {
       default: return 'default';
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -177,32 +185,16 @@ export default function AdminGeneratePage() {
             </h2>
           </div>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Select
-                label="Course"
-                value={selectedCourse}
-                onChange={(e) => {
-                  setSelectedCourse(e.target.value);
-                  setSelectedTopic('');
-                }}
-              >
-                <option value="">Select Course</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.course_code}</option>
-                ))}
-              </Select>
-              <Select
-                label="Topic (optional)"
-                value={selectedTopic}
-                onChange={(e) => setSelectedTopic(e.target.value)}
-                disabled={!selectedCourse}
-              >
-                <option value="">Select Topic</option>
-                {filteredTopics.map(t => (
-                  <option key={t.id} value={t.id}>{t.topic_name}</option>
-                ))}
-              </Select>
-            </div>
+            <Select
+              label="Course"
+              value={selectedCourse}
+              onChange={(e) => setSelectedCourse(e.target.value)}
+            >
+              <option value="">Select Course</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>{c.course_code} — {c.course_name}</option>
+              ))}
+            </Select>
 
             <Textarea
               label="Paste Lecture Slide Content"
@@ -354,23 +346,43 @@ Hexadecimal Number System
             )}
 
             {generatedQuestions.length > 0 && (
-              <Button
-                onClick={handleSaveSelected}
-                disabled={isSaving || generatedQuestions.filter(q => q.selected).length === 0}
-                className="w-full mt-4"
-              >
-                {isSaving ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Save Selected Questions ({generatedQuestions.filter(q => q.selected).length})
-                  </>
+              <div className="mt-4 space-y-3">
+                {isSaving && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-blue-700">
+                        Saving {saveCount} question{saveCount !== 1 ? 's' : ''} to database...
+                      </span>
+                      <span className="text-sm font-semibold text-blue-700">
+                        {Math.round(saveProgress)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-2 rounded-full bg-blue-600 transition-all duration-150"
+                        style={{ width: `${saveProgress}%` }}
+                      />
+                    </div>
+                  </div>
                 )}
-              </Button>
+                <Button
+                  onClick={handleSaveSelected}
+                  disabled={isSaving || generatedQuestions.filter(q => q.selected).length === 0}
+                  className="w-full"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving {saveCount} questions...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Save Selected Questions ({generatedQuestions.filter(q => q.selected).length})
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </Card>

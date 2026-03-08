@@ -31,6 +31,8 @@ export interface Course {
   description: string | null;
   icon: string | null;
   color: string;
+  level: 100 | 200 | 300 | 400;
+  semester: 1 | 2;
   total_questions: number;
   created_at: string;
   updated_at: string;

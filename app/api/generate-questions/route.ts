@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 
 export async function POST(request: Request) {
   try {
-    const { slideContent, courseId, topicId } = await request.json();
+    const { slideContent, courseId } = await request.json();
 
     if (!slideContent) {
       return Response.json(
@@ -22,21 +22,23 @@ export async function POST(request: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const prompt = `You are an expert exam question generator for university courses. Based on the following lecture slide content, generate exactly 10 exam-style questions:
-- 5 single choice questions (4 options each, one correct answer)
-- 3 multiple choice questions (4 options each, 2-3 correct answers)
-- 2 fill in the blank questions
+    const prompt = `You are an expert exam question generator for university courses. Analyse the lecture slide content below and generate one exam-style question for EVERY distinct key point, concept, definition, formula, or fact you find. Do not set a limit — the number of questions should equal the number of key points in the content.
 
-For each question:
-1. Make it educational and test understanding, not just memorization
-2. Provide clear, unambiguous options
-3. Include a brief explanation of why the answer is correct
-4. Assign an appropriate difficulty level (easy, medium, hard)
+Mix question types naturally based on what suits each point:
+- single_choice: one correct answer from 4 options
+- multiple_choice: 2–3 correct answers from 4 options
+- fill_in_blank: a short answer that completes a sentence
+
+For every question:
+1. Test understanding, not just memorization
+2. Write clear, unambiguous options
+3. Include a brief explanation of the correct answer
+4. Assign an appropriate difficulty (easy, medium, hard)
 
 LECTURE CONTENT:
 ${slideContent}
 
-Respond with a JSON array of questions in this exact format:
+Respond with a JSON object in this exact format:
 {
   "questions": [
     {
@@ -44,21 +46,20 @@ Respond with a JSON array of questions in this exact format:
       "question_type": "single_choice" | "multiple_choice" | "fill_in_blank",
       "options": ["Option A", "Option B", "Option C", "Option D"] | null,
       "correct_answer": "Option A" | ["Option A", "Option C"] | "answer text",
-      "explanation": "Brief explanation of the correct answer",
+      "explanation": "Brief explanation",
       "difficulty": "easy" | "medium" | "hard"
     }
   ]
 }
 
-Important:
-- For single_choice, correct_answer is a string matching one option
-- For multiple_choice, correct_answer is an array of strings matching correct options
-- For fill_in_blank, options is null and correct_answer is the text that fills the blank
-- Make sure the questions cover different aspects of the content
-- Vary the difficulty levels appropriately`;
+Rules:
+- single_choice: correct_answer is a string matching one option exactly
+- multiple_choice: correct_answer is an array of strings matching correct options exactly
+- fill_in_blank: options is null, correct_answer is the fill-in text
+- Cover every key point — do not skip any`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -71,7 +72,7 @@ Important:
       ],
       response_format: { type: 'json_object' },
       temperature: 0.7,
-      max_tokens: 4000,
+      max_tokens: 16000,
     });
 
     const responseContent = completion.choices[0].message.content;

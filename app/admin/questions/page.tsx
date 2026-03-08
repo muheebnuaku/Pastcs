@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Select, Modal, Badge, Textarea, Loading } from '@/components/ui';
+import { Card, Button, Input, Select, Modal, Badge, Textarea } from '@/components/ui';
 import { QUESTION_TYPE_LABELS } from '@/lib/utils';
 import type { Question, Course, Topic } from '@/types';
 import {
@@ -20,7 +20,6 @@ export default function AdminQuestionsPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [filteredTopics, setFilteredTopics] = useState<Topic[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   
@@ -71,7 +70,6 @@ export default function AdminQuestionsPage() {
 
     const { data } = await query;
     if (data) setQuestions(data);
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -175,14 +173,6 @@ export default function AdminQuestionsPage() {
       default: return 'default';
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading questions..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

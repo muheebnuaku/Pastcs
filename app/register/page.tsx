@@ -5,6 +5,6 @@ import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
   const router = useRouter();
-  useEffect(() => { router.replace('/login?tab=register'); }, [router]);
+  useEffect(() => { router.replace('/dashboard'); }, [router]);
   return null;
 }

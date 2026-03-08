@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Input, Modal, Badge, Loading } from '@/components/ui';
+import { Card, CardContent, Button, Input, Modal, Badge } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
 import type { Course, Topic } from '@/types';
 import {
@@ -16,7 +16,6 @@ import {
 
 export default function AdminCoursesPage() {
   const [courses, setCourses] = useState<(Course & { topics: Topic[] })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -29,6 +28,11 @@ export default function AdminCoursesPage() {
   const [courseName, setCourseName] = useState('');
   const [courseDescription, setCourseDescription] = useState('');
   const [courseColor, setCourseColor] = useState('#3B82F6');
+  const [courseLevel, setCourseLevel] = useState<100 | 200 | 300 | 400>(100);
+  const [courseSemester, setCourseSemester] = useState<1 | 2>(1);
+
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // Topic form
   const [topicName, setTopicName] = useState('');
@@ -47,7 +51,6 @@ export default function AdminCoursesPage() {
         topics: c.topics.sort((a: Topic, b: Topic) => a.order_index - b.order_index)
       })));
     }
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -73,12 +76,16 @@ export default function AdminCoursesPage() {
       setCourseName(course.course_name);
       setCourseDescription(course.description || '');
       setCourseColor(course.color);
+      setCourseLevel(course.level);
+      setCourseSemester(course.semester);
     } else {
       setEditingCourse(null);
       setCourseCode('');
       setCourseName('');
       setCourseDescription('');
       setCourseColor('#3B82F6');
+      setCourseLevel(100);
+      setCourseSemester(1);
     }
     setShowCourseModal(true);
   };
@@ -98,29 +105,41 @@ export default function AdminCoursesPage() {
   };
 
   const handleSaveCourse = async () => {
+    setSaving(true);
+    setSaveError('');
     const supabase = createClient();
 
+    let error;
     if (editingCourse) {
-      await supabase
+      ({ error } = await supabase
         .from('courses')
         .update({
           course_code: courseCode,
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
+          level: courseLevel,
+          semester: courseSemester,
         })
-        .eq('id', editingCourse.id);
+        .eq('id', editingCourse.id));
     } else {
-      await supabase
+      ({ error } = await supabase
         .from('courses')
         .insert({
           course_code: courseCode,
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
-        });
+          level: courseLevel,
+          semester: courseSemester,
+        }));
     }
 
+    setSaving(false);
+    if (error) {
+      setSaveError(error.message);
+      return;
+    }
     setShowCourseModal(false);
     fetchCourses();
   };
@@ -171,14 +190,6 @@ export default function AdminCoursesPage() {
     fetchCourses();
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading courses..." />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -211,6 +222,8 @@ export default function AdminCoursesPage() {
                     <h3 className="font-semibold text-gray-900">{course.course_code}</h3>
                     <Badge variant="info" size="sm">{course.total_questions} questions</Badge>
                     <Badge variant="default" size="sm">{course.topics.length} topics</Badge>
+                    <Badge variant="success" size="sm">Level {course.level}</Badge>
+                    <Badge variant="warning" size="sm">Sem {course.semester}</Badge>
                   </div>
                   <p className="text-sm text-gray-600">{course.course_name}</p>
                 </div>
@@ -281,10 +294,15 @@ export default function AdminCoursesPage() {
       {/* Course Modal */}
       <Modal
         isOpen={showCourseModal}
-        onClose={() => setShowCourseModal(false)}
+        onClose={() => { setShowCourseModal(false); setSaveError(''); }}
         title={editingCourse ? 'Edit Course' : 'Add New Course'}
       >
         <div className="space-y-4">
+          {saveError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {saveError}
+            </div>
+          )}
           <Input
             label="Course Code"
             placeholder="e.g., DCIT101"
@@ -303,6 +321,31 @@ export default function AdminCoursesPage() {
             value={courseDescription}
             onChange={(e) => setCourseDescription(e.target.value)}
           />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+              <select
+                value={courseLevel}
+                onChange={(e) => setCourseLevel(Number(e.target.value) as 100 | 200 | 300 | 400)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {[100, 200, 300, 400].map((l) => (
+                  <option key={l} value={l}>Level {l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+              <select
+                value={courseSemester}
+                onChange={(e) => setCourseSemester(Number(e.target.value) as 1 | 2)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={1}>Semester 1</option>
+                <option value={2}>Semester 2</option>
+              </select>
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
             <input
@@ -313,11 +356,11 @@ export default function AdminCoursesPage() {
             />
           </div>
           <div className="flex gap-3 pt-4">
-            <Button variant="outline" className="flex-1" onClick={() => setShowCourseModal(false)}>
+            <Button variant="outline" className="flex-1" onClick={() => { setShowCourseModal(false); setSaveError(''); }}>
               Cancel
             </Button>
-            <Button className="flex-1" onClick={handleSaveCourse}>
-              {editingCourse ? 'Update' : 'Create'}
+            <Button className="flex-1" onClick={handleSaveCourse} disabled={saving}>
+              {saving ? 'Saving...' : editingCourse ? 'Update' : 'Create'}
             </Button>
           </div>
         </div>

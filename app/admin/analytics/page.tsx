@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Select, Loading } from '@/components/ui';
+import { Card, CardContent, Select } from '@/components/ui';
 import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
 import type { Course, Topic } from '@/types';
 import {
@@ -55,7 +55,6 @@ const COLORS = ['#22c55e', '#eab308', '#ef4444'];
 export default function AdminAnalyticsPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
 
   const [testTrends, setTestTrends] = useState<TestTrend[]>([]);
   const [topicPerformance, setTopicPerformance] = useState<TopicPerformance[]>([]);
@@ -90,7 +89,6 @@ export default function AdminAnalyticsPage() {
     if (!selectedCourse) return;
 
     const fetchAnalytics = async () => {
-      setIsLoading(true);
       const supabase = createClient();
 
       // Fetch tests for selected course
@@ -183,8 +181,6 @@ export default function AdminAnalyticsPage() {
         });
         setDifficultyCounts(counts);
       }
-
-      setIsLoading(false);
     };
 
     fetchAnalytics();
@@ -195,14 +191,6 @@ export default function AdminAnalyticsPage() {
     { name: 'Medium', value: difficultyCounts.medium },
     { name: 'Hard', value: difficultyCounts.hard },
   ];
-
-  if (isLoading && courses.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loading size="lg" text="Loading analytics..." />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">
