@@ -82,19 +82,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          role: 'student',
-        },
-      },
+    // Use admin API route to create user with email pre-confirmed
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, fullName }),
     });
 
-    if (error) {
-      return { error: error.message };
+    const data = await res.json();
+    if (!res.ok) {
+      return { error: data.error ?? 'Registration failed' };
+    }
+
+    // Sign in immediately — no email confirmation needed
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      return { error: signInError.message };
     }
 
     return {};
