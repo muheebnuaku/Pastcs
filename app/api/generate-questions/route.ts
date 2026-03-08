@@ -1,9 +1,5 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: Request) {
   try {
     const { slideContent, courseId, topicId } = await request.json();
@@ -21,6 +17,10 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
     const prompt = `You are an expert exam question generator for university courses. Based on the following lecture slide content, generate exactly 10 exam-style questions:
 - 5 single choice questions (4 options each, one correct answer)
