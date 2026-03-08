@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/store';
 import type { User } from '@/types';
@@ -20,11 +20,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, setUser, isLoading, setLoading } = useAuthStore();
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    // Fetch existing profile row, or auto-create one if missing (e.g. account created
-    // via Supabase dashboard or registration race condition). This prevents a null DB
-    // user from being mistaken as "not logged in" and redirecting back to /login.
-    const fetchOrCreateUser = async (authUser: {
+  /**
+   * Fetch the public.users profile for an auth user.
+   * If the row doesn't exist yet (e.g. created via Supabase dashboard or a
+   * brief race after registration), auto-upsert a default student row.
+   * Defined as useCallback so it's stable and can be used outside useEffect.
+   */
+  const fetchOrCreateUser = useCallback(
+    async (authUser: {
       id: string;
       email?: string;
       user_metadata?: Record<string, unknown>;
@@ -37,7 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (existing) return existing;
 
-      // No profile row — upsert a default one so auth state resolves correctly
       const fullName =
         (authUser.user_metadata?.full_name as string) ??
         authUser.email?.split('@')[0] ??
@@ -55,8 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       return created;
-    };
+    },
+    [supabase]
+  );
 
+  // On mount: restore session and subscribe to auth events
+  useEffect(() => {
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -74,14 +80,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init();
 
+    // Handle token refresh and sign-in from other tabs
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          setLoading(true);
-          setUser(await fetchOrCreateUser(session.user));
-          setLoading(false);
+          // Only update if user isn't already set (avoids redundant fetch after
+          // signIn/signUp which already sets the user directly)
+          const current = useAuthStore.getState().user;
+          if (!current || current.id !== session.user.id) {
+            setLoading(true);
+            setUser(await fetchOrCreateUser(session.user));
+            setLoading(false);
+          }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          // Keep profile data in sync on token refresh
+          const current = useAuthStore.getState().user;
+          if (!current) {
+            setUser(await fetchOrCreateUser(session.user));
+          }
         }
       }
     );
@@ -89,45 +107,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, setUser, setLoading]);
+  }, [supabase, setUser, setLoading, fetchOrCreateUser]);
 
+  /**
+   * Sign in and immediately set the user before returning.
+   * This ensures the dashboard layout sees user != null as soon as
+   * the caller calls router.replace('/dashboard').
+   */
   const signIn = async (email: string, password: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setLoading(false);
       return { error: error.message };
     }
 
+    // Fetch session directly to guarantee user is set before caller navigates
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      setUser(await fetchOrCreateUser(session.user));
+    }
+    setLoading(false);
     return {};
   };
 
+  /**
+   * Register via admin API then sign in, setting user before returning.
+   */
   const signUp = async (email: string, password: string, fullName: string) => {
     setLoading(true);
-    // Use admin API route to create user with email pre-confirmed
+
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, fullName }),
     });
 
-    const data = await res.json();
+    const resData = await res.json();
     if (!res.ok) {
       setLoading(false);
-      return { error: data.error ?? 'Registration failed' };
+      return { error: resData.error ?? 'Registration failed' };
     }
 
-    // Sign in immediately — no email confirmation needed
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) {
       setLoading(false);
       return { error: signInError.message };
     }
 
+    // Fetch session directly to guarantee user is set before caller navigates
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      setUser(await fetchOrCreateUser(session.user));
+    }
+    setLoading(false);
     return {};
   };
 
@@ -139,12 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-      setUser(userData);
+      setUser(await fetchOrCreateUser(session.user));
     }
   };
 
