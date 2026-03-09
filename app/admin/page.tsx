@@ -109,51 +109,51 @@ export default function AdminOverviewPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Users className="w-7 h-7 text-blue-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 sm:w-7 sm:h-7 text-blue-600" />
             </div>
-            <div>
-              <p className="text-3xl font-bold text-gray-900">{stats?.total_students}</p>
-              <p className="text-sm text-gray-600">Total Students</p>
+            <div className="min-w-0">
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{stats?.total_students ?? '—'}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Total Students</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
-              <FileQuestion className="w-7 h-7 text-green-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <FileQuestion className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
             </div>
-            <div>
-              <p className="text-3xl font-bold text-gray-900">{stats?.total_questions}</p>
-              <p className="text-sm text-gray-600">Total Questions</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Target className="w-7 h-7 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-gray-900">{stats?.total_tests}</p>
-              <p className="text-sm text-gray-600">Tests Taken</p>
+            <div className="min-w-0">
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{stats?.total_questions ?? '—'}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Total Questions</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-7 h-7 text-orange-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target className="w-5 h-5 sm:w-7 sm:h-7 text-purple-600" />
             </div>
-            <div>
-              <p className="text-3xl font-bold text-gray-900">6</p>
-              <p className="text-sm text-gray-600">Active Courses</p>
+            <div className="min-w-0">
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{stats?.total_tests ?? '—'}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Tests Taken</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5 sm:w-7 sm:h-7 text-orange-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{courseStats.length}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Active Courses</p>
             </div>
           </CardContent>
         </Card>

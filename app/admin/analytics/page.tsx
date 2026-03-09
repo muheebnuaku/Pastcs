@@ -194,7 +194,7 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
           <p className="text-gray-600">Performance insights and statistics</p>
@@ -202,7 +202,7 @@ export default function AdminAnalyticsPage() {
         <Select
           value={selectedCourse}
           onChange={(e) => setSelectedCourse(e.target.value)}
-          className="w-48"
+          className="w-full sm:w-48"
           options={courses.map(c => ({
             value: c.id,
             label: `${COURSE_ICONS[c.course_code] || ''} ${c.course_code}`,
@@ -211,55 +211,55 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Target className="w-6 h-6 text-blue-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{overallStats.totalTests}</p>
-              <p className="text-sm text-gray-600">Total Tests</p>
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">{overallStats.totalTests}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Total Tests</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {formatPercentage(overallStats.avgScore)}
               </p>
-              <p className="text-sm text-gray-600">Average Score</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Avg Score</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-purple-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{overallStats.activeStudents}</p>
-              <p className="text-sm text-gray-600">Active Students</p>
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">{overallStats.activeStudents}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Active Students</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-              <Activity className="w-6 h-6 text-orange-600" />
+          <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {formatPercentage(overallStats.passRate)}
               </p>
-              <p className="text-sm text-gray-600">Pass Rate</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Pass Rate</p>
             </div>
           </CardContent>
         </Card>

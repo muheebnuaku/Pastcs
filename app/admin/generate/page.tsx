@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Select, Textarea, Badge } from '@/components/ui';
-import type { Course, Question } from '@/types';
+import type { Course, Topic } from '@/types';
 import {
   Sparkles,
   Upload,
@@ -11,6 +11,7 @@ import {
   Check,
   AlertCircle,
   RefreshCw,
+  BookOpen,
 } from 'lucide-react';
 
 interface GeneratedQuestion {
@@ -25,6 +26,7 @@ interface GeneratedQuestion {
 
 export default function AdminGeneratePage() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
@@ -32,11 +34,13 @@ export default function AdminGeneratePage() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState('');
   const [slideContent, setSlideContent] = useState('');
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Load courses
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
@@ -46,9 +50,32 @@ export default function AdminGeneratePage() {
     fetchData();
   }, []);
 
+  // Load topics when course changes
+  useEffect(() => {
+    if (!selectedCourse) {
+      setTopics([]);
+      setSelectedTopic('');
+      return;
+    }
+    const fetchTopics = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('topics')
+        .select('*')
+        .eq('course_id', selectedCourse)
+        .order('order_index');
+      setTopics(data || []);
+      setSelectedTopic('');
+    };
+    fetchTopics();
+  }, [selectedCourse]);
+
+  const selectedTopicObj = topics.find(t => t.id === selectedTopic);
+  const canGenerate = selectedCourse && (slideContent.trim() || selectedTopic);
+
   const handleGenerate = async () => {
-    if (!selectedCourse || !slideContent.trim()) {
-      setError('Please select a course and enter slide content');
+    if (!canGenerate) {
+      setError('Please select a course and either paste slide content or choose a topic');
       return;
     }
 
@@ -62,16 +89,15 @@ export default function AdminGeneratePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slideContent,
+          slideContent: slideContent.trim() || null,
           courseId: selectedCourse,
+          topicId: selectedTopic || null,
+          topicName: selectedTopicObj?.topic_name || null,
         }),
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate questions');
-      }
+      if (!response.ok) throw new Error(data.error || 'Failed to generate questions');
 
       setGeneratedQuestions(data.questions.map((q: GeneratedQuestion) => ({ ...q, selected: true })));
     } catch (err: unknown) {
@@ -99,8 +125,6 @@ export default function AdminGeneratePage() {
     setSaveCount(selectedQuestions.length);
     setError('');
 
-    // Animate progress bar — advances quickly at first then slows near 90%
-    // so it never falsely hits 100% before the request finishes
     progressRef.current = setInterval(() => {
       setSaveProgress(prev => {
         if (prev >= 90) { clearInterval(progressRef.current!); return prev; }
@@ -128,6 +152,7 @@ export default function AdminGeneratePage() {
 
         return {
           course_id: selectedCourse,
+          topic_id: selectedTopic || null,
           question_type: q.question_type,
           question_text: q.question_text,
           options,
@@ -172,7 +197,7 @@ export default function AdminGeneratePage() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">AI Question Generator</h1>
-        <p className="text-gray-600">Generate exam questions from lecture slides using AI</p>
+        <p className="text-gray-600">Generate exam questions from lecture slides or by topic</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -181,14 +206,15 @@ export default function AdminGeneratePage() {
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Slide Content
+              Generation Settings
             </h2>
           </div>
           <CardContent className="space-y-4">
+            {/* Course selector */}
             <Select
               label="Course"
               value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
+              onChange={(e) => { setSelectedCourse(e.target.value); setGeneratedQuestions([]); }}
             >
               <option value="">Select Course</option>
               {courses.map(c => (
@@ -196,9 +222,37 @@ export default function AdminGeneratePage() {
               ))}
             </Select>
 
+            {/* Topic selector — only shown when course is picked */}
+            {selectedCourse && (
+              <div>
+                <Select
+                  label="Topic (optional — AI generates without slides when set)"
+                  value={selectedTopic}
+                  onChange={(e) => setSelectedTopic(e.target.value)}
+                >
+                  <option value="">All topics / use slide content</option>
+                  {topics.map(t => (
+                    <option key={t.id} value={t.id}>{t.topic_name}</option>
+                  ))}
+                </Select>
+                {selectedTopic && (
+                  <div className="mt-2 flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-100 rounded-lg">
+                    <BookOpen className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                    <p className="text-xs text-purple-700">
+                      <span className="font-semibold">Topic mode:</span> AI will generate questions
+                      specifically for <span className="font-semibold">{selectedTopicObj?.topic_name}</span>.
+                      Slide content is optional.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <Textarea
-              label="Paste Lecture Slide Content"
-              placeholder="Paste the text content from your lecture slides here...
+              label={selectedTopic ? 'Slide Content (optional when topic is selected)' : 'Paste Lecture Slide Content'}
+              placeholder={selectedTopic
+                ? 'Optionally paste slide content to improve question quality...'
+                : `Paste the text content from your lecture slides here...
 
 Example:
 Chapter 3: Number Systems
@@ -206,30 +260,27 @@ Chapter 3: Number Systems
 Binary Number System
 - Base 2 system using digits 0 and 1
 - Each position represents a power of 2
-- Conversion to decimal: multiply each digit by its positional value
-
-Hexadecimal Number System
-- Base 16 system using digits 0-9 and A-F
-- Used in computing for compact representation
-- 4 binary digits = 1 hexadecimal digit"
+- Conversion to decimal: multiply each digit by its positional value`}
               value={slideContent}
               onChange={(e) => setSlideContent(e.target.value)}
-              rows={12}
+              rows={selectedTopic ? 6 : 12}
             />
 
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">Tips for better results:</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Include key concepts and definitions</li>
-                <li>• Add examples and formulas</li>
-                <li>• Paste content from multiple slides</li>
-                <li>• More content = better questions</li>
-              </ul>
-            </div>
+            {!selectedTopic && (
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Tips for better results:</h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• Include key concepts and definitions</li>
+                  <li>• Add examples and formulas</li>
+                  <li>• Paste content from multiple slides</li>
+                  <li>• More content = better questions</li>
+                </ul>
+              </div>
+            )}
 
             <Button
               onClick={handleGenerate}
-              disabled={isGenerating || !selectedCourse || !slideContent.trim()}
+              disabled={isGenerating || !canGenerate}
               className="w-full"
             >
               {isGenerating ? (
@@ -240,7 +291,9 @@ Hexadecimal Number System
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Generate Questions with AI
+                  {selectedTopic && !slideContent.trim()
+                    ? `Generate from "${selectedTopicObj?.topic_name}"`
+                    : 'Generate Questions with AI'}
                 </>
               )}
             </Button>
@@ -332,7 +385,7 @@ Hexadecimal Number System
                           </p>
                         )}
                       </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                         question.selected
                           ? 'bg-blue-500 border-blue-500'
                           : 'border-gray-300'

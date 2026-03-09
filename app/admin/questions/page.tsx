@@ -22,13 +22,17 @@ export default function AdminQuestionsPage() {
   const [filteredTopics, setFilteredTopics] = useState<Topic[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-  
-  // Filters
+
+  // Level / Semester filters (new)
+  const [filterLevel, setFilterLevel] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+
+  // Existing filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCourse, setFilterCourse] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
   const [filterType, setFilterType] = useState('');
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -45,26 +49,35 @@ export default function AdminQuestionsPage() {
 
   const fetchData = async () => {
     const supabase = createClient();
-
     const [coursesRes, topicsRes] = await Promise.all([
       supabase.from('courses').select('*').order('course_code'),
       supabase.from('topics').select('*').order('order_index'),
     ]);
-
     if (coursesRes.data) setCourses(coursesRes.data);
     if (topicsRes.data) setTopics(topicsRes.data);
-
-    await fetchQuestions();
   };
 
   const fetchQuestions = async () => {
+    if (!filterLevel) { setQuestions([]); return; }
     const supabase = createClient();
     let query = supabase
       .from('questions')
       .select('*, course:courses(course_code), topic:topics(topic_name)')
       .order('created_at', { ascending: false });
 
-    if (filterCourse) query = query.eq('course_id', filterCourse);
+    if (filterCourse) {
+      query = query.eq('course_id', filterCourse);
+    } else {
+      const ids = courses
+        .filter(c => {
+          if (c.level !== Number(filterLevel)) return false;
+          if (filterSemester && c.semester !== Number(filterSemester)) return false;
+          return true;
+        })
+        .map(c => c.id);
+      if (ids.length > 0) query = query.in('course_id', ids);
+    }
+
     if (filterTopic) query = query.eq('topic_id', filterTopic);
     if (filterType) query = query.eq('question_type', filterType);
 
@@ -76,11 +89,20 @@ export default function AdminQuestionsPage() {
     fetchData();
   }, []);
 
+  // Re-fetch when filters change (only if level is selected)
   useEffect(() => {
     fetchQuestions();
     setCurrentPage(1);
-  }, [filterCourse, filterTopic, filterType]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterLevel, filterSemester, filterCourse, filterTopic, filterType]);
 
+  // Reset course/topic when level or semester changes
+  useEffect(() => {
+    setFilterCourse('');
+    setFilterTopic('');
+  }, [filterLevel, filterSemester]);
+
+  // Update topic dropdown for filter bar
   useEffect(() => {
     if (filterCourse) {
       setFilteredTopics(topics.filter(t => t.course_id === filterCourse));
@@ -89,11 +111,19 @@ export default function AdminQuestionsPage() {
     }
   }, [filterCourse, topics]);
 
+  // Update topic dropdown for modal form
   useEffect(() => {
     if (formCourseId) {
       setFilteredTopics(topics.filter(t => t.course_id === formCourseId));
     }
   }, [formCourseId, topics]);
+
+  // Courses visible in the filter bar (limited to selected level/semester)
+  const levelCourses = courses.filter(c => {
+    if (filterLevel && c.level !== Number(filterLevel)) return false;
+    if (filterSemester && c.semester !== Number(filterSemester)) return false;
+    return true;
+  });
 
   const filteredQuestions = questions.filter(q =>
     q.question_text.toLowerCase().includes(searchQuery.toLowerCase())
@@ -189,8 +219,32 @@ export default function AdminQuestionsPage() {
 
       {/* Filters */}
       <Card>
-        <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="p-4 space-y-3">
+          {/* Level / Semester */}
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              value={filterLevel}
+              onChange={(e) => setFilterLevel(e.target.value)}
+            >
+              <option value="">All Levels</option>
+              <option value="100">Level 100</option>
+              <option value="200">Level 200</option>
+              <option value="300">Level 300</option>
+              <option value="400">Level 400</option>
+            </Select>
+            <Select
+              value={filterSemester}
+              onChange={(e) => setFilterSemester(e.target.value)}
+              disabled={!filterLevel}
+            >
+              <option value="">All Semesters</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+            </Select>
+          </div>
+
+          {/* Search + Course + Topic + Type */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -206,9 +260,10 @@ export default function AdminQuestionsPage() {
                 setFilterCourse(e.target.value);
                 setFilterTopic('');
               }}
+              disabled={!filterLevel}
             >
               <option value="">All Courses</option>
-              {courses.map(c => (
+              {levelCourses.map(c => (
                 <option key={c.id} value={c.id}>{c.course_code}</option>
               ))}
             </Select>
@@ -236,8 +291,24 @@ export default function AdminQuestionsPage() {
       </Card>
 
       {/* Questions List */}
-      <div className="space-y-4">
-        {paginatedQuestions.map((question, idx) => (
+      {!filterLevel ? (
+        <Card>
+          <div className="py-16 text-center text-gray-500">
+            <Filter className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium text-gray-700 mb-1">Select a Level to view questions</p>
+            <p className="text-sm">Use the Level filter above to load questions for a specific year</p>
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {paginatedQuestions.length === 0 && (
+            <Card>
+              <div className="py-12 text-center text-gray-500">
+                <p>No questions found for the selected filters</p>
+              </div>
+            </Card>
+          )}
+          {paginatedQuestions.map((question) => (
           <Card key={question.id}>
             <div className="p-4">
               <div className="flex items-start justify-between gap-4">
@@ -294,6 +365,7 @@ export default function AdminQuestionsPage() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

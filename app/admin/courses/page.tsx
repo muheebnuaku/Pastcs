@@ -200,26 +200,26 @@ export default function AdminCoursesPage() {
   const renderCourse = (course: Course & { topics: Topic[] }) => (
     <Card key={course.id}>
       <div
-        className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+        className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 gap-2"
         onClick={() => toggleCourseExpand(course.id)}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {expandedCourses.has(course.id) ? (
-            <ChevronDown className="w-5 h-5 text-gray-400" />
+            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
           ) : (
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
           )}
-          <span className="text-3xl">{COURSE_ICONS[course.course_code]}</span>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900">{course.course_code}</h3>
-              <Badge variant="info" size="sm">{course.total_questions} questions</Badge>
+          <span className="text-xl sm:text-3xl flex-shrink-0">{COURSE_ICONS[course.course_code]}</span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{course.course_code}</h3>
+              <Badge variant="info" size="sm">{course.total_questions} q</Badge>
               <Badge variant="default" size="sm">{course.topics.length} topics</Badge>
             </div>
-            <p className="text-sm text-gray-600">{course.course_name}</p>
+            <p className="text-xs sm:text-sm text-gray-600 truncate">{course.course_name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <Button size="sm" variant="ghost" onClick={() => openCourseModal(course)}>
             <Edit className="w-4 h-4" />
           </Button>
@@ -230,7 +230,7 @@ export default function AdminCoursesPage() {
       </div>
 
       {expandedCourses.has(course.id) && (
-        <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+        <div className="px-3 sm:px-6 pb-4 border-t border-gray-100 pt-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-medium text-gray-700">Topics</h4>
             <Button size="sm" variant="outline" onClick={() => openTopicModal(course.id)}>
@@ -243,18 +243,18 @@ export default function AdminCoursesPage() {
               {course.topics.map((topic, idx) => (
                 <div
                   key={topic.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg gap-2"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-500">{idx + 1}.</span>
-                    <div>
-                      <p className="font-medium text-gray-900">{topic.topic_name}</p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-gray-500 flex-shrink-0">{idx + 1}.</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 text-sm truncate">{topic.topic_name}</p>
                       {topic.description && (
-                        <p className="text-sm text-gray-500">{topic.description}</p>
+                        <p className="text-xs text-gray-500 truncate">{topic.description}</p>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -283,7 +283,7 @@ export default function AdminCoursesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
           <p className="text-gray-600">Manage courses and topics</p>
@@ -305,15 +305,15 @@ export default function AdminCoursesPage() {
                 </span>
                 Level {level}
               </h2>
-              <div className="space-y-6 pl-2 border-l-2 border-blue-100">
+              <div className="space-y-6 pl-1 sm:pl-2 border-l-2 border-blue-100">
                 {[1, 2].map((sem) => {
                   if (!grouped[level][sem]) return null;
                   return (
                     <div key={sem}>
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 ml-4">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 ml-2 sm:ml-4">
                         Semester {sem}
                       </h3>
-                      <div className="space-y-3 ml-4">
+                      <div className="space-y-3 ml-2 sm:ml-4">
                         {grouped[level][sem].map(renderCourse)}
                       </div>
                     </div>

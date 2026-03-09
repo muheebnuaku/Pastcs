@@ -2,11 +2,11 @@ import OpenAI from 'openai';
 
 export async function POST(request: Request) {
   try {
-    const { slideContent, courseId } = await request.json();
+    const { slideContent, courseId, topicId, topicName } = await request.json();
 
-    if (!slideContent) {
+    if (!slideContent && !topicName) {
       return Response.json(
-        { error: 'Slide content is required' },
+        { error: 'Slide content or topic name is required' },
         { status: 400 }
       );
     }
@@ -22,8 +22,47 @@ export async function POST(request: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const prompt = `You are an expert exam question generator for university courses. Analyse the lecture slide content below and generate one exam-style question for EVERY distinct key point, concept, definition, formula, or fact you find. Do not set a limit — the number of questions should equal the number of key points in the content.
+    let prompt: string;
 
+    if (topicName && !slideContent) {
+      // Topic-only mode: generate without slides
+      prompt = `You are an expert exam question generator for university courses. Generate a comprehensive set of exam-style questions for the topic: "${topicName}".
+
+Generate at least 10 questions covering different aspects of this topic. Mix question types naturally:
+- single_choice: one correct answer from 4 options
+- multiple_choice: 2–3 correct answers from 4 options
+- fill_in_blank: a short answer that completes a sentence
+
+For every question:
+1. Test understanding of the topic, not just memorization
+2. Write clear, unambiguous options
+3. Include a brief explanation of the correct answer
+4. Assign an appropriate difficulty (easy, medium, hard)
+5. Cover foundational concepts, applied knowledge, and edge cases
+
+Respond with a JSON object in this exact format:
+{
+  "questions": [
+    {
+      "question_text": "The question text here",
+      "question_type": "single_choice" | "multiple_choice" | "fill_in_blank",
+      "options": ["Option A", "Option B", "Option C", "Option D"] | null,
+      "correct_answer": "Option A" | ["Option A", "Option C"] | "answer text",
+      "explanation": "Brief explanation",
+      "difficulty": "easy" | "medium" | "hard"
+    }
+  ]
+}
+
+Rules:
+- single_choice: correct_answer is a string matching one option exactly
+- multiple_choice: correct_answer is an array of strings matching correct options exactly
+- fill_in_blank: options is null, correct_answer is the fill-in text`;
+    } else {
+      // Slide-content mode (topic is optional extra context)
+      const topicContext = topicName ? `\nFocus specifically on the topic: "${topicName}"\n` : '';
+      prompt = `You are an expert exam question generator for university courses. Analyse the lecture slide content below and generate one exam-style question for EVERY distinct key point, concept, definition, formula, or fact you find. Do not set a limit — the number of questions should equal the number of key points in the content.
+${topicContext}
 Mix question types naturally based on what suits each point:
 - single_choice: one correct answer from 4 options
 - multiple_choice: 2–3 correct answers from 4 options
@@ -57,6 +96,7 @@ Rules:
 - multiple_choice: correct_answer is an array of strings matching correct options exactly
 - fill_in_blank: options is null, correct_answer is the fill-in text
 - Cover every key point — do not skip any`;
+    }
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -65,10 +105,7 @@ Rules:
           role: 'system',
           content: 'You are an expert educational content creator specializing in creating exam questions from lecture materials. Always respond with valid JSON.',
         },
-        {
-          role: 'user',
-          content: prompt,
-        },
+        { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.7,
@@ -76,14 +113,11 @@ Rules:
     });
 
     const responseContent = completion.choices[0].message.content;
-    
-    if (!responseContent) {
-      throw new Error('No response from OpenAI');
-    }
+    if (!responseContent) throw new Error('No response from OpenAI');
 
     const parsedResponse = JSON.parse(responseContent);
 
-    // Validate and clean the questions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const validatedQuestions = parsedResponse.questions.map((q: any) => ({
       question_text: q.question_text,
       question_type: q.question_type,
@@ -94,10 +128,10 @@ Rules:
     }));
 
     return Response.json({ questions: validatedQuestions });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating questions:', error);
-    
-    if (error?.code === 'insufficient_quota') {
+
+    if ((error as { code?: string })?.code === 'insufficient_quota') {
       return Response.json(
         { error: 'OpenAI API quota exceeded. Please check your billing.' },
         { status: 402 }
@@ -105,8 +139,9 @@ Rules:
     }
 
     return Response.json(
-      { error: error.message || 'Failed to generate questions' },
+      { error: error instanceof Error ? error.message : 'Failed to generate questions' },
       { status: 500 }
     );
   }
 }
+
