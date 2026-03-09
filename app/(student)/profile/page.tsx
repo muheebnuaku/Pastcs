@@ -107,6 +107,8 @@ export default function ProfilePage() {
 
       {showLevelModal && (
         <LevelSemesterModal
+          isChanging={!!user?.selected_level}
+          onClose={() => { setShowLevelModal(false); setShowLevelWarning(false); }}
           onSuccess={() => {
             setShowLevelModal(false);
             setShowLevelWarning(false);

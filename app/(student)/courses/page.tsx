@@ -93,6 +93,8 @@ export default function CoursesPage() {
     <div className="space-y-6 animate-fade-in">
       {showLevelModal && (
         <LevelSemesterModal
+          isChanging={!!user?.selected_level}
+          onClose={() => setShowLevelModal(false)}
           onSuccess={() => {
             setShowLevelModal(false);
             fetchCourses();
