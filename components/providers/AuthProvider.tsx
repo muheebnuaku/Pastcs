@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
 
   const fetchOrCreateUser = useCallback(
-    async (authUser: { id: string }) => {
+    async (authUser: { id: string; email?: string; user_metadata?: Record<string, string> }) => {
       const { data } = await supabase
         .from('user_public')
         .select('*')
@@ -30,14 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data) return data;
 
-      await new Promise((r) => setTimeout(r, 300));
-      const { data: retried } = await supabase
-        .from('user_public')
-        .select('*')
-        .eq('id', authUser.id)
+      // Profile row missing — create it (handles existing auth users + race conditions)
+      const { data: created } = await supabase
+        .from('users')
+        .insert({
+          id: authUser.id,
+          email: authUser.email ?? '',
+          full_name: authUser.user_metadata?.full_name ?? null,
+          role: (authUser.user_metadata?.role as 'student' | 'admin') ?? 'student',
+        })
+        .select()
         .single();
 
-      return retried;
+      return created;
     },
     [supabase]
   );
