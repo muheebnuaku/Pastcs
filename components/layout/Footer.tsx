@@ -16,16 +16,16 @@ export function Footer() {
               </div>
               <span className="font-bold text-xl text-white">PastCS</span>
             </Link>
-            <p className="text-sm max-w-md">
-              An AI-powered exam practice platform designed for Level 100 IT students
-              at the University of Ghana. Practice smarter, score higher.
+            <p className="text-sm max-w-md leading-relaxed">
+              An exam practice platform built for IT students at every level.
+              Practice smarter, track your progress, and score higher.
             </p>
           </div>
 
           {/* Quick Links */}
           <div>
             <h3 className="font-semibold text-white mb-4">Quick Links</h3>
-            <ul className="space-y-2">
+            <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/courses" className="hover:text-white transition-colors">
                   Courses
@@ -48,21 +48,21 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-white mb-4">Courses</h3>
             <ul className="space-y-2 text-sm">
-              <li>DCIT101 - Intro to CS</li>
-              <li>DCIT103 - Office Tools</li>
-              <li>DCIT105 - Math for IT</li>
-              <li>ECON101 - Economics I</li>
-              <li>STAT111 - Statistics I</li>
-              <li>UGRC150 - Critical Thinking</li>
+              <li>DCIT101 — Intro to CS</li>
+              <li>DCIT103 — Office Tools</li>
+              <li>DCIT105 — Math for IT</li>
+              <li>ECON101 — Economics I</li>
+              <li>STAT111 — Statistics I</li>
+              <li>UGRC150 — Critical Thinking</li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center">
+        <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-sm">
-            © {new Date().getFullYear()} PastCS. Built for University of Ghana students.
+            © {new Date().getFullYear()} PastCS. Built for IT students.
           </p>
-          <div className="flex items-center gap-4 mt-4 sm:mt-0">
+          <div className="flex items-center gap-4">
             <a
               href="#"
               className="hover:text-white transition-colors"

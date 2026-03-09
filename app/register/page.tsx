@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { Button, Input } from '@/components/ui';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Home } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -49,6 +49,15 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      {/* Floating home button */}
+      <Link
+        href="/"
+        className="fixed top-4 left-4 z-50 flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 text-sm font-medium text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+      >
+        <Home className="w-4 h-4" />
+        <span>Home</span>
+      </Link>
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">

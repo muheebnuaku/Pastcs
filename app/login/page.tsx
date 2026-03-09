@@ -6,7 +6,16 @@ import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { useAuthStore } from '@/lib/store';
 import { Button, Input } from '@/components/ui';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Home } from 'lucide-react';
+
+// This email belongs to an admin account but should always land on the
+// student dashboard rather than the admin panel.
+const STUDENT_REDIRECT_EMAILS = ['kwabenacrys@gmail.com'];
+
+function shouldGoToAdmin(email: string | undefined, role: string | undefined) {
+  if (!email || !role) return false;
+  return role === 'admin' && !STUDENT_REDIRECT_EMAILS.includes(email.toLowerCase());
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,10 +25,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Already logged in — redirect based on role
+  // Already logged in — redirect based on role (with email exception)
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace(user.role === 'admin' ? '/admin' : '/dashboard');
+      router.replace(shouldGoToAdmin(user.email, user.role) ? '/admin' : '/dashboard');
     }
   }, [user, isLoading, router]);
 
@@ -32,14 +41,24 @@ export default function LoginPage() {
       setError(result.error);
       setSubmitting(false);
     } else {
-      // signIn sets the user in the store before returning — read role directly
       const loggedInUser = useAuthStore.getState().user;
-      router.replace(loggedInUser?.role === 'admin' ? '/admin' : '/dashboard');
+      router.replace(
+        shouldGoToAdmin(loggedInUser?.email, loggedInUser?.role) ? '/admin' : '/dashboard'
+      );
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      {/* Floating home button */}
+      <Link
+        href="/"
+        className="fixed top-4 left-4 z-50 flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 text-sm font-medium text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+      >
+        <Home className="w-4 h-4" />
+        <span>Home</span>
+      </Link>
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">

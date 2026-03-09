@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "PastCS - Exam Practice Platform",
-  description: "AI-powered exam practice system for Level 100 IT students at the University of Ghana. Practice smarter, score higher.",
+  description: "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
 };
 
