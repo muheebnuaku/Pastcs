@@ -18,6 +18,7 @@ import {
   Flame,
   GraduationCap,
   User,
+  ShieldCheck,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -130,6 +131,16 @@ export function StudentSidebar() {
               </div>
               <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
             </Link>
+            {user?.role === 'admin' && (
+              <Link
+                href="/admin"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-4 py-2 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors w-full mb-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span className="text-sm font-medium">Admin Panel</span>
+              </Link>
+            )}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors w-full"
