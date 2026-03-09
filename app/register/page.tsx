@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { Button, Input } from '@/components/ui';
-import { BookOpen, Home } from 'lucide-react';
+import Image from 'next/image';
+import { Home } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -61,9 +62,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-4">
-            <BookOpen className="w-7 h-7 text-white" />
-          </div>
+          <Image src="/pastcs.png" alt="PastCS" width={56} height={56} className="rounded-2xl mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
           <p className="text-gray-500 mt-1">Join PastCS and start practising</p>
         </div>
