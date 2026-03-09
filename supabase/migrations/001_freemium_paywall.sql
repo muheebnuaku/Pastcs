@@ -4,16 +4,42 @@
 -- ================================================================
 
 -- ----------------------------------------------------------------
--- 1. Extend users table
+-- 1. Add PastCS-specific columns to the "User" table
 -- ----------------------------------------------------------------
-ALTER TABLE public.user_public
-  ADD COLUMN IF NOT EXISTS selected_level    INTEGER CHECK (selected_level   IN (100,200,300,400)),
-  ADD COLUMN IF NOT EXISTS selected_semester INTEGER CHECK (selected_semester IN (1,2)),
-  ADD COLUMN IF NOT EXISTS free_course_code  TEXT;
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS student_id          TEXT,
+  ADD COLUMN IF NOT EXISTS practice_streak     INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS last_practice_date  DATE,
+  ADD COLUMN IF NOT EXISTS total_tests_taken   INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS xp                  INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS selected_level      INTEGER CHECK (selected_level    IN (100,200,300,400)),
+  ADD COLUMN IF NOT EXISTS selected_semester   INTEGER CHECK (selected_semester IN (1,2)),
+  ADD COLUMN IF NOT EXISTS free_course_code    TEXT;
 
 -- ----------------------------------------------------------------
--- 2. Ensure courses table has level + semester (idempotent)
--- They already exist in the live DB, but this keeps schema.sql in sync.
+-- 2. Recreate user_public view with all columns the app needs
+-- ----------------------------------------------------------------
+CREATE OR REPLACE VIEW public.user_public AS
+SELECT
+  "userId"             AS id,
+  email,
+  "fullName"           AS full_name,
+  role,
+  image                AS avatar_url,
+  student_id,
+  practice_streak,
+  last_practice_date,
+  total_tests_taken,
+  xp,
+  selected_level,
+  selected_semester,
+  free_course_code,
+  "createdAt"          AS created_at,
+  "updatedAt"          AS updated_at
+FROM "User";
+
+-- ----------------------------------------------------------------
+-- 3. Ensure courses table has level + semester (idempotent)
 -- ----------------------------------------------------------------
 DO $$
 BEGIN
@@ -36,11 +62,11 @@ END
 $$;
 
 -- ----------------------------------------------------------------
--- 3. Subscriptions table
+-- 4. Subscriptions table
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.subscriptions (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id           UUID NOT NULL REFERENCES public.user_public(id) ON DELETE CASCADE,
+  user_id           UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   level             INTEGER NOT NULL CHECK (level    IN (100,200,300,400)),
   semester          INTEGER NOT NULL CHECK (semester IN (1,2)),
   payment_reference TEXT    NOT NULL UNIQUE,   -- prevents replay attacks
@@ -51,12 +77,11 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- index for fast "is user paid for level/sem?" lookups
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_level_sem
   ON public.subscriptions(user_id, level, semester);
 
 -- ----------------------------------------------------------------
--- 4. RLS for subscriptions
+-- 5. RLS for subscriptions
 -- ----------------------------------------------------------------
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
