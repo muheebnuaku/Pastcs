@@ -20,8 +20,23 @@ export interface User {
   last_practice_date: string | null;
   total_tests_taken: number;
   xp: number;
+  selected_level: number | null;
+  selected_semester: number | null;
+  free_course_code: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  level: number;
+  semester: number;
+  payment_reference: string;
+  amount: number;
+  status: 'pending' | 'active' | 'failed';
+  paid_at: string | null;
+  created_at: string;
 }
 
 export interface Course {

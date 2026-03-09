@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, Course, Question, Test, ExamState } from '@/types';
+import type { User, Course, Question, Test, ExamState, Subscription } from '@/types';
 
 // Auth Store
 interface AuthState {
@@ -146,3 +146,25 @@ export const useTestHistoryStore = create<TestHistoryStore>()(
     }
   )
 );
+
+// Subscription Store
+interface SubscriptionStore {
+  subscriptions: Subscription[];
+  setSubscriptions: (subs: Subscription[]) => void;
+  addSubscription: (sub: Subscription) => void;
+  hasActiveSub: (level: number | null | undefined, semester: number | null | undefined) => boolean;
+}
+
+export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
+  subscriptions: [],
+  setSubscriptions: (subscriptions) => set({ subscriptions }),
+  addSubscription: (sub) => set((state) => ({
+    subscriptions: [...state.subscriptions, sub],
+  })),
+  hasActiveSub: (level, semester) => {
+    if (!level || !semester) return false;
+    return get().subscriptions.some(
+      (s) => s.level === level && s.semester === semester && s.status === 'active'
+    );
+  },
+}));

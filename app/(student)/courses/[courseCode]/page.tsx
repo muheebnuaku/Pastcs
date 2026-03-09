@@ -1,34 +1,46 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/components/providers';
+import { useSubscriptionStore } from '@/lib/store';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
+import { PaywallModal } from '../components/PaywallModal';
 import type { Course, Topic } from '@/types';
-import { 
-  ArrowLeft, 
-  BookOpen, 
-  Clock, 
-  Target, 
+import {
+  ArrowLeft,
+  BookOpen,
+  Clock,
+  Target,
   FileQuestion,
   Play,
   Zap,
+  Lock,
 } from 'lucide-react';
 
 export default function CourseDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { hasActiveSub } = useSubscriptionStore();
+
   const courseCode = (params.courseCode as string).toUpperCase();
-  
   const [course, setCourse] = useState<Course | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [allLevelCourses, setAllLevelCourses] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
+  const isFree = course?.course_code === user?.free_course_code;
+  const hasAccess = isPaid || isFree;
 
   useEffect(() => {
     const fetchCourseData = async () => {
       const supabase = createClient();
-      
-      // Fetch course
+
       const { data: courseData } = await supabase
         .from('courses')
         .select('*')
@@ -37,8 +49,7 @@ export default function CourseDetailPage() {
 
       if (courseData) {
         setCourse(courseData);
-        
-        // Fetch topics
+
         const { data: topicsData } = await supabase
           .from('topics')
           .select('*')
@@ -46,11 +57,20 @@ export default function CourseDetailPage() {
           .order('order_index');
 
         if (topicsData) setTopics(topicsData);
+
+        if (user?.selected_level && user?.selected_semester) {
+          const { count } = await supabase
+            .from('courses')
+            .select('id', { count: 'exact', head: true })
+            .eq('level', user.selected_level)
+            .eq('semester', user.selected_semester);
+          setAllLevelCourses(count ?? 0);
+        }
       }
     };
 
     fetchCourseData();
-  }, [courseCode]);
+  }, [courseCode, user?.selected_level, user?.selected_semester]);
 
   if (!course) {
     return (
@@ -63,13 +83,88 @@ export default function CourseDetailPage() {
     );
   }
 
+  // No free course selected yet — send back to courses to pick
+  if (!hasAccess && !user?.free_course_code) {
+    router.push('/courses');
+    return null;
+  }
+
+  // Locked course
+  if (!hasAccess && user?.free_course_code) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Courses
+        </Link>
+
+        <div className="relative">
+          {/* Blurred preview */}
+          <div className="pointer-events-none select-none blur-sm opacity-50">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
+              <div className="flex items-start gap-6">
+                <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20">
+                  {COURSE_ICONS[course.course_code]}
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold mb-2">{course.course_code}</h1>
+                  <p className="text-blue-100 text-lg">{course.course_name}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lock overlay */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 rounded-2xl">
+            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+              <Lock className="w-7 h-7 text-gray-400" />
+            </div>
+            <p className="font-semibold text-gray-900 mb-1">This course is locked</p>
+            <p className="text-sm text-gray-500 mb-4">Unlock all courses for just GHC 1 this semester</p>
+            <button
+              onClick={() => setShowPaywall(true)}
+              className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+            >
+              Unlock Now — GHC 1
+            </button>
+          </div>
+        </div>
+
+        {showPaywall && (
+          <PaywallModal
+            courseName={course.course_name}
+            courseCode={course.course_code}
+            totalCourses={allLevelCourses}
+            onClose={() => setShowPaywall(false)}
+            onSuccess={() => {
+              setShowPaywall(false);
+              router.refresh();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Back Button */}
-      <Link 
-        href="/courses" 
-        className="inline-flex items-center text-gray-600 hover:text-gray-900"
-      >
+      {/* Upgrade banner for free-course users */}
+      {isFree && !isPaid && allLevelCourses > 1 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+          <p className="text-sm text-blue-800">
+            <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
+            Unlock {allLevelCourses - 1} more for just GHC 1 this semester.
+          </p>
+          <button
+            onClick={() => setShowPaywall(true)}
+            className="flex-shrink-0 text-sm font-medium text-blue-700 border border-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            Unlock All →
+          </button>
+        </div>
+      )}
+
+      <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Courses
       </Link>
@@ -77,9 +172,7 @@ export default function CourseDetailPage() {
       {/* Course Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
         <div className="flex items-start gap-6">
-          <div 
-            className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20"
-          >
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20">
             {COURSE_ICONS[course.course_code]}
           </div>
           <div className="flex-1">
@@ -104,7 +197,6 @@ export default function CourseDetailPage() {
 
       {/* Practice Options */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Quick Practice */}
         <Card className="border-2 border-blue-100 bg-blue-50/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -128,7 +220,6 @@ export default function CourseDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Exam Simulation */}
         <Card className="border-2 border-purple-100 bg-purple-50/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -162,7 +253,7 @@ export default function CourseDetailPage() {
           {topics.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {topics.map((topic) => (
-                <Link 
+                <Link
                   key={topic.id}
                   href={`/practice/${course.course_code.toLowerCase()}?topic=${topic.id}`}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
@@ -184,6 +275,16 @@ export default function CourseDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {showPaywall && (
+        <PaywallModal
+          courseName={course.course_name}
+          courseCode={course.course_code}
+          totalCourses={allLevelCourses}
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => setShowPaywall(false)}
+        />
+      )}
     </div>
   );
 }
