@@ -139,7 +139,7 @@ export default function CoursesPage() {
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
           >
             <Sparkles className="w-4 h-4" />
-            Unlock All — GHC 1
+            Unlock All — GHC 50
           </button>
         )}
       </div>
@@ -151,7 +151,7 @@ export default function CoursesPage() {
           <div>
             <p className="text-sm font-medium text-blue-900">Pick one course to try for free</p>
             <p className="text-xs text-blue-600 mt-0.5">
-              Click any course below to select it as your free trial. Unlock all {courses.length} for just GHC 1.
+              Click any course below to select it as your free trial. Unlock all {courses.length} for just GHC 50.
             </p>
           </div>
         </div>
@@ -245,7 +245,7 @@ export default function CoursesPage() {
                         <FileQuestion className="w-3.5 h-3.5" />
                         {course.total_questions} questions locked
                       </div>
-                      <p className="text-xs font-medium text-blue-600">Unlock All for GHC 1 →</p>
+                      <p className="text-xs font-medium text-blue-600">Unlock All for GHC 50 →</p>
                     </CardContent>
                   </Card>
                 </button>

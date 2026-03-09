@@ -202,7 +202,7 @@ function PracticeContent() {
             <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0" />
             <span>
               <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
-              Unlock {allLevelCourses - 1} more for just GHC 1.
+              Unlock {allLevelCourses - 1} more for just GHC 50.
             </span>
           </div>
           <button

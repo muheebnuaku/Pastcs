@@ -120,12 +120,12 @@ export default function CourseDetailPage() {
               <Lock className="w-7 h-7 text-gray-400" />
             </div>
             <p className="font-semibold text-gray-900 mb-1">This course is locked</p>
-            <p className="text-sm text-gray-500 mb-4">Unlock all courses for just GHC 1 this semester</p>
+            <p className="text-sm text-gray-500 mb-4">Unlock all courses for just GHC 50 this semester</p>
             <button
               onClick={() => setShowPaywall(true)}
               className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
             >
-              Unlock Now — GHC 1
+              Unlock Now — GHC 50
             </button>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function CourseDetailPage() {
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
           <p className="text-sm text-blue-800">
             <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
-            Unlock {allLevelCourses - 1} more for just GHC 1 this semester.
+            Unlock {allLevelCourses - 1} more for just GHC 50 this semester.
           </p>
           <button
             onClick={() => setShowPaywall(true)}
