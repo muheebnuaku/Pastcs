@@ -1,10 +1,9 @@
-import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 const VALID_LEVELS = [100, 200, 300, 400];
 const VALID_SEMESTERS = [1, 2];
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();

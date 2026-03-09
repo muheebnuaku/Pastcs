@@ -212,33 +212,35 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Helper: avoids infinite recursion by using SECURITY DEFINER (bypasses RLS)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT role = 'admin' FROM public.users WHERE id = auth.uid() LIMIT 1;
+$$;
+
 -- Users
 CREATE POLICY "users_select_own"        ON public.users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "users_insert_own"        ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "users_update_own"        ON public.users FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "admins_select_all_users" ON public.users FOR SELECT
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "admins_select_all_users" ON public.users FOR SELECT USING (is_admin());
 
 -- Courses
 CREATE POLICY "courses_select" ON public.courses FOR SELECT TO authenticated USING (true);
-CREATE POLICY "courses_admin"  ON public.courses FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "courses_admin"  ON public.courses FOR ALL USING (is_admin());
 
 -- Topics
 CREATE POLICY "topics_select" ON public.topics FOR SELECT TO authenticated USING (true);
-CREATE POLICY "topics_admin"  ON public.topics FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "topics_admin"  ON public.topics FOR ALL USING (is_admin());
 
 -- Questions
 CREATE POLICY "questions_select_approved" ON public.questions FOR SELECT TO authenticated USING (is_approved = true);
-CREATE POLICY "questions_admin"           ON public.questions FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "questions_admin"           ON public.questions FOR ALL USING (is_admin());
 
 -- Tests
 CREATE POLICY "tests_select_own"  ON public.tests FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "tests_insert_own"  ON public.tests FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "tests_admin"       ON public.tests FOR SELECT
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "tests_admin"       ON public.tests FOR SELECT USING (is_admin());
 
 -- Test answers
 CREATE POLICY "test_answers_select_own" ON public.test_answers FOR SELECT
@@ -254,8 +256,7 @@ CREATE POLICY "user_achievements_select_own" ON public.user_achievements FOR SEL
 CREATE POLICY "user_achievements_insert_own" ON public.user_achievements FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Lecture slides
-CREATE POLICY "lecture_slides_admin" ON public.lecture_slides FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "lecture_slides_admin" ON public.lecture_slides FOR ALL USING (is_admin());
 
 -- Subscriptions
 CREATE POLICY "subscriptions_select_own" ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
