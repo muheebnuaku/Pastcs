@@ -134,7 +134,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
             <BookOpen className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-green-700">
               <span className="font-semibold">One course free.</span>{' '}
-              Unlock the rest for just GHC 1.
+              Unlock the rest for just <span className="font-semibold">GHC 50</span>.
             </p>
           </div>
 

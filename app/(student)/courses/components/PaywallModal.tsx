@@ -186,8 +186,14 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
 
           {/* Price + anchoring */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-4">
-            <p className="text-3xl font-bold text-white mb-1">GHC 50</p>
-            <p className="text-blue-200 text-sm">this semester — invest in your grades</p>
+            <p className="text-sm text-blue-300 line-through mb-0.5">GHC 60</p>
+            <div className="flex items-center justify-center gap-2">
+              <p className="text-3xl font-bold text-white">GHC 50</p>
+              <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">
+                SAVE 10
+              </span>
+            </div>
+            <p className="text-blue-200 text-sm mt-1">this semester — invest in your grades</p>
           </div>
 
           {/* Social proof */}
