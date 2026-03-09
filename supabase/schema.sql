@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   level             INTEGER NOT NULL CHECK (level    IN (100,200,300,400)),
   semester          INTEGER NOT NULL CHECK (semester IN (1,2)),
   payment_reference TEXT    NOT NULL UNIQUE,
-  amount            INTEGER NOT NULL DEFAULT 100,
+  amount            INTEGER NOT NULL DEFAULT 5000,
   status            TEXT    NOT NULL DEFAULT 'pending'
                       CHECK (status IN ('pending','active','failed')),
   paid_at           TIMESTAMP WITH TIME ZONE,

@@ -17,6 +17,7 @@ import {
   X,
   Flame,
   GraduationCap,
+  User,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -24,6 +25,7 @@ const studentNavItems = [
   { href: '/courses', label: 'Courses', icon: BookOpen },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/achievements', label: 'Achievements', icon: GraduationCap },
+  { href: '/profile', label: 'Profile', icon: User },
 ];
 
 export function StudentSidebar() {
@@ -111,18 +113,23 @@ export function StudentSidebar() {
 
           {/* User Profile */}
           <div className="p-4 border-t border-gray-100">
-            <div className="flex items-center gap-3 mb-4">
+            <Link
+              href="/profile"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 mb-3 p-2 rounded-xl hover:bg-gray-50 transition-colors"
+            >
               <Avatar
                 src={user?.avatar_url}
                 fallback={user?.full_name || user?.email}
               />
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">
+                <p className="font-medium text-gray-900 truncate text-sm">
                   {user?.full_name || 'Student'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
-            </div>
+              <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </Link>
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors w-full"

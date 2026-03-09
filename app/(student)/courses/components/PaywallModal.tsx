@@ -64,7 +64,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           level: user!.selected_level!,
           semester: user!.selected_semester!,
           payment_reference: reference,
-          amount: 100,
+          amount: 5000,
           status: 'active',
           paid_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -92,7 +92,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: user.email,
-        amount: 100, // GHC 1 = 100 pesewas
+        amount: 5000, // GHC 50 = 5000 pesewas
         currency: 'GHS',
         ref,
         metadata: {
@@ -186,8 +186,8 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
 
           {/* Price + anchoring */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-4">
-            <p className="text-3xl font-bold text-white mb-1">GHC 1</p>
-            <p className="text-blue-200 text-sm">this semester — less than a sachet of water 💧</p>
+            <p className="text-3xl font-bold text-white mb-1">GHC 50</p>
+            <p className="text-blue-200 text-sm">this semester — invest in your grades</p>
           </div>
 
           {/* Social proof */}
@@ -218,7 +218,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
                 Verifying payment…
               </>
             ) : (
-              'Unlock Now — GHC 1'
+              'Unlock Now — GHC 50'
             )}
           </Button>
 

@@ -171,7 +171,7 @@ export default function DashboardPage() {
                 {lockedCourseCount} course{lockedCourseCount > 1 ? 's' : ''} locked this semester
               </p>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                You&rsquo;re using 1 of {courses.length} courses free. Unlock everything for just GHC 1.
+                You&rsquo;re using 1 of {courses.length} courses free. Unlock everything for just GHC 50.
               </p>
             </div>
           </div>
@@ -179,13 +179,13 @@ export default function DashboardPage() {
             onClick={() => setShowPaywall(true)}
             className="mt-3 w-full bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors sm:hidden"
           >
-            Unlock All — GHC 1
+            Unlock All — GHC 50
           </button>
           <button
             onClick={() => setShowPaywall(true)}
             className="hidden sm:block mt-3 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
           >
-            Unlock All — GHC 1
+            Unlock All — GHC 50
           </button>
         </div>
       )}
