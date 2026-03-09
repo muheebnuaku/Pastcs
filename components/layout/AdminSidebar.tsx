@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Shield,
+  GraduationCap,
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -118,6 +119,14 @@ export function AdminSidebar() {
                 <p className="text-xs text-gray-400 truncate">{user?.email}</p>
               </div>
             </div>
+            <Link
+              href="/dashboard"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2 px-4 py-2 text-blue-400 hover:bg-blue-900/30 rounded-lg transition-colors w-full mb-2"
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span className="text-sm font-medium">Student View</span>
+            </Link>
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2 px-4 py-2 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors w-full"

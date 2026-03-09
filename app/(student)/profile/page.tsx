@@ -280,7 +280,7 @@ export default function ProfilePage() {
                     <Button
                       size="sm"
                       className="flex-1"
-                      onClick={() => setShowLevelModal(true)}
+                      onClick={() => { setShowLevelWarning(false); setShowLevelModal(true); }}
                     >
                       Yes, Change
                     </Button>
