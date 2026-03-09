@@ -18,8 +18,10 @@ ALTER TABLE "User"
 
 -- ----------------------------------------------------------------
 -- 2. Recreate user_public view with all columns the app needs
+-- (DROP first because CREATE OR REPLACE cannot rename existing columns)
 -- ----------------------------------------------------------------
-CREATE OR REPLACE VIEW public.user_public AS
+DROP VIEW IF EXISTS public.user_public;
+CREATE VIEW public.user_public AS
 SELECT
   "userId"             AS id,
   email,

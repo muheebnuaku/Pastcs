@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
-import { GraduationCap, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export function Navbar() {
   const pathname = usePathname();
@@ -39,9 +40,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
+            <Image src="/pastcs.png" alt="PastCS" width={40} height={40} className="rounded-xl" />
             <span className={cn(
               'font-bold text-xl transition-colors',
               isScrolled ? 'text-gray-900' : 'text-white'

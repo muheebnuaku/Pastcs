@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "PastCS - Exam Practice Platform",
   description: "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
+  icons: {
+    icon: '/pastcs.png',
+    apple: '/pastcs.png',
+  },
 };
 
 export default function RootLayout({
