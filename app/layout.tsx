@@ -12,6 +12,35 @@ export const metadata: Metadata = {
   title: "PastCS - Exam Practice Platform",
   description: "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
+  icons: {
+    icon: [
+      { url: '/pastcs.png', type: 'image/png' },
+      { url: '/favicon.ico' },
+    ],
+    apple: '/pastcs.png',
+    shortcut: '/pastcs.png',
+  },
+  openGraph: {
+    title: "PastCS - Exam Practice Platform",
+    description: "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
+    url: "https://www.pastcs.com",
+    siteName: "PastCS",
+    images: [
+      {
+        url: "/pastcs.png",
+        width: 1536,
+        height: 1024,
+        alt: "PastCS",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PastCS - Exam Practice Platform",
+    description: "Exam practice platform for IT students at every level.",
+    images: ["/pastcs.png"],
+  },
 };
 
 export default function RootLayout({
