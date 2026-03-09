@@ -40,7 +40,7 @@ export function Navbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3">
-              <Image src="/pastcs.png" alt="PastCS" width={72} height={72} className="rounded-xl" />
+              <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-11 h-11 rounded-full object-contain" />
               <span className={cn(
                 'font-bold text-xl transition-colors',
                 isScrolled ? 'text-gray-900' : 'text-white'
@@ -120,7 +120,7 @@ export function Navbar() {
         {/* Drawer header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <Link href="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3">
-            <Image src="/pastcs.png" alt="PastCS" width={40} height={40} className="rounded-xl" />
+            <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-10 h-10 rounded-full object-contain" />
             <span className="font-bold text-gray-900 text-lg">PastCS</span>
           </Link>
           <button

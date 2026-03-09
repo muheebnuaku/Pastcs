@@ -127,12 +127,12 @@ export default function LeaderboardPage() {
                   </div>
                   <Avatar
                     src={entry.avatar_url}
-                    fallback={entry.full_name}
+                    fallback={entry.full_name.split(' ')[0]}
                     size="md"
                   />
                   <div className="flex-1 min-w-0">
                     <p className={`font-medium truncate ${isCurrentUser ? 'text-blue-600' : 'text-gray-900'}`}>
-                      {entry.full_name}
+                      {entry.full_name.split(' ')[0]}
                       {isCurrentUser && ' (You)'}
                     </p>
                     <p className="text-sm text-gray-500">

@@ -70,7 +70,7 @@ export function StudentSidebar() {
           {/* Logo */}
           <div className="p-6 border-b border-gray-100">
             <Link href="/dashboard" className="flex items-center gap-3">
-              <Image src="/pastcs.png" alt="PastCS" width={40} height={40} className="rounded-xl" />
+              <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-12 h-12 rounded-full object-contain" />
               <div>
                 <h1 className="font-bold text-gray-900">PastCS</h1>
                 <p className="text-xs text-gray-500">Exam Practice</p>

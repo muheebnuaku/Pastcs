@@ -63,7 +63,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Image src="/pastcs.png" alt="PastCS" width={56} height={56} className="rounded-2xl mx-auto mb-4" />
+          <Image src="/past.png" alt="PastCS" width={160} height={160} className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-contain mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-500 mt-1">Sign in to your PastCS account</p>
         </div>

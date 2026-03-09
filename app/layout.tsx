@@ -14,11 +14,12 @@ export const metadata: Metadata = {
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: '64x64' },
-      { url: '/pastcs.png', type: 'image/png', sizes: '512x512' },
+      { url: '/past.png', type: 'image/png', sizes: '32x32' },
+      { url: '/past.png', type: 'image/png', sizes: '192x192' },
+      { url: '/past.png', type: 'image/png', sizes: '512x512' },
     ],
-    apple: { url: '/apple-touch-icon.png', sizes: '180x180' },
-    shortcut: '/favicon.ico',
+    apple: { url: '/past.png', sizes: '180x180' },
+    shortcut: '/past.png',
   },
   openGraph: {
     title: "PastCS - Exam Practice Platform",
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
     siteName: "PastCS",
     images: [
       {
-        url: "/pastcs.png",
+        url: "/past.png",
         width: 1536,
         height: 1024,
         alt: "PastCS",
@@ -39,7 +40,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PastCS - Exam Practice Platform",
     description: "Exam practice platform for IT students at every level.",
-    images: ["/pastcs.png"],
+    images: ["/past.png"],
   },
 };
 
