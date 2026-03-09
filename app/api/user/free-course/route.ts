@@ -1,7 +1,6 @@
-import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -18,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch user's current selection and existing free course
     const { data: userData } = await supabase
-      .from('users')
+      .from('user_public')
       .select('free_course_code, selected_level, selected_semester')
       .eq('id', authUser.id)
       .single();
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error } = await supabase
-      .from('users')
+      .from('user_public')
       .update({ free_course_code: courseCode })
       .eq('id', authUser.id);
 

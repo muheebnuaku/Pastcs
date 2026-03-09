@@ -17,7 +17,7 @@ import {
   BookOpen,
   Sparkles,
 } from 'lucide-react';
-import { PaywallModal } from '../../../courses/components/PaywallModal';
+import { PaywallModal } from '../../courses/components/PaywallModal';
 
 export default function PracticePage() {
   return (

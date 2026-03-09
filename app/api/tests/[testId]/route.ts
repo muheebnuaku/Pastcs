@@ -35,7 +35,7 @@ export async function GET(
 
     // Verify user owns this test or is admin
     const { data: currentUser } = await supabase
-      .from('users')
+      .from('user_public')
       .select('role')
       .eq('id', user.id)
       .single();

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     // Changing level/semester resets the free course selection
     const { error } = await supabase
-      .from('users')
+      .from('user_public')
       .update({
         selected_level: level,
         selected_semester: semester,

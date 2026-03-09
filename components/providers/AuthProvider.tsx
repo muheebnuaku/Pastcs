@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchOrCreateUser = useCallback(
     async (authUser: { id: string }) => {
       const { data } = await supabase
-        .from('users')
+        .from('user_public')
         .select('*')
         .eq('id', authUser.id)
         .single();
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await new Promise((r) => setTimeout(r, 300));
       const { data: retried } = await supabase
-        .from('users')
+        .from('user_public')
         .select('*')
         .eq('id', authUser.id)
         .single();

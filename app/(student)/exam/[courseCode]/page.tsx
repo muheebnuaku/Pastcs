@@ -7,7 +7,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, Button, Badge, Progress, Modal } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
-import { PaywallModal } from '../../../courses/components/PaywallModal';
+import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
 import {
   ArrowLeft,

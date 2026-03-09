@@ -6,7 +6,7 @@
 -- ----------------------------------------------------------------
 -- 1. Extend users table
 -- ----------------------------------------------------------------
-ALTER TABLE public.users
+ALTER TABLE public.user_public
   ADD COLUMN IF NOT EXISTS selected_level    INTEGER CHECK (selected_level   IN (100,200,300,400)),
   ADD COLUMN IF NOT EXISTS selected_semester INTEGER CHECK (selected_semester IN (1,2)),
   ADD COLUMN IF NOT EXISTS free_course_code  TEXT;
@@ -40,7 +40,7 @@ $$;
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.subscriptions (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id           UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  user_id           UUID NOT NULL REFERENCES public.user_public(id) ON DELETE CASCADE,
   level             INTEGER NOT NULL CHECK (level    IN (100,200,300,400)),
   semester          INTEGER NOT NULL CHECK (semester IN (1,2)),
   payment_reference TEXT    NOT NULL UNIQUE,   -- prevents replay attacks

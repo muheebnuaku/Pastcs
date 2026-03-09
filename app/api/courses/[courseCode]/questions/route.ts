@@ -21,7 +21,7 @@ export async function GET(
 
     // Fetch user's subscription status and free course
     const { data: userData } = await supabase
-      .from('users')
+      .from('user_public')
       .select('selected_level, selected_semester, free_course_code')
       .eq('id', authUser.id)
       .single();

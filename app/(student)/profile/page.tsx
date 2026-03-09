@@ -76,7 +76,7 @@ export default function ProfilePage() {
 
     const supabase = createClient();
     const { error } = await supabase
-      .from('users')
+      .from('user_public')
       .update({
         full_name: fullName,
         student_id: studentId,

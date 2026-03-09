@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     // Update user XP
     const { error: xpError } = await supabase
-      .from('users')
+      .from('user_public')
       .update({ 
         xp: supabase.rpc('increment_xp', { user_id: user.id, amount: xpEarned })
       })
@@ -131,7 +131,7 @@ async function checkAndAwardAchievements(
 
   // Get user stats
   const { data: userData } = await supabase
-    .from('users')
+    .from('user_public')
     .select('*')
     .eq('id', userId)
     .single();

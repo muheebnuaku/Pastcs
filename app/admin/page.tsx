@@ -25,7 +25,7 @@ export default function AdminOverviewPage() {
 
       // Fetch counts
       const { count: studentsCount } = await supabase
-        .from('users')
+        .from('user_public')
         .select('*', { count: 'exact', head: true })
         .eq('role', 'student');
 

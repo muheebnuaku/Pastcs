@@ -30,7 +30,7 @@ export default function AdminStudentsPage() {
       const supabase = createClient();
 
       const { data: usersData } = await supabase
-        .from('users')
+        .from('user_public')
         .select('*')
         .eq('role', 'student')
         .order('created_at', { ascending: false });
