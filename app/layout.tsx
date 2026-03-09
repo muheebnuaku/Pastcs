@@ -14,11 +14,11 @@ export const metadata: Metadata = {
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
   icons: {
     icon: [
-      { url: '/pastcs.png', type: 'image/png' },
-      { url: '/favicon.ico' },
+      { url: '/favicon.ico', sizes: '64x64' },
+      { url: '/pastcs.png', type: 'image/png', sizes: '512x512' },
     ],
-    apple: '/pastcs.png',
-    shortcut: '/pastcs.png',
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180' },
+    shortcut: '/favicon.ico',
   },
   openGraph: {
     title: "PastCS - Exam Practice Platform",

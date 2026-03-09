@@ -40,7 +40,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/pastcs.png" alt="PastCS" width={52} height={52} className="rounded-xl" />
+            <Image src="/pastcs.png" alt="PastCS" width={72} height={72} className="rounded-xl" />
             <span className={cn(
               'font-bold text-xl transition-colors',
               isScrolled ? 'text-gray-900' : 'text-white'
