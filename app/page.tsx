@@ -228,26 +228,32 @@ export default function HomePage() {
       {/* ── Courses ── */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-4">
+            <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full text-blue-700 text-sm font-medium mb-4">
+              <Layers className="w-4 h-4" />
+              <span>Level 100 — Semester 1</span>
+            </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Available Courses</h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Practice questions for all your IT courses across all levels.
-              Build confidence before your exams.
+              Showing Level 100, Semester 1 courses. Courses for all levels are available once you sign up.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
             {courses.map((course) => (
               <Link
                 key={course.code}
-                href={`/courses/${course.code.toLowerCase()}`}
+                href="/register"
                 className="group"
               >
                 <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                  <div
-                    className={`w-14 h-14 ${course.color} rounded-xl flex items-center justify-center mb-4 text-white text-2xl`}
-                  >
-                    {COURSE_ICONS[course.code]}
+                  <div className="flex items-start justify-between mb-4">
+                    <div
+                      className={`w-14 h-14 ${course.color} rounded-xl flex items-center justify-center text-white text-2xl`}
+                    >
+                      {COURSE_ICONS[course.code]}
+                    </div>
+                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">L100 • Sem 1</span>
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-1">{course.code}</h3>
                   <p className="text-sm text-gray-600 mb-4">{course.name}</p>
@@ -258,6 +264,25 @@ export default function HomePage() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          {/* Other levels notice */}
+          <div className="mt-10 bg-white rounded-2xl border border-blue-100 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Layers className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Courses for all levels covered</p>
+                <p className="text-sm text-gray-500">Level 200, 300 &amp; 400 courses are included — sign up to access them all.</p>
+              </div>
+            </div>
+            <Link href="/register" className="flex-shrink-0">
+              <Button>
+                Get Full Access
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
