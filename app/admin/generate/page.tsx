@@ -74,8 +74,8 @@ export default function AdminGeneratePage() {
       }
 
       setGeneratedQuestions(data.questions.map((q: GeneratedQuestion) => ({ ...q, selected: true })));
-    } catch (err: any) {
-      setError(err?.message || 'Failed to generate questions');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate questions');
     } finally {
       setIsGenerating(false);
     }
@@ -151,8 +151,8 @@ export default function AdminGeneratePage() {
       setSaveProgress(100);
       setGeneratedQuestions([]);
       setSlideContent('');
-    } catch (err: any) {
-      setError(err?.message || 'Failed to save questions');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save questions');
     } finally {
       if (progressRef.current) clearInterval(progressRef.current);
       setIsSaving(false);

@@ -244,11 +244,11 @@ export default function AdminQuestionsPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Badge variant="info" size="sm">
-                      {(question as any).course?.course_code}
+                      {question.course?.course_code}
                     </Badge>
-                    {(question as any).topic && (
+                    {question.topic && (
                       <Badge variant="default" size="sm">
-                        {(question as any).topic.topic_name}
+                        {question.topic.topic_name}
                       </Badge>
                     )}
                     <Badge variant={getDifficultyColor(question.difficulty)} size="sm">
@@ -360,7 +360,7 @@ export default function AdminQuestionsPage() {
               label="Question Type"
               value={formType}
               onChange={(e) => {
-                setFormType(e.target.value as any);
+                setFormType(e.target.value as import('@/types').QuestionType);
                 setFormCorrectAnswer(e.target.value === 'multiple_choice' ? [] : '');
               }}
             >
@@ -371,7 +371,7 @@ export default function AdminQuestionsPage() {
             <Select
               label="Difficulty"
               value={formDifficulty}
-              onChange={(e) => setFormDifficulty(e.target.value as any)}
+              onChange={(e) => setFormDifficulty(e.target.value as import('@/types').Difficulty)}
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>

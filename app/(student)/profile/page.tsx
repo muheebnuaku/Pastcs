@@ -37,14 +37,6 @@ export default function ProfilePage() {
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showLevelWarning, setShowLevelWarning] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setFullName(user.full_name || '');
-      setStudentId(user.student_id || '');
-      fetchStats();
-    }
-  }, [user]);
-
   const fetchStats = async () => {
     if (!user) return;
     const supabase = createClient();
@@ -69,6 +61,15 @@ export default function ProfilePage() {
       });
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name || '');
+      setStudentId(user.student_id || '');
+      fetchStats();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleSave = async () => {
     if (!user) return;

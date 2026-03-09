@@ -17,7 +17,16 @@ import {
 export default function AdminOverviewPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [courseStats, setCourseStats] = useState<CourseStats[]>([]);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<{
+    id: string;
+    score: number;
+    total_questions: number;
+    percentage: number;
+    test_type: string;
+    created_at: string;
+    user?: { full_name: string | null; email: string };
+    course?: { course_code: string };
+  }[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
