@@ -66,7 +66,7 @@ export default function AdminGeneratePage() {
         .eq('course_id', selectedCourse)
         .order('order_index');
       if (!cancelled) {
-        const unique = (data || []).filter((t, i, arr) => arr.findIndex(x => x.topic_name === t.topic_name) === i);
+        const unique = (data || []).filter((t: Topic, i: number, arr: Topic[]) => arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i);
         setTopics(unique);
         setSelectedTopic('');
       }
