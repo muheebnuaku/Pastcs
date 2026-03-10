@@ -54,7 +54,7 @@ export default function AdminQuestionsPage() {
       supabase.from('topics').select('*').order('order_index'),
     ]);
     if (coursesRes.data) setCourses(coursesRes.data);
-    if (topicsRes.data) setTopics(topicsRes.data);
+    if (topicsRes.data) setTopics(topicsRes.data.filter((t, i, arr) => arr.findIndex(x => x.topic_name === t.topic_name) === i));
   };
 
   const fetchQuestions = async () => {

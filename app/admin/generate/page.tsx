@@ -57,6 +57,7 @@ export default function AdminGeneratePage() {
       setSelectedTopic('');
       return;
     }
+    let cancelled = false;
     const fetchTopics = async () => {
       const supabase = createClient();
       const { data } = await supabase
@@ -64,10 +65,14 @@ export default function AdminGeneratePage() {
         .select('*')
         .eq('course_id', selectedCourse)
         .order('order_index');
-      setTopics(data || []);
-      setSelectedTopic('');
+      if (!cancelled) {
+        const unique = (data || []).filter((t, i, arr) => arr.findIndex(x => x.topic_name === t.topic_name) === i);
+        setTopics(unique);
+        setSelectedTopic('');
+      }
     };
     fetchTopics();
+    return () => { cancelled = true; };
   }, [selectedCourse]);
 
   const selectedTopicObj = topics.find(t => t.id === selectedTopic);

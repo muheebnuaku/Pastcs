@@ -38,6 +38,7 @@ export default function CourseDetailPage() {
   const hasAccess = isPaid || isFree;
 
   useEffect(() => {
+    let cancelled = false;
     const fetchCourseData = async () => {
       const supabase = createClient();
 
@@ -47,7 +48,7 @@ export default function CourseDetailPage() {
         .eq('course_code', courseCode)
         .single();
 
-      if (courseData) {
+      if (!cancelled && courseData) {
         setCourse(courseData);
 
         const { data: topicsData } = await supabase
@@ -56,21 +57,30 @@ export default function CourseDetailPage() {
           .eq('course_id', courseData.id)
           .order('order_index');
 
-        if (topicsData) setTopics(topicsData);
-
-        if (user?.selected_level && user?.selected_semester) {
-          const { count } = await supabase
-            .from('courses')
-            .select('id', { count: 'exact', head: true })
-            .eq('level', user.selected_level)
-            .eq('semester', user.selected_semester);
-          setAllLevelCourses(count ?? 0);
+        if (!cancelled && topicsData) {
+          const unique = topicsData.filter((t: Topic, i: number, arr: Topic[]) => arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i);
+          setTopics(unique);
         }
       }
     };
 
     fetchCourseData();
-  }, [courseCode, user?.selected_level, user?.selected_semester]);
+    return () => { cancelled = true; };
+  }, [courseCode]);
+
+  useEffect(() => {
+    if (!course?.id || !user?.selected_level || !user?.selected_semester) return;
+    const fetchCount = async () => {
+      const supabase = createClient();
+      const { count } = await supabase
+        .from('courses')
+        .select('id', { count: 'exact', head: true })
+        .eq('level', user.selected_level)
+        .eq('semester', user.selected_semester);
+      setAllLevelCourses(count ?? 0);
+    };
+    fetchCount();
+  }, [course?.id, user?.selected_level, user?.selected_semester]);
 
   if (!course) {
     return (
