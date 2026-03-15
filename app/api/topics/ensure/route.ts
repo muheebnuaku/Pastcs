@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
@@ -10,7 +9,7 @@ export async function POST(req: Request) {
   const { courseId, topicName } = await req.json();
 
   if (!courseId || !topicName?.trim()) {
-    return NextResponse.json({ error: 'courseId and topicName required' }, { status: 400 });
+    return Response.json({ error: 'courseId and topicName required' }, { status: 400 });
   }
 
   const name = topicName.trim();
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.json({ topicId: existing.id, created: false });
+    return Response.json({ topicId: existing.id, created: false });
   }
 
   // Get next order_index
@@ -44,8 +43,8 @@ export async function POST(req: Request) {
     .single();
 
   if (error || !newTopic) {
-    return NextResponse.json({ error: 'Failed to create topic' }, { status: 500 });
+    return Response.json({ error: 'Failed to create topic' }, { status: 500 });
   }
 
-  return NextResponse.json({ topicId: newTopic.id, created: true });
+  return Response.json({ topicId: newTopic.id, created: true });
 }

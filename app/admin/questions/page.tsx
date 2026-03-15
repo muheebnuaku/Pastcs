@@ -19,15 +19,21 @@ export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [filteredTopics, setFilteredTopics] = useState<Topic[]>([]);
+  // Separate topic lists for filter bar and modal to avoid state collision
+  const [filterBarTopics, setFilterBarTopics] = useState<Topic[]>([]);
+  const [formTopics, setFormTopics] = useState<Topic[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
 
-  // Level / Semester filters (new)
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Level / Semester filters
   const [filterLevel, setFilterLevel] = useState('');
   const [filterSemester, setFilterSemester] = useState('');
 
-  // Existing filters
+  // Other filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCourse, setFilterCourse] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
@@ -54,11 +60,16 @@ export default function AdminQuestionsPage() {
       supabase.from('topics').select('*').order('order_index'),
     ]);
     if (coursesRes.data) setCourses(coursesRes.data);
-    if (topicsRes.data) setTopics(topicsRes.data.filter((t: Topic, i: number, arr: Topic[]) => arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i));
+    if (topicsRes.data) {
+      const unique = topicsRes.data.filter((t: Topic, i: number, arr: Topic[]) =>
+        arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i
+      );
+      setTopics(unique);
+    }
   };
 
   const fetchQuestions = async () => {
-    if (!filterLevel) { setQuestions([]); return; }
+    if (!filterLevel) { setQuestions([]); setSelectedIds(new Set()); return; }
     const supabase = createClient();
     let query = supabase
       .from('questions')
@@ -82,43 +93,35 @@ export default function AdminQuestionsPage() {
     if (filterType) query = query.eq('question_type', filterType);
 
     const { data } = await query;
-    if (data) setQuestions(data);
+    if (data) {
+      setQuestions(data);
+      setSelectedIds(new Set());
+    }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // Re-fetch when filters change (only if level is selected)
   useEffect(() => {
     fetchQuestions();
     setCurrentPage(1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterLevel, filterSemester, filterCourse, filterTopic, filterType]);
 
-  // Reset course/topic when level or semester changes
   useEffect(() => {
     setFilterCourse('');
     setFilterTopic('');
   }, [filterLevel, filterSemester]);
 
-  // Update topic dropdown for filter bar
+  // Filter bar topics — keyed to filterCourse
   useEffect(() => {
-    if (filterCourse) {
-      setFilteredTopics(topics.filter(t => t.course_id === filterCourse));
-    } else {
-      setFilteredTopics(topics);
-    }
+    setFilterBarTopics(filterCourse ? topics.filter(t => t.course_id === filterCourse) : topics);
   }, [filterCourse, topics]);
 
-  // Update topic dropdown for modal form
+  // Modal form topics — keyed to formCourseId
   useEffect(() => {
-    if (formCourseId) {
-      setFilteredTopics(topics.filter(t => t.course_id === formCourseId));
-    }
+    setFormTopics(formCourseId ? topics.filter(t => t.course_id === formCourseId) : []);
   }, [formCourseId, topics]);
 
-  // Courses visible in the filter bar (limited to selected level/semester)
   const levelCourses = courses.filter(c => {
     if (filterLevel && c.level !== Number(filterLevel)) return false;
     if (filterSemester && c.semester !== Number(filterSemester)) return false;
@@ -134,6 +137,53 @@ export default function AdminQuestionsPage() {
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
+
+  // Selection helpers
+  const allOnPageSelected = paginatedQuestions.length > 0 &&
+    paginatedQuestions.every(q => selectedIds.has(q.id));
+
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllFiltered = () => {
+    if (selectedIds.size === filteredQuestions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
+    }
+  };
+
+  const togglePageSelection = () => {
+    if (allOnPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        paginatedQuestions.forEach(q => next.delete(q.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        paginatedQuestions.forEach(q => next.add(q.id));
+        return next;
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} question${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    setIsDeleting(true);
+    const supabase = createClient();
+    await supabase.from('questions').delete().in('id', [...selectedIds]);
+    setIsDeleting(false);
+    setSelectedIds(new Set());
+    fetchQuestions();
+  };
 
   const openModal = (question?: Question) => {
     if (question) {
@@ -162,7 +212,6 @@ export default function AdminQuestionsPage() {
 
   const handleSave = async () => {
     const supabase = createClient();
-    
     const questionData = {
       course_id: formCourseId,
       topic_id: formTopicId || null,
@@ -175,21 +224,16 @@ export default function AdminQuestionsPage() {
     };
 
     if (editingQuestion) {
-      await supabase
-        .from('questions')
-        .update(questionData)
-        .eq('id', editingQuestion.id);
+      await supabase.from('questions').update(questionData).eq('id', editingQuestion.id);
     } else {
       await supabase.from('questions').insert(questionData);
     }
-
     setShowModal(false);
     fetchQuestions();
   };
 
   const handleDelete = async (questionId: string) => {
     if (!confirm('Delete this question?')) return;
-    
     const supabase = createClient();
     await supabase.from('questions').delete().eq('id', questionId);
     fetchQuestions();
@@ -220,12 +264,8 @@ export default function AdminQuestionsPage() {
       {/* Filters */}
       <Card>
         <div className="p-4 space-y-3">
-          {/* Level / Semester */}
           <div className="grid grid-cols-2 gap-3">
-            <Select
-              value={filterLevel}
-              onChange={(e) => setFilterLevel(e.target.value)}
-            >
+            <Select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}>
               <option value="">All Levels</option>
               <option value="100">Level 100</option>
               <option value="200">Level 200</option>
@@ -243,23 +283,19 @@ export default function AdminQuestionsPage() {
             </Select>
           </div>
 
-          {/* Search + Course + Topic + Type */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 placeholder="Search questions..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="pl-10"
               />
             </div>
             <Select
               value={filterCourse}
-              onChange={(e) => {
-                setFilterCourse(e.target.value);
-                setFilterTopic('');
-              }}
+              onChange={(e) => { setFilterCourse(e.target.value); setFilterTopic(''); }}
               disabled={!filterLevel}
             >
               <option value="">All Courses</option>
@@ -273,14 +309,11 @@ export default function AdminQuestionsPage() {
               disabled={!filterCourse}
             >
               <option value="">All Topics</option>
-              {filteredTopics.map(t => (
+              {filterBarTopics.map(t => (
                 <option key={t.id} value={t.id}>{t.topic_name}</option>
               ))}
             </Select>
-            <Select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-            >
+            <Select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
               <option value="">All Types</option>
               <option value="single_choice">Single Choice</option>
               <option value="multiple_choice">Multiple Choice</option>
@@ -300,7 +333,51 @@ export default function AdminQuestionsPage() {
           </div>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
+          {/* Bulk action bar */}
+          {filteredQuestions.length > 0 && (
+            <div className="flex items-center gap-3 px-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filteredQuestions.length && filteredQuestions.length > 0}
+                  ref={el => {
+                    if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < filteredQuestions.length;
+                  }}
+                  onChange={toggleAllFiltered}
+                  className="w-4 h-4 rounded text-blue-600"
+                />
+                <span className="text-sm text-gray-600">
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} of ${filteredQuestions.length} selected`
+                    : `Select all ${filteredQuestions.length}`}
+                </span>
+              </label>
+
+              {selectedIds.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-auto"
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" />
+                  {isDeleting ? 'Deleting…' : `Delete ${selectedIds.size} selected`}
+                </Button>
+              )}
+
+              {totalPages > 1 && selectedIds.size < filteredQuestions.length && (
+                <button
+                  onClick={togglePageSelection}
+                  className="text-xs text-blue-600 hover:underline ml-auto"
+                >
+                  {allOnPageSelected ? 'Deselect this page' : `Select this page (${paginatedQuestions.length})`}
+                </button>
+              )}
+            </div>
+          )}
+
           {paginatedQuestions.length === 0 && (
             <Card>
               <div className="py-12 text-center text-gray-500">
@@ -308,63 +385,75 @@ export default function AdminQuestionsPage() {
               </div>
             </Card>
           )}
-          {paginatedQuestions.map((question) => (
-          <Card key={question.id}>
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="info" size="sm">
-                      {question.course?.course_code}
-                    </Badge>
-                    {question.topic && (
-                      <Badge variant="default" size="sm">
-                        {question.topic.topic_name}
-                      </Badge>
-                    )}
-                    <Badge variant={getDifficultyColor(question.difficulty)} size="sm">
-                      {question.difficulty}
-                    </Badge>
-                    <Badge variant="default" size="sm">
-                      {QUESTION_TYPE_LABELS[question.question_type]}
-                    </Badge>
-                  </div>
-                  <p className="text-gray-900 font-medium">{question.question_text}</p>
-                  {question.options && (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {question.options.map((opt, i) => (
-                        <div
-                          key={i}
-                          className={`text-sm px-3 py-2 rounded ${
-                            question.correct_answers.includes(opt.text)
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {String.fromCharCode(65 + i)}. {opt.text}
+
+          {paginatedQuestions.map((question) => {
+            const isSelected = selectedIds.has(question.id);
+            return (
+              <Card key={question.id} className={isSelected ? 'ring-2 ring-blue-400' : ''}>
+                <div className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleOne(question.id)}
+                      className="w-4 h-4 mt-1 rounded text-blue-600 flex-shrink-0 cursor-pointer"
+                    />
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Badge variant="info" size="sm">{question.course?.course_code}</Badge>
+                            {question.topic && (
+                              <Badge variant="default" size="sm">{question.topic.topic_name}</Badge>
+                            )}
+                            <Badge variant={getDifficultyColor(question.difficulty)} size="sm">
+                              {question.difficulty}
+                            </Badge>
+                            <Badge variant="default" size="sm">
+                              {QUESTION_TYPE_LABELS[question.question_type]}
+                            </Badge>
+                          </div>
+                          <p className="text-gray-900 font-medium">{question.question_text}</p>
+                          {question.options && (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              {question.options.map((opt, i) => (
+                                <div
+                                  key={i}
+                                  className={`text-sm px-3 py-2 rounded ${
+                                    question.correct_answers.includes(opt.text)
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {String.fromCharCode(65 + i)}. {opt.text}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {question.question_type === 'fill_in_blank' && (
+                            <p className="mt-2 text-sm text-green-600">
+                              Answer: {question.correct_answers[0]}
+                            </p>
+                          )}
                         </div>
-                      ))}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button size="sm" variant="ghost" onClick={() => openModal(question)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(question.id)}>
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {question.question_type === 'fill_in_blank' && (
-                    <p className="mt-2 text-sm text-green-600">
-                      Answer: {question.correct_answers[0]}
-                    </p>
-                  )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => openModal(question)}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(question.id)}>
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {/* Pagination */}
@@ -404,10 +493,7 @@ export default function AdminQuestionsPage() {
             <Select
               label="Course"
               value={formCourseId}
-              onChange={(e) => {
-                setFormCourseId(e.target.value);
-                setFormTopicId('');
-              }}
+              onChange={(e) => { setFormCourseId(e.target.value); setFormTopicId(''); }}
             >
               <option value="">Select Course</option>
               {courses.map(c => (
@@ -421,7 +507,7 @@ export default function AdminQuestionsPage() {
               disabled={!formCourseId}
             >
               <option value="">Select Topic</option>
-              {filteredTopics.map(t => (
+              {formTopics.map(t => (
                 <option key={t.id} value={t.id}>{t.topic_name}</option>
               ))}
             </Select>
@@ -479,11 +565,9 @@ export default function AdminQuestionsPage() {
                         checked={Array.isArray(formCorrectAnswer) && formCorrectAnswer.includes(opt) && opt !== ''}
                         onChange={(e) => {
                           const current = Array.isArray(formCorrectAnswer) ? formCorrectAnswer : [];
-                          if (e.target.checked) {
-                            setFormCorrectAnswer([...current, opt]);
-                          } else {
-                            setFormCorrectAnswer(current.filter(a => a !== opt));
-                          }
+                          setFormCorrectAnswer(
+                            e.target.checked ? [...current, opt] : current.filter(a => a !== opt)
+                          );
                         }}
                         className="w-4 h-4 text-blue-600"
                       />
@@ -496,14 +580,10 @@ export default function AdminQuestionsPage() {
                         const oldVal = newOpts[idx];
                         newOpts[idx] = e.target.value;
                         setFormOptions(newOpts);
-                        
-                        // Update correct answer if this option was selected
                         if (formType === 'single_choice' && formCorrectAnswer === oldVal) {
                           setFormCorrectAnswer(e.target.value);
                         } else if (formType === 'multiple_choice' && Array.isArray(formCorrectAnswer)) {
-                          setFormCorrectAnswer(
-                            formCorrectAnswer.map(a => a === oldVal ? e.target.value : a)
-                          );
+                          setFormCorrectAnswer(formCorrectAnswer.map(a => a === oldVal ? e.target.value : a));
                         }
                       }}
                     />
@@ -511,9 +591,7 @@ export default function AdminQuestionsPage() {
                 ))}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {formType === 'single_choice' 
-                  ? 'Select the correct answer' 
-                  : 'Check all correct answers'}
+                {formType === 'single_choice' ? 'Select the correct answer' : 'Check all correct answers'}
               </p>
             </div>
           )}
@@ -539,8 +617,8 @@ export default function AdminQuestionsPage() {
             <Button variant="outline" className="flex-1" onClick={() => setShowModal(false)}>
               Cancel
             </Button>
-            <Button 
-              className="flex-1" 
+            <Button
+              className="flex-1"
               onClick={handleSave}
               disabled={!formCourseId || !formQuestionText || !formCorrectAnswer}
             >
