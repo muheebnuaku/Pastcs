@@ -124,7 +124,7 @@ function PracticeContent() {
       .eq('course_id', courseData.id).eq('is_approved', true);
     if (topicId) query = query.eq('topic_id', topicId);
 
-    const { data: qs } = await query.limit(50);
+    const { data: qs } = await query.limit(200);
     if (qs && qs.length > 0) {
       const shuffled = shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE);
       setQuestions(shuffled);

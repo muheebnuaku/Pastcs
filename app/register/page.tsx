@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { Button, Input } from '@/components/ui';
-import Image from 'next/image';
 import { Home } from 'lucide-react';
+import { WatchingCharacter } from '@/components/auth/WatchingCharacter';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   // Already logged in — go to dashboard
   useEffect(() => {
@@ -60,9 +61,9 @@ export default function RegisterPage() {
       </Link>
 
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Image src="/past.png" alt="PastCS" width={160} height={160} className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-contain mx-auto mb-4" />
+        {/* Character + title */}
+        <div className="text-center mb-6">
+          <WatchingCharacter isHiding={isPasswordFocused} />
           <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
           <p className="text-gray-500 mt-1">Join PastCS and start practising</p>
         </div>
@@ -94,6 +95,8 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
               placeholder="Min. 6 characters"
               required
               autoComplete="new-password"
@@ -104,6 +107,8 @@ export default function RegisterPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
               placeholder="••••••••"
               required
               autoComplete="new-password"

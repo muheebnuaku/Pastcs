@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { useAuthStore } from '@/lib/store';
 import { Button, Input } from '@/components/ui';
-import Image from 'next/image';
 import { Home } from 'lucide-react';
+import { WatchingCharacter } from '@/components/auth/WatchingCharacter';
 
 // This email belongs to an admin account but should always land on the
 // student dashboard rather than the admin panel.
@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   // Already logged in — redirect based on role (with email exception)
   useEffect(() => {
@@ -61,9 +62,9 @@ export default function LoginPage() {
       </Link>
 
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Image src="/past.png" alt="PastCS" width={160} height={160} className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-contain mx-auto mb-4" />
+        {/* Character + title */}
+        <div className="text-center mb-6">
+          <WatchingCharacter isHiding={isPasswordFocused} />
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-500 mt-1">Sign in to your PastCS account</p>
         </div>
@@ -85,6 +86,8 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
               placeholder="••••••••"
               required
               autoComplete="current-password"

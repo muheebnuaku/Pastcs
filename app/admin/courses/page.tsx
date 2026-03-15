@@ -13,6 +13,24 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
+const ICON_PALETTE = [
+  // Computing & Tech
+  '💻','🖥️','📱','💾','🖨️','⌨️','🖱️','📡','🤖','⚙️','🔧','🔌','🔋','💡','📶',
+  // Math & Logic
+  '🔢','📐','📏','🧮','🧩','➕','➖','✖️','➗','🔣','🔤',
+  // Data & Stats
+  '📊','📈','📉','🗃️','📋','📌','🗂️','💹','🏦','💰','💳',
+  // Science
+  '🧪','⚗️','🔬','🔭','🧬','🧲','⚡','🌡️','🌊','🌍','🌐','☁️',
+  // Education
+  '📚','📖','📝','📓','📔','📒','✏️','🖊️','🎓','🏫','📃','🗒️','📌',
+  // Language & Comms
+  '🗣️','💬','📜','🔤','✍️','🌐',
+  // General / Misc
+  '🧠','🎯','🏆','⭐','🌟','🎖️','🥇','🔑','🔐','🎨','🎵','🎮','🏅','💎','🚀',
+];
+
+
 export default function AdminCoursesPage() {
   const [courses, setCourses] = useState<(Course & { topics: Topic[] })[]>([]);
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -27,6 +45,7 @@ export default function AdminCoursesPage() {
   const [courseName, setCourseName] = useState('');
   const [courseDescription, setCourseDescription] = useState('');
   const [courseColor, setCourseColor] = useState('#3B82F6');
+  const [courseIcon, setCourseIcon] = useState('📚');
   const [courseLevel, setCourseLevel] = useState<100 | 200 | 300 | 400>(100);
   const [courseSemester, setCourseSemester] = useState<1 | 2>(1);
 
@@ -75,6 +94,7 @@ export default function AdminCoursesPage() {
       setCourseName(course.course_name);
       setCourseDescription(course.description || '');
       setCourseColor(course.color);
+      setCourseIcon(course.icon || COURSE_ICONS[course.course_code] || '📚');
       setCourseLevel(course.level);
       setCourseSemester(course.semester);
     } else {
@@ -83,6 +103,7 @@ export default function AdminCoursesPage() {
       setCourseName('');
       setCourseDescription('');
       setCourseColor('#3B82F6');
+      setCourseIcon('📚');
       setCourseLevel(100);
       setCourseSemester(1);
     }
@@ -117,6 +138,7 @@ export default function AdminCoursesPage() {
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
+          icon: courseIcon,
           level: courseLevel,
           semester: courseSemester,
         })
@@ -129,6 +151,7 @@ export default function AdminCoursesPage() {
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
+          icon: courseIcon,
           level: courseLevel,
           semester: courseSemester,
         }));
@@ -209,7 +232,9 @@ export default function AdminCoursesPage() {
           ) : (
             <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
           )}
-          <span className="text-xl sm:text-3xl flex-shrink-0">{COURSE_ICONS[course.course_code]}</span>
+          <span className="text-xl sm:text-3xl flex-shrink-0">
+            {course.icon || COURSE_ICONS[course.course_code] || '📚'}
+          </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{course.course_code}</h3>
@@ -358,6 +383,33 @@ export default function AdminCoursesPage() {
             value={courseDescription}
             onChange={(e) => setCourseDescription(e.target.value)}
           />
+
+          {/* Icon picker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Icon <span className="ml-1 text-xl">{courseIcon}</span>
+            </label>
+            <div className="border border-gray-200 rounded-xl p-2 max-h-44 overflow-y-auto bg-gray-50">
+              <div className="grid grid-cols-8 gap-1">
+                {ICON_PALETTE.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setCourseIcon(emoji)}
+                    className={`text-xl p-1.5 rounded-lg transition-colors hover:bg-white hover:shadow-sm ${
+                      courseIcon === emoji
+                        ? 'bg-blue-100 ring-2 ring-blue-400 shadow-sm'
+                        : ''
+                    }`}
+                    title={emoji}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
