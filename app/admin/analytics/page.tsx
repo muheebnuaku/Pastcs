@@ -205,7 +205,7 @@ export default function AdminAnalyticsPage() {
           className="w-full sm:w-48"
           options={courses.map(c => ({
             value: c.id,
-            label: `${COURSE_ICONS[c.course_code] || ''} ${c.course_code}`,
+            label: `${c.icon || COURSE_ICONS[c.course_code] || ''} ${c.course_code}`,
           }))}
         />
       </div>

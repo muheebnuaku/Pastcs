@@ -262,7 +262,7 @@ export default function DashboardPage() {
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
                       {isLocked
                         ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                        : COURSE_ICONS[course.course_code]
+                        : course.icon || COURSE_ICONS[course.course_code] || '📚'
                       }
                     </div>
                     <div className="flex-1 min-w-0">
@@ -382,7 +382,7 @@ export default function DashboardPage() {
                 <div key={test.id} className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{COURSE_ICONS[test.course?.course_code || '']}</span>
+                      <span className="text-lg">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
                       <span className="font-medium text-gray-900 text-sm">{test.course?.course_code}</span>
                       <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'} size="sm">
                         {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
@@ -424,7 +424,7 @@ export default function DashboardPage() {
                     <tr key={test.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <span className="text-xl">{COURSE_ICONS[test.course?.course_code || '']}</span>
+                          <span className="text-xl">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
                           <span className="font-medium text-gray-900">{test.course?.course_code}</span>
                         </div>
                       </td>

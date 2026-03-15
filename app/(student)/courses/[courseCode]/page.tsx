@@ -114,7 +114,7 @@ export default function CourseDetailPage() {
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
               <div className="flex items-start gap-6">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20">
-                  {COURSE_ICONS[course.course_code]}
+                  {course.icon || COURSE_ICONS[course.course_code] || '📚'}
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold mb-2">{course.course_code}</h1>

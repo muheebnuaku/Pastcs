@@ -71,6 +71,7 @@ export default function AdminOverviewPage() {
             course_id: course.id,
             course_code: course.course_code,
             course_name: course.course_name,
+            course_icon: course.icon || '',
             total_questions: questionCount || 0,
             total_tests: tests?.length || 0,
             avg_score: avgScore,
@@ -170,7 +171,7 @@ export default function AdminOverviewPage() {
               <div key={course.course_id} className="px-6 py-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{COURSE_ICONS[course.course_code]}</span>
+                    <span className="text-2xl">{course.course_icon || COURSE_ICONS[course.course_code] || '📚'}</span>
                     <div>
                       <p className="font-medium text-gray-900">{course.course_code}</p>
                       <p className="text-xs text-gray-500">{course.course_name}</p>

@@ -232,7 +232,7 @@ export default function CoursesPage() {
                           className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl grayscale opacity-60"
                           style={{ backgroundColor: `${course.color}20` }}
                         >
-                          {COURSE_ICONS[course.course_code] ?? '📚'}
+                          {course.icon || COURSE_ICONS[course.course_code] || '📚'}
                         </div>
                         <div className="flex items-center gap-1.5 bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full text-xs font-medium">
                           <Lock className="w-3 h-3" />
