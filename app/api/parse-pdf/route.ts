@@ -1,12 +1,5 @@
 import OpenAI from 'openai';
 
-// Typed require — serverExternalPackages ensures pdf-parse is never bundled
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (
-  buf: Buffer,
-  options?: Record<string, unknown>
-) => Promise<{ text: string; numpages: number; info: unknown }>;
-
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -21,6 +14,15 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Require inside the handler so any load failure is caught by try/catch
+    // (top-level require crashes the module and returns an HTML 500)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse') as (
+      buf: Buffer,
+      options?: Record<string, unknown>
+    ) => Promise<{ text: string; numpages: number; info: unknown }>;
+
     const pdfData = await pdfParse(buffer);
     const text: string = pdfData.text?.trim() || '';
 
