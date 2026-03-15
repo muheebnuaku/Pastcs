@@ -216,6 +216,7 @@ export interface CourseStats {
   course_id: string;
   course_code: string;
   course_name: string;
+  course_icon?: string;
   total_questions: number;
   total_tests: number;
   avg_score: number;
