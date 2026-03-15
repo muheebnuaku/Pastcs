@@ -17,6 +17,7 @@ import {
   Flag,
   CheckCircle,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 
 export default function ExamPage() {
@@ -31,6 +32,8 @@ export default function ExamPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  // Questions that can no longer be changed (navigated away from with Next)
+  const [lockedQuestions, setLockedQuestions] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState(EXAM_DURATION_MINUTES * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -151,6 +154,7 @@ export default function ExamPage() {
   const currentQuestion = questions[currentIndex];
 
   const handleSelectAnswer = (optionId: string) => {
+    if (lockedQuestions.has(currentQuestion.id)) return; // locked
     const currentAnswer = answers[currentQuestion.id] || [];
     if (currentQuestion.question_type === 'single_choice') {
       setAnswers({ ...answers, [currentQuestion.id]: [optionId] });
@@ -164,6 +168,7 @@ export default function ExamPage() {
   };
 
   const handleFillBlank = (value: string) => {
+    if (lockedQuestions.has(currentQuestion.id)) return; // locked
     setAnswers({ ...answers, [currentQuestion.id]: [value.trim().toLowerCase()] });
   };
 
@@ -265,14 +270,21 @@ export default function ExamPage() {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <Badge variant="default">Question {currentIndex + 1}</Badge>
-          <Badge variant={
-            currentQuestion.question_type === 'single_choice' ? 'default' :
-            currentQuestion.question_type === 'multiple_choice' ? 'info' : 'warning'
-          }>
-            {currentQuestion.question_type === 'single_choice' && 'Single Choice'}
-            {currentQuestion.question_type === 'multiple_choice' && 'Multiple Choice (Select all)'}
-            {currentQuestion.question_type === 'fill_in_blank' && 'Fill in the Blank'}
-          </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant={
+              currentQuestion.question_type === 'single_choice' ? 'default' :
+              currentQuestion.question_type === 'multiple_choice' ? 'info' : 'warning'
+            }>
+              {currentQuestion.question_type === 'single_choice' && 'Single Choice'}
+              {currentQuestion.question_type === 'multiple_choice' && 'Multiple Choice (Select all)'}
+              {currentQuestion.question_type === 'fill_in_blank' && 'Fill in the Blank'}
+            </Badge>
+            {lockedQuestions.has(currentQuestion.id) && (
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <Lock className="w-3 h-3" /> Locked
+              </span>
+            )}
+          </div>
         </div>
 
         <h2 className="text-lg font-medium text-gray-900 mb-6">{currentQuestion.question_text}</h2>
@@ -281,13 +293,15 @@ export default function ExamPage() {
           <div className="space-y-3">
             {currentQuestion.options.map((option) => {
               const isSelected = (answers[currentQuestion.id] || []).includes(option.id);
+              const isLocked = lockedQuestions.has(currentQuestion.id);
               return (
                 <button
                   key={option.id}
                   onClick={() => handleSelectAnswer(option.id)}
-                  className={`w-full p-4 border-2 rounded-xl text-left transition-colors flex items-center gap-3 ${
+                  disabled={isLocked}
+                  className={`w-full p-4 border-2 rounded-xl text-left transition-colors flex items-center gap-3 disabled:cursor-not-allowed ${
                     isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-                  }`}
+                  } ${isLocked ? 'opacity-80' : ''}`}
                 >
                   <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                     isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
@@ -311,7 +325,10 @@ export default function ExamPage() {
             placeholder="Type your answer..."
             value={answers[currentQuestion.id]?.[0] || ''}
             onChange={(e) => handleFillBlank(e.target.value)}
-            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            disabled={lockedQuestions.has(currentQuestion.id)}
+            className={`w-full p-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-80 ${
+              lockedQuestions.has(currentQuestion.id) ? 'bg-gray-50' : ''
+            }`}
           />
         )}
       </Card>
@@ -328,7 +345,13 @@ export default function ExamPage() {
         </Button>
         <div className="flex gap-3">
           {currentIndex < questions.length - 1 ? (
-            <Button onClick={() => setCurrentIndex(currentIndex + 1)}>
+            <Button onClick={() => {
+              // Lock current question when moving forward
+              if (answers[currentQuestion.id]?.length > 0) {
+                setLockedQuestions(prev => new Set([...prev, currentQuestion.id]));
+              }
+              setCurrentIndex(currentIndex + 1);
+            }}>
               Next <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
@@ -346,17 +369,22 @@ export default function ExamPage() {
         <div className="flex flex-wrap gap-2">
           {questions.map((q, idx) => {
             const hasAnswer = answers[q.id]?.length > 0;
+            const isLocked = lockedQuestions.has(q.id);
             return (
               <button
                 key={q.id}
                 onClick={() => setCurrentIndex(idx)}
-                className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors relative ${
                   idx === currentIndex ? 'bg-blue-600 text-white'
+                  : isLocked ? 'bg-green-100 text-green-700 border border-green-300 opacity-75'
                   : hasAnswer ? 'bg-green-100 text-green-700 border border-green-300'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {idx + 1}
+                {isLocked && (
+                  <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1 text-gray-500 bg-white rounded-full p-0.5 shadow-sm" />
+                )}
               </button>
             );
           })}
