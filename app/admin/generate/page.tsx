@@ -200,6 +200,24 @@ export default function AdminGeneratePage() {
     }, 150);
 
     try {
+      // Resolve topic: if a slide topic was detected and no topic is manually selected,
+      // find-or-create the topic in the DB so questions are linked to it.
+      let effectiveTopicId: string | null = selectedTopic || null;
+      let topicWasCreated = false;
+
+      if (!effectiveTopicId && pdfTopic.trim()) {
+        const topicRes = await fetch('/api/topics/ensure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courseId: selectedCourse, topicName: pdfTopic.trim() }),
+        });
+        if (topicRes.ok) {
+          const topicData = await topicRes.json();
+          effectiveTopicId = topicData.topicId;
+          topicWasCreated = topicData.created;
+        }
+      }
+
       const questionsToInsert = selectedQuestions.map(q => {
         const options = q.options
           ? q.options.map((text, i) => ({ id: `opt_${i}`, text }))
@@ -219,7 +237,7 @@ export default function AdminGeneratePage() {
 
         return {
           course_id: selectedCourse,
-          topic_id: selectedTopic || null,
+          topic_id: effectiveTopicId,
           question_type: q.question_type,
           question_text: q.question_text,
           options,
@@ -239,11 +257,30 @@ export default function AdminGeneratePage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to save questions');
 
-      setSuccessMessage(`Successfully saved ${result.saved} questions!`);
+      const topicNote = topicWasCreated
+        ? ` Topic "${pdfTopic}" added to the course.`
+        : effectiveTopicId && pdfTopic
+          ? ` Saved under topic "${pdfTopic}".`
+          : '';
+      setSuccessMessage(`Successfully saved ${result.saved} questions!${topicNote}`);
       setSaveProgress(100);
       setGeneratedQuestions([]);
       setSlideContent('');
       clearPdf();
+
+      // Refresh topics list so the newly created topic appears in the dropdown
+      const supabase = createClient();
+      supabase
+        .from('topics')
+        .select('*')
+        .eq('course_id', selectedCourse)
+        .order('order_index')
+        .then(({ data }: { data: Topic[] | null }) => {
+          const unique = (data || []).filter((t: Topic, i: number, arr: Topic[]) =>
+            arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i
+          );
+          setTopics(unique);
+        });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save questions');
     } finally {
