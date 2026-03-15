@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { extractText } from 'unpdf';
 
 export async function POST(request: Request) {
   try {
@@ -15,18 +16,11 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Require inside the handler so any load failure is caught by try/catch
-    // (top-level require crashes the module and returns an HTML 500)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse') as (
-      buf: Buffer,
-      options?: Record<string, unknown>
-    ) => Promise<{ text: string; numpages: number; info: unknown }>;
+    // unpdf uses a serverless-safe PDF.js build that polyfills DOMMatrix etc.
+    const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
+    const extracted: string = (text as string)?.trim() || '';
 
-    const pdfData = await pdfParse(buffer);
-    const text: string = pdfData.text?.trim() || '';
-
-    if (!text) {
+    if (!extracted) {
       return Response.json({ error: 'Could not extract text from this PDF' }, { status: 422 });
     }
 
@@ -39,7 +33,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: 'user',
-            content: `Identify the main academic topic or chapter title from this lecture slide content. Respond with only a JSON object.\n\nContent (first 3000 chars):\n${text.slice(0, 3000)}\n\nRespond: {"topic": "short topic name here"}`,
+            content: `Identify the main academic topic or chapter title from this lecture slide content. Respond with only a JSON object.\n\nContent (first 3000 chars):\n${extracted.slice(0, 3000)}\n\nRespond: {"topic": "short topic name here"}`,
           },
         ],
         response_format: { type: 'json_object' },
@@ -55,7 +49,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return Response.json({ text, detectedTopic });
+    return Response.json({ text: extracted, detectedTopic });
   } catch (err: unknown) {
     console.error('PDF parse error:', err);
     return Response.json(
