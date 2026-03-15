@@ -1,7 +1,13 @@
-import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 
-export async function POST(request: NextRequest) {
+// Typed require — serverExternalPackages ensures pdf-parse is never bundled
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse') as (
+  buf: Buffer,
+  options?: Record<string, unknown>
+) => Promise<{ text: string; numpages: number; info: unknown }>;
+
+export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -15,9 +21,6 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // Dynamic import keeps pdf-parse out of webpack's static analysis
-    const { default: pdfParse } = await import('pdf-parse');
     const pdfData = await pdfParse(buffer);
     const text: string = pdfData.text?.trim() || '';
 
