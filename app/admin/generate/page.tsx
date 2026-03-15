@@ -89,7 +89,7 @@ export default function AdminGeneratePage() {
       .select('*')
       .eq('course_id', selectedCourse)
       .order('order_index')
-      .then(({ data }) => {
+      .then(({ data }: { data: Topic[] | null }) => {
         if (!cancelled) {
           const unique = (data || []).filter((t: Topic, i: number, arr: Topic[]) =>
             arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i
