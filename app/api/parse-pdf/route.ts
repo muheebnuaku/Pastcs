@@ -1,10 +1,6 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 
-// Use the lib path to avoid Next.js test-file import issue with pdf-parse
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -19,6 +15,9 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Dynamic import keeps pdf-parse out of webpack's static analysis
+    const { default: pdfParse } = await import('pdf-parse');
     const pdfData = await pdfParse(buffer);
     const text: string = pdfData.text?.trim() || '';
 
