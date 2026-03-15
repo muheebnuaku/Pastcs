@@ -12,6 +12,9 @@ import {
   AlertCircle,
   RefreshCw,
   BookOpen,
+  FileUp,
+  X,
+  ScanText,
 } from 'lucide-react';
 
 interface GeneratedQuestion {
@@ -24,15 +27,20 @@ interface GeneratedQuestion {
   selected?: boolean;
 }
 
+const LEVELS = [100, 200, 300, 400] as const;
+
 export default function AdminGeneratePage() {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
   const [saveCount, setSaveCount] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedLevel, setSelectedLevel] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('');
   const [slideContent, setSlideContent] = useState('');
@@ -40,15 +48,32 @@ export default function AdminGeneratePage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load courses
+  // PDF upload state
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [pdfTopic, setPdfTopic] = useState('');
+
+  // Load all courses once
   useEffect(() => {
-    const fetchData = async () => {
-      const supabase = createClient();
-      const { data } = await supabase.from('courses').select('*').order('course_code');
-      if (data) setCourses(data);
-    };
-    fetchData();
+    const supabase = createClient();
+    supabase.from('courses').select('*').order('level').then(({ data }) => {
+      if (data) setAllCourses(data);
+    });
   }, []);
+
+  // Filter courses by level + semester
+  const filteredCourses = allCourses.filter(c => {
+    if (selectedLevel && c.level !== Number(selectedLevel)) return false;
+    if (selectedSemester && c.semester !== Number(selectedSemester)) return false;
+    return true;
+  });
+
+  // Reset course when level/semester changes
+  useEffect(() => {
+    setSelectedCourse('');
+    setSelectedTopic('');
+    setTopics([]);
+  }, [selectedLevel, selectedSemester]);
 
   // Load topics when course changes
   useEffect(() => {
@@ -58,29 +83,66 @@ export default function AdminGeneratePage() {
       return;
     }
     let cancelled = false;
-    const fetchTopics = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('topics')
-        .select('*')
-        .eq('course_id', selectedCourse)
-        .order('order_index');
-      if (!cancelled) {
-        const unique = (data || []).filter((t: Topic, i: number, arr: Topic[]) => arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i);
-        setTopics(unique);
-        setSelectedTopic('');
-      }
-    };
-    fetchTopics();
+    const supabase = createClient();
+    supabase
+      .from('topics')
+      .select('*')
+      .eq('course_id', selectedCourse)
+      .order('order_index')
+      .then(({ data }) => {
+        if (!cancelled) {
+          const unique = (data || []).filter((t: Topic, i: number, arr: Topic[]) =>
+            arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i
+          );
+          setTopics(unique);
+          setSelectedTopic('');
+        }
+      });
     return () => { cancelled = true; };
   }, [selectedCourse]);
 
   const selectedTopicObj = topics.find(t => t.id === selectedTopic);
   const canGenerate = selectedCourse && (slideContent.trim() || selectedTopic);
 
+  // Handle PDF file selection
+  const handlePdfSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPdfFile(file);
+    setPdfTopic('');
+    setSlideContent('');
+    handlePdfParse(file);
+  };
+
+  const handlePdfParse = async (file: File) => {
+    setIsParsing(true);
+    setError('');
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to parse PDF');
+      setSlideContent(data.text || '');
+      setPdfTopic(data.detectedTopic || '');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to parse PDF');
+      setPdfFile(null);
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const clearPdf = () => {
+    setPdfFile(null);
+    setPdfTopic('');
+    setSlideContent('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleGenerate = async () => {
     if (!canGenerate) {
-      setError('Please select a course and either paste slide content or choose a topic');
+      setError('Please select a course and either upload a PDF, paste slide content, or choose a topic');
       return;
     }
 
@@ -97,7 +159,7 @@ export default function AdminGeneratePage() {
           slideContent: slideContent.trim() || null,
           courseId: selectedCourse,
           topicId: selectedTopic || null,
-          topicName: selectedTopicObj?.topic_name || null,
+          topicName: selectedTopicObj?.topic_name || pdfTopic || null,
         }),
       });
 
@@ -181,6 +243,7 @@ export default function AdminGeneratePage() {
       setSaveProgress(100);
       setGeneratedQuestions([]);
       setSlideContent('');
+      clearPdf();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save questions');
     } finally {
@@ -202,7 +265,7 @@ export default function AdminGeneratePage() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">AI Question Generator</h1>
-        <p className="text-gray-600">Generate exam questions from lecture slides or by topic</p>
+        <p className="text-gray-600">Generate exam questions from PDF slides or by topic</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -215,6 +278,29 @@ export default function AdminGeneratePage() {
             </h2>
           </div>
           <CardContent className="space-y-4">
+            {/* Level + Semester row */}
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Level"
+                value={selectedLevel}
+                onChange={e => setSelectedLevel(e.target.value)}
+              >
+                <option value="">All Levels</option>
+                {LEVELS.map(l => (
+                  <option key={l} value={l}>Level {l}</option>
+                ))}
+              </Select>
+              <Select
+                label="Semester"
+                value={selectedSemester}
+                onChange={e => setSelectedSemester(e.target.value)}
+              >
+                <option value="">All Semesters</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </Select>
+            </div>
+
             {/* Course selector */}
             <Select
               label="Course"
@@ -222,12 +308,14 @@ export default function AdminGeneratePage() {
               onChange={(e) => { setSelectedCourse(e.target.value); setGeneratedQuestions([]); }}
             >
               <option value="">Select Course</option>
-              {courses.map(c => (
-                <option key={c.id} value={c.id}>{c.course_code} — {c.course_name}</option>
+              {filteredCourses.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.course_code} — {c.course_name}
+                </option>
               ))}
             </Select>
 
-            {/* Topic selector — only shown when course is picked */}
+            {/* Topic selector */}
             {selectedCourse && (
               <div>
                 <Select
@@ -246,46 +334,105 @@ export default function AdminGeneratePage() {
                     <p className="text-xs text-purple-700">
                       <span className="font-semibold">Topic mode:</span> AI will generate questions
                       specifically for <span className="font-semibold">{selectedTopicObj?.topic_name}</span>.
-                      Slide content is optional.
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            <Textarea
-              label={selectedTopic ? 'Slide Content (optional when topic is selected)' : 'Paste Lecture Slide Content'}
-              placeholder={selectedTopic
-                ? 'Optionally paste slide content to improve question quality...'
-                : `Paste the text content from your lecture slides here...
+            {/* PDF Upload area */}
+            {selectedCourse && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Upload PDF Slide</p>
+
+                {!pdfFile ? (
+                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-colors">
+                    <FileUp className="w-7 h-7 text-gray-400 mb-1" />
+                    <span className="text-sm text-gray-500">Click to upload a PDF</span>
+                    <span className="text-xs text-gray-400">AI will scan and extract topic &amp; content</span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={handlePdfSelect}
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                    {isParsing ? (
+                      <>
+                        <ScanText className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-blue-800">Scanning PDF...</p>
+                          <p className="text-xs text-blue-500">AI is extracting topic and content</p>
+                        </div>
+                        <RefreshCw className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-blue-800 truncate">{pdfFile.name}</p>
+                          {pdfTopic && (
+                            <p className="text-xs text-blue-600">
+                              Detected topic: <span className="font-semibold">{pdfTopic}</span>
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={clearPdf}
+                          className="p-1 hover:bg-blue-200 rounded-full transition-colors flex-shrink-0"
+                        >
+                          <X className="w-4 h-4 text-blue-700" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Slide content textarea */}
+            {selectedCourse && (
+              <Textarea
+                label={pdfFile
+                  ? 'Extracted Slide Content (editable)'
+                  : selectedTopic
+                    ? 'Slide Content (optional when topic is selected)'
+                    : 'Paste Lecture Slide Content'}
+                placeholder={pdfFile
+                  ? 'PDF content will appear here after scanning...'
+                  : selectedTopic
+                    ? 'Optionally paste slide content to improve question quality...'
+                    : `Paste the text content from your lecture slides here...
 
 Example:
 Chapter 3: Number Systems
 
 Binary Number System
 - Base 2 system using digits 0 and 1
-- Each position represents a power of 2
-- Conversion to decimal: multiply each digit by its positional value`}
-              value={slideContent}
-              onChange={(e) => setSlideContent(e.target.value)}
-              rows={selectedTopic ? 6 : 12}
-            />
+- Each position represents a power of 2`}
+                value={slideContent}
+                onChange={(e) => setSlideContent(e.target.value)}
+                rows={selectedTopic || pdfFile ? 6 : 10}
+              />
+            )}
 
-            {!selectedTopic && (
+            {!selectedTopic && !pdfFile && selectedCourse && (
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">Tips for better results:</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• Upload a PDF or paste slide text above</li>
                   <li>• Include key concepts and definitions</li>
-                  <li>• Add examples and formulas</li>
-                  <li>• Paste content from multiple slides</li>
-                  <li>• More content = better questions</li>
+                  <li>• More content = more questions generated</li>
                 </ul>
               </div>
             )}
 
             <Button
               onClick={handleGenerate}
-              disabled={isGenerating || !canGenerate}
+              disabled={isGenerating || !canGenerate || isParsing}
               className="w-full"
             >
               {isGenerating ? (
@@ -298,7 +445,9 @@ Binary Number System
                   <Sparkles className="w-4 h-4 mr-2" />
                   {selectedTopic && !slideContent.trim()
                     ? `Generate from "${selectedTopicObj?.topic_name}"`
-                    : 'Generate Questions with AI'}
+                    : pdfTopic && !selectedTopic
+                      ? `Generate from "${pdfTopic}"`
+                      : 'Generate Questions with AI'}
                 </>
               )}
             </Button>

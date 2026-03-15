@@ -172,6 +172,26 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 );
 
 -- ================================================================
+-- SUBSCRIPTION PRICES TABLE
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.subscription_prices (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  level      INTEGER NOT NULL UNIQUE CHECK (level IN (100, 200, 300, 400)),
+  amount     INTEGER NOT NULL DEFAULT 5000, -- in pesewas (÷ 100 = GHC)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Default prices (GHC 50 per level)
+INSERT INTO public.subscription_prices (level, amount) VALUES
+  (100, 5000),
+  (200, 5000),
+  (300, 5000),
+  (400, 5000)
+ON CONFLICT (level) DO NOTHING;
+
+ALTER TABLE public.subscription_prices ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- INDEXES
 -- ================================================================
 CREATE INDEX IF NOT EXISTS idx_questions_course       ON public.questions(course_id);
@@ -206,7 +226,7 @@ BEGIN
            WHERE schemaname = 'public'
              AND tablename IN ('users','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
-                               'lecture_slides','subscriptions')
+                               'lecture_slides','subscriptions','subscription_prices')
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
   END LOOP;
@@ -260,6 +280,10 @@ CREATE POLICY "lecture_slides_admin" ON public.lecture_slides FOR ALL USING (is_
 
 -- Subscriptions
 CREATE POLICY "subscriptions_select_own" ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
+
+-- Subscription prices (readable by all authenticated users, editable by admin only)
+CREATE POLICY "prices_select" ON public.subscription_prices FOR SELECT TO authenticated USING (true);
+CREATE POLICY "prices_admin"  ON public.subscription_prices FOR ALL USING (is_admin());
 
 -- ================================================================
 -- TRIGGER: auto-create user row on auth signup

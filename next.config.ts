@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  serverExternalPackages: ['pdf-parse'],
   images: {
     remotePatterns: [
       {

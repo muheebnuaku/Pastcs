@@ -28,6 +28,20 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
   const [isVerifying, setIsVerifying] = useState(false);
   const [paymentClosed, setPaymentClosed] = useState(false);
   const [error, setError] = useState('');
+  // Dynamic price in pesewas; defaults to 5000 (GHC 50) while loading
+  const [priceAmount, setPriceAmount] = useState(5000);
+
+  useEffect(() => {
+    fetch('/api/pricing')
+      .then(r => r.json())
+      .then(data => {
+        const level = user?.selected_level;
+        if (data.prices && level && data.prices[level]) {
+          setPriceAmount(data.prices[level]);
+        }
+      })
+      .catch(() => {});
+  }, [user?.selected_level]);
 
   // Load Paystack script on mount
   useEffect(() => {
@@ -64,7 +78,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           level: user!.selected_level!,
           semester: user!.selected_semester!,
           payment_reference: reference,
-          amount: 5000,
+          amount: priceAmount,
           status: 'active',
           paid_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -92,7 +106,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: user.email,
-        amount: 5000, // GHC 50 = 5000 pesewas
+        amount: priceAmount,
         currency: 'GHS',
         ref,
         metadata: {
@@ -186,12 +200,8 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
 
           {/* Price + anchoring */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-4">
-            <p className="text-sm text-blue-300 line-through mb-0.5">GHC 60</p>
             <div className="flex items-center justify-center gap-2">
-              <p className="text-3xl font-bold text-white">GHC 50</p>
-              <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">
-                SAVE 10
-              </span>
+              <p className="text-3xl font-bold text-white">GHC {priceAmount / 100}</p>
             </div>
             <p className="text-blue-200 text-sm mt-1">this semester — invest in your grades</p>
           </div>
@@ -224,7 +234,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
                 Verifying payment…
               </>
             ) : (
-              'Unlock Now — GHC 50'
+              `Unlock Now — GHC ${priceAmount / 100}`
             )}
           </Button>
 

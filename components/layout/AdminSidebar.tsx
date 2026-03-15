@@ -19,6 +19,7 @@ import {
   X,
   Shield,
   GraduationCap,
+  DollarSign,
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -28,6 +29,7 @@ const adminNavItems = [
   { href: '/admin/generate', label: 'AI Generator', icon: Sparkles },
   { href: '/admin/students', label: 'Students', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },
 ];
 
 export function AdminSidebar() {
