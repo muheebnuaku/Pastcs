@@ -56,7 +56,7 @@ export default function AdminGeneratePage() {
   // Load all courses once
   useEffect(() => {
     const supabase = createClient();
-    supabase.from('courses').select('*').order('level').then(({ data }) => {
+    supabase.from('courses').select('*').order('level').then(({ data }: { data: Course[] | null }) => {
       if (data) setAllCourses(data);
     });
   }, []);
