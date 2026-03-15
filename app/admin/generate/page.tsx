@@ -142,7 +142,7 @@ export default function AdminGeneratePage() {
 
   const handleGenerate = async () => {
     if (!canGenerate) {
-      setError('Please select a course and either upload a PDF, paste slide content, or choose a topic');
+      setError('Please select a course and either upload a PDF/PPTX, paste slide content, or choose a topic');
       return;
     }
 
@@ -265,7 +265,7 @@ export default function AdminGeneratePage() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">AI Question Generator</h1>
-        <p className="text-gray-600">Generate exam questions from PDF slides or by topic</p>
+        <p className="text-gray-600">Generate exam questions from PDF or PPTX slides, or by topic</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -343,17 +343,17 @@ export default function AdminGeneratePage() {
             {/* PDF Upload area */}
             {selectedCourse && (
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Upload PDF Slide</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">Upload Slide (PDF or PPTX)</p>
 
                 {!pdfFile ? (
                   <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-colors">
                     <FileUp className="w-7 h-7 text-gray-400 mb-1" />
-                    <span className="text-sm text-gray-500">Click to upload a PDF</span>
+                    <span className="text-sm text-gray-500">Click to upload a PDF or PPTX</span>
                     <span className="text-xs text-gray-400">AI will scan and extract topic &amp; content</span>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="application/pdf"
+                      accept="application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                       className="hidden"
                       onChange={handlePdfSelect}
                     />
@@ -364,7 +364,7 @@ export default function AdminGeneratePage() {
                       <>
                         <ScanText className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0" />
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-blue-800">Scanning PDF...</p>
+                          <p className="text-sm font-medium text-blue-800">Scanning slide...</p>
                           <p className="text-xs text-blue-500">AI is extracting topic and content</p>
                         </div>
                         <RefreshCw className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
@@ -402,7 +402,7 @@ export default function AdminGeneratePage() {
                     ? 'Slide Content (optional when topic is selected)'
                     : 'Paste Lecture Slide Content'}
                 placeholder={pdfFile
-                  ? 'PDF content will appear here after scanning...'
+                  ? 'Slide content will appear here after scanning...'
                   : selectedTopic
                     ? 'Optionally paste slide content to improve question quality...'
                     : `Paste the text content from your lecture slides here...
@@ -423,7 +423,7 @@ Binary Number System
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">Tips for better results:</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Upload a PDF or paste slide text above</li>
+                  <li>• Upload a PDF or PPTX, or paste slide text above</li>
                   <li>• Include key concepts and definitions</li>
                   <li>• More content = more questions generated</li>
                 </ul>

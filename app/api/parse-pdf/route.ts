@@ -1,8 +1,35 @@
 import OpenAI from 'openai';
 import { extractText } from 'unpdf';
 
-// If extracted text is shorter than this, the PDF is likely image-based
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const MIN_TEXT_LENGTH = 150;
+
+const ACCEPTED_TYPES = ['application/pdf', PPTX_MIME];
+
+// ── PPTX text extraction ────────────────────────────────────────────────────
+// PPTX is a ZIP file; slides live at ppt/slides/slideN.xml.
+// Text content is wrapped in <a:t> tags. We parse this without any DOM APIs.
+async function extractPptxText(buffer: Buffer): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const JSZip = require('jszip') as typeof import('jszip');
+  const zip = await JSZip.loadAsync(buffer);
+
+  const slideFiles = Object.keys(zip.files)
+    .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort((a, b) => {
+      const n = (s: string) => parseInt(s.match(/\d+/)?.[0] ?? '0', 10);
+      return n(a) - n(b);
+    });
+
+  const parts: string[] = [];
+  for (const path of slideFiles) {
+    const xml = await zip.files[path].async('text');
+    const texts = xml.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) ?? [];
+    const slideText = texts.map(t => t.replace(/<[^>]+>/g, '')).join(' ').trim();
+    if (slideText) parts.push(slideText);
+  }
+  return parts.join('\n\n');
+}
 
 export async function POST(request: Request) {
   try {
@@ -10,31 +37,39 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File | null;
 
     if (!file) {
-      return Response.json({ error: 'No PDF file provided' }, { status: 400 });
+      return Response.json({ error: 'No file provided' }, { status: 400 });
     }
-    if (file.type !== 'application/pdf') {
-      return Response.json({ error: 'File must be a PDF' }, { status: 400 });
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      return Response.json({ error: 'File must be a PDF or PPTX' }, { status: 400 });
     }
     if (!process.env.OPENAI_API_KEY) {
       return Response.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    const isPptx = file.type === PPTX_MIME;
 
-    // ── Stage 1: try fast text-layer extraction ──────────────────────────────
+    // ── Stage 1: text extraction ────────────────────────────────────────────
     let text = '';
     try {
-      const { text: extracted } = await extractText(new Uint8Array(buffer), { mergePages: true });
-      text = (extracted as string)?.trim() || '';
+      if (isPptx) {
+        text = await extractPptxText(buffer);
+      } else {
+        const { text: extracted } = await extractText(new Uint8Array(buffer), { mergePages: true });
+        text = (extracted as string)?.trim() ?? '';
+      }
     } catch {
-      // unpdf failed — treat as image-based
+      // fall through to OpenAI vision fallback (PDF only — PPTX must have text)
+      if (isPptx) {
+        return Response.json({ error: 'Could not read this PPTX file' }, { status: 422 });
+      }
     }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     let detectedTopic = '';
 
     if (text.length >= MIN_TEXT_LENGTH) {
-      // ── Text-based PDF: text extracted; just detect the topic ───────────────
+      // ── Text-rich file: detect topic only ──────────────────────────────────
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [{
@@ -46,19 +81,14 @@ export async function POST(request: Request) {
         temperature: 0.2,
       });
       try {
-        const result = JSON.parse(completion.choices[0].message.content || '{}');
-        detectedTopic = result.topic || '';
+        const r = JSON.parse(completion.choices[0].message.content || '{}');
+        detectedTopic = r.topic || '';
       } catch { /* keep empty */ }
 
-    } else {
-      // ── Image-based PDF: upload to OpenAI and let GPT-4o do OCR + topic ─────
-      // Use raw fetch to avoid SDK type constraints on the newer 'file' content type
+    } else if (!isPptx) {
+      // ── Image-based PDF: upload to OpenAI Files API for vision OCR ─────────
       const uploadForm = new FormData();
-      uploadForm.append(
-        'file',
-        new Blob([buffer], { type: 'application/pdf' }),
-        file.name || 'slide.pdf'
-      );
+      uploadForm.append('file', new Blob([buffer], { type: 'application/pdf' }), file.name || 'slide.pdf');
       uploadForm.append('purpose', 'user_data');
 
       const uploadRes = await fetch('https://api.openai.com/v1/files', {
@@ -90,7 +120,7 @@ export async function POST(request: Request) {
                 { type: 'file', file: { file_id: uploaded.id } },
                 {
                   type: 'text',
-                  text: 'Extract ALL readable text from this PDF slide, including any text visible inside images or screenshots. Then identify the main academic topic or chapter title. Return only JSON in this format: {"text": "all extracted text here", "topic": "short topic name"}',
+                  text: 'Extract ALL readable text from this PDF slide, including text visible inside images or screenshots. Then identify the main academic topic or chapter title. Return only JSON: {"text": "all extracted text here", "topic": "short topic name"}',
                 },
               ],
             }],
@@ -99,18 +129,16 @@ export async function POST(request: Request) {
           }),
         });
 
-        const completionData = await completionRes.json() as {
+        const data = await completionRes.json() as {
           choices?: Array<{ message: { content: string } }>;
           error?: { message: string };
         };
 
-        if (completionData.error) throw new Error(completionData.error.message);
-
-        const result = JSON.parse(completionData.choices?.[0]?.message?.content || '{}');
-        text = result.text || '';
-        detectedTopic = result.topic || '';
+        if (data.error) throw new Error(data.error.message);
+        const r = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+        text = r.text || '';
+        detectedTopic = r.topic || '';
       } finally {
-        // Clean up the uploaded file (best-effort)
         await fetch(`https://api.openai.com/v1/files/${uploaded.id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -119,14 +147,14 @@ export async function POST(request: Request) {
     }
 
     if (!text) {
-      return Response.json({ error: 'Could not extract text from this PDF' }, { status: 422 });
+      return Response.json({ error: 'Could not extract text from this file' }, { status: 422 });
     }
 
     return Response.json({ text, detectedTopic });
   } catch (err: unknown) {
-    console.error('PDF parse error:', err);
+    console.error('Slide parse error:', err);
     return Response.json(
-      { error: err instanceof Error ? err.message : 'Failed to parse PDF' },
+      { error: err instanceof Error ? err.message : 'Failed to parse file' },
       { status: 500 }
     );
   }

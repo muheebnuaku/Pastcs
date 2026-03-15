@@ -19,11 +19,13 @@ import {
   GraduationCap,
   User,
   ShieldCheck,
+  BotMessageSquare,
 } from 'lucide-react';
 
 const studentNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/courses', label: 'Courses', icon: BookOpen },
+  { href: '/assistant', label: 'AI Tutor', icon: BotMessageSquare },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/achievements', label: 'Achievements', icon: GraduationCap },
   { href: '/profile', label: 'Profile', icon: User },
