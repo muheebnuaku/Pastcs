@@ -117,7 +117,7 @@ export function AdminSidebar() {
               )}
               <div className="space-y-0.5">
                 {section.items.map((item) => {
-                  const active = isActive(item.href, item.exact);
+                  const active = isActive(item.href, (item as any).exact);
                   return (
                     <Link
                       key={item.href}
