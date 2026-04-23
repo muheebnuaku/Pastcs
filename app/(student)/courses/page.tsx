@@ -19,6 +19,9 @@ import {
   RefreshCw,
   GraduationCap,
   Sparkles,
+  Zap,
+  ShieldCheck,
+  BookOpen,
 } from 'lucide-react';
 
 export default function CoursesPage() {
@@ -37,6 +40,9 @@ export default function CoursesPage() {
   const semester = user?.selected_semester;
   const freeCourseCode = user?.free_course_code;
   const isPaid = hasActiveSub(level, semester);
+  const lockedCount = !isPaid && freeCourseCode
+    ? courses.filter(c => c.course_code !== freeCourseCode).length
+    : 0;
 
   const fetchCourses = async () => {
     if (!level || !semester) return;
@@ -89,6 +95,8 @@ export default function CoursesPage() {
 
   if (!user) return null;
 
+  const totalQuestions = courses.reduce((sum, c) => sum + (c.total_questions ?? 0), 0);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {showLevelModal && (
@@ -118,13 +126,8 @@ export default function CoursesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Courses</h1>
           {level && semester ? (
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-gray-500 text-sm">
-                Level {level} — Semester {semester}
-              </span>
-              <button
-                onClick={() => setShowLevelModal(true)}
-                className="text-xs text-blue-600 hover:underline"
-              >
+              <span className="text-gray-500 text-sm">Level {level} — Semester {semester}</span>
+              <button onClick={() => setShowLevelModal(true)} className="text-xs text-blue-600 hover:underline">
                 Change
               </button>
             </div>
@@ -136,7 +139,7 @@ export default function CoursesPage() {
         {level && !isPaid && freeCourseCode && (
           <button
             onClick={() => setPaywallCourse(courses.find(c => c.course_code !== freeCourseCode) ?? null)}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
           >
             <Sparkles className="w-4 h-4" />
             Unlock All — GHC 50
@@ -144,19 +147,57 @@ export default function CoursesPage() {
         )}
       </div>
 
-      {/* Banners */}
+      {/* Free-pick banner */}
       {level && !isPaid && !freeCourseCode && courses.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-center gap-4">
-          <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-blue-900">Pick one course to try for free</p>
-            <p className="text-xs text-blue-600 mt-0.5">
-              Click any course below to select it as your free trial. Unlock all {courses.length} for just GHC 50.
-            </p>
+        <div className="bg-blue-600 rounded-2xl p-5 text-white">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-base">Try one course for free</p>
+              <p className="text-sm text-blue-200 mt-0.5">
+                Pick any course below to start practicing — no payment needed.
+                Unlock all {courses.length} courses &amp; {totalQuestions}+ questions for just{' '}
+                <strong className="text-white">GHC 50</strong>.
+              </p>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Locked-courses upgrade banner */}
+      {level && !isPaid && freeCourseCode && lockedCount > 0 && (
+        <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900">
+                {lockedCount} course{lockedCount > 1 ? 's' : ''} locked — unlock everything for GHC 50
+              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
+                {[
+                  { icon: Zap, text: `All ${courses.length} courses this semester` },
+                  { icon: ShieldCheck, text: 'Exam simulation mode' },
+                  { icon: Sparkles, text: 'AI explanations on every question' },
+                ].map(({ icon: Icon, text }) => (
+                  <span key={text} className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <Icon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                    {text}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => setPaywallCourse(courses.find(c => c.course_code !== freeCourseCode) ?? null)}
+              className="flex-shrink-0 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap"
+            >
+              Unlock All — GHC 50
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Full-access banner */}
       {isPaid && (
         <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex items-center gap-3">
           <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
@@ -166,7 +207,7 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* No selection */}
+      {/* No level selected */}
       {!level && !showLevelModal && (
         <div className="text-center py-16">
           <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -182,12 +223,12 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading skeleton */}
       {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="bg-white rounded-2xl border border-gray-200 p-6 animate-pulse">
-              <div className="w-16 h-16 bg-gray-200 rounded-2xl mb-4" />
+              <div className="w-14 h-14 bg-gray-200 rounded-2xl mb-4" />
               <div className="h-5 bg-gray-200 rounded w-1/2 mb-2" />
               <div className="h-4 bg-gray-100 rounded w-3/4 mb-4" />
               <div className="h-4 bg-gray-100 rounded w-1/4" />
@@ -212,7 +253,7 @@ export default function CoursesPage() {
 
       {/* Course Grid */}
       {!isLoading && !error && courses.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {courses.map((course) => {
             const isFreeCourse = course.course_code === freeCourseCode;
             const isLocked = !isPaid && !isFreeCourse && !!freeCourseCode;
@@ -222,30 +263,32 @@ export default function CoursesPage() {
               return (
                 <button
                   key={course.id}
-                  className="w-full text-left"
+                  className="w-full text-left group"
                   onClick={() => setPaywallCourse(course)}
                 >
-                  <Card className="h-full opacity-90 hover:opacity-100 transition-opacity cursor-pointer border-2 border-dashed border-gray-200">
+                  <Card className="h-full border-2 border-dashed border-gray-200 group-hover:border-blue-300 group-hover:shadow-md transition-all cursor-pointer">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div
-                          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl grayscale opacity-60"
+                          className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl grayscale opacity-50"
                           style={{ backgroundColor: `${course.color}20` }}
                         >
                           {course.icon || COURSE_ICONS[course.course_code] || '📚'}
                         </div>
-                        <div className="flex items-center gap-1.5 bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full text-xs font-medium">
-                          <Lock className="w-3 h-3" />
-                          Locked
-                        </div>
+                        <span className="flex items-center gap-1 bg-gray-100 text-gray-400 px-2.5 py-1 rounded-full text-xs font-medium">
+                          <Lock className="w-3 h-3" /> Locked
+                        </span>
                       </div>
-                      <h2 className="text-lg font-bold text-gray-600">{course.course_code}</h2>
-                      <p className="text-gray-400 text-sm mb-3">{course.course_name}</p>
-                      <div className="flex items-center gap-1 text-gray-400 text-xs mb-3">
+                      <h2 className="text-base font-bold text-gray-500 mb-0.5">{course.course_code}</h2>
+                      <p className="text-gray-400 text-sm mb-3 leading-snug">{course.course_name}</p>
+                      <div className="flex items-center gap-1 text-gray-400 text-xs mb-4">
                         <FileQuestion className="w-3.5 h-3.5" />
-                        {course.total_questions} questions locked
+                        {course.total_questions ?? 0} questions inside
                       </div>
-                      <p className="text-xs font-medium text-blue-600">Unlock All for GHC 50 →</p>
+                      <div className="flex items-center justify-center gap-1.5 bg-blue-600 group-hover:bg-blue-700 text-white rounded-xl py-2 text-xs font-semibold transition-colors">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Unlock for GHC 50
+                      </div>
                     </CardContent>
                   </Card>
                 </button>
@@ -256,26 +299,26 @@ export default function CoursesPage() {
               return (
                 <button
                   key={course.id}
-                  className="w-full text-left"
+                  className="w-full text-left group"
                   onClick={() => handleSelectFreeCourse(course.course_code)}
                 >
-                  <Card className="h-full transition-shadow hover:shadow-md cursor-pointer">
+                  <Card className="h-full border-2 border-transparent group-hover:border-green-400 group-hover:shadow-md transition-all cursor-pointer">
                     <CardContent className="p-6">
                       <div
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4"
                         style={{ backgroundColor: `${course.color}20` }}
                       >
-                        {COURSE_ICONS[course.course_code] ?? '📚'}
+                        {course.icon || COURSE_ICONS[course.course_code] || '📚'}
                       </div>
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h2 className="text-lg font-bold text-gray-900">{course.course_code}</h2>
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <h2 className="text-base font-bold text-gray-900">{course.course_code}</h2>
                         <Badge variant="info" size="sm">
                           <FileQuestion className="w-3 h-3 mr-1" />
-                          {course.total_questions}
+                          {course.total_questions ?? 0}
                         </Badge>
                       </div>
-                      <p className="text-gray-600 text-sm mb-4">{course.course_name}</p>
-                      <div className="flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-2 text-sm font-medium">
+                      <p className="text-gray-500 text-sm mb-4 leading-snug">{course.course_name}</p>
+                      <div className="flex items-center justify-center gap-2 bg-green-600 group-hover:bg-green-700 text-white rounded-xl py-2 text-sm font-semibold transition-colors">
                         {settingFreeCourse === course.course_code ? (
                           <RefreshCw className="w-4 h-4 animate-spin" />
                         ) : (
@@ -291,17 +334,16 @@ export default function CoursesPage() {
               );
             }
 
-            /* Free or paid course */
             return (
-              <Link key={course.id} href={`/courses/${course.course_code.toLowerCase()}`}>
-                <Card className="h-full card-hover cursor-pointer">
+              <Link key={course.id} href={`/courses/${course.course_code.toLowerCase()}`} className="group">
+                <Card className="h-full border-2 border-transparent group-hover:border-blue-200 group-hover:shadow-md transition-all cursor-pointer">
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
                         style={{ backgroundColor: `${course.color}20` }}
                       >
-                        {COURSE_ICONS[course.course_code] ?? '📚'}
+                        {course.icon || COURSE_ICONS[course.course_code] || '📚'}
                       </div>
                       {isFreeCourse && !isPaid && (
                         <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
@@ -309,17 +351,17 @@ export default function CoursesPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <h2 className="text-lg font-bold text-gray-900">{course.course_code}</h2>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <h2 className="text-base font-bold text-gray-900">{course.course_code}</h2>
                       <Badge variant="info" size="sm">
                         <FileQuestion className="w-3 h-3 mr-1" />
-                        {course.total_questions}
+                        {course.total_questions ?? 0}
                       </Badge>
                     </div>
-                    <p className="text-gray-600 text-sm mb-4">{course.course_name}</p>
-                    <div className="flex items-center text-blue-600 font-medium text-sm">
+                    <p className="text-gray-500 text-sm mb-4 leading-snug">{course.course_name}</p>
+                    <div className="flex items-center text-blue-600 font-semibold text-sm">
                       Start Practice
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                   </CardContent>
                 </Card>

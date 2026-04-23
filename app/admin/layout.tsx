@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers';
-import { AdminSidebar } from '@/components/layout';
+import { AdminSidebar, AdminHeader } from '@/components/layout';
 
 export default function AdminLayout({
   children,
@@ -26,6 +26,7 @@ export default function AdminLayout({
       <AdminSidebar />
       <main className="lg:ml-64 min-h-screen">
         <div className="pt-16 lg:pt-0 p-6 lg:p-8">
+          <AdminHeader />
           {children}
         </div>
       </main>

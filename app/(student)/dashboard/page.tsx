@@ -20,6 +20,9 @@ import {
   AlertTriangle,
   Lock,
   GraduationCap,
+  Zap,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -161,32 +164,37 @@ export default function DashboardPage() {
 
       {/* ── Upgrade prompt ── */}
       {level && lockedCourseCount > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 rounded-2xl p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+        <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Lock className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900 text-sm sm:text-base">
+                  {lockedCourseCount} course{lockedCourseCount > 1 ? 's' : ''} locked — unlock all for GHC 50
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                  {[
+                    { icon: Zap, text: `All ${courses.length} courses` },
+                    { icon: ShieldCheck, text: 'Exam simulation' },
+                    { icon: Sparkles, text: 'AI explanations' },
+                  ].map(({ icon: Icon, text }) => (
+                    <span key={text} className="flex items-center gap-1.5 text-xs text-gray-600">
+                      <Icon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                      {text}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900 text-sm sm:text-base">
-                {lockedCourseCount} course{lockedCourseCount > 1 ? 's' : ''} locked this semester
-              </p>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                You&rsquo;re using 1 of {courses.length} courses free. Unlock everything for just GHC 50.
-              </p>
-            </div>
+            <button
+              onClick={() => setShowPaywall(true)}
+              className="flex-shrink-0 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap w-full sm:w-auto"
+            >
+              Unlock All — GHC 50
+            </button>
           </div>
-          <button
-            onClick={() => setShowPaywall(true)}
-            className="mt-3 w-full bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors sm:hidden"
-          >
-            Unlock All — GHC 50
-          </button>
-          <button
-            onClick={() => setShowPaywall(true)}
-            className="hidden sm:block mt-3 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            Unlock All — GHC 50
-          </button>
         </div>
       )}
 
