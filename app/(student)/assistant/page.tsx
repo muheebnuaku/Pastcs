@@ -126,6 +126,8 @@ export default function AssistantPage() {
   const [teachParas, setTeachParas] = useState<string[]>([]);
   const [teachParaIdx, setTeachParaIdx] = useState(0);
   const [paraReady, setParaReady] = useState(false);
+  const [lessonImages, setLessonImages] = useState<Record<number, { url: string; caption: string; pageUrl: string }>>({});
+  const [explainSectionIdx, setExplainSectionIdx] = useState(-1);
 
   const { speak, stop, isSpeaking, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
@@ -260,6 +262,23 @@ export default function AssistantPage() {
       const sections = parseSections(full);
       setLessonSections(sections);
       setDocStage('ready');
+
+      // Find "Full Explanation" section and fetch images for its paragraphs
+      const explainIdx = sections.findIndex(s =>
+        /full explanation|explanation/i.test(s.title)
+      );
+      setExplainSectionIdx(explainIdx);
+      if (explainIdx >= 0) {
+        const paras = splitParas(sections[explainIdx].content);
+        fetch('/api/lesson-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paragraphs: paras, topic: parseData.detectedTopic || file.name }),
+        })
+          .then(r => r.json())
+          .then(({ images }) => setLessonImages(images as Record<number, { url: string; caption: string; pageUrl: string }>))
+          .catch(() => {});
+      }
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
@@ -277,6 +296,8 @@ export default function AssistantPage() {
     setDocError('');
     setTeachParas([]);
     setTeachParaIdx(0);
+    setLessonImages({});
+    setExplainSectionIdx(-1);
   };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
@@ -541,20 +562,35 @@ export default function AssistantPage() {
 
                 {teaching && teachParas.length > 0 ? (
                   <div className="space-y-3">
-                    {teachParas.map((para, i) => (
-                      <div key={i} className={`rounded-xl transition-all duration-300 ${
-                        i === teachParaIdx
-                          ? 'ring-2 ring-blue-400 bg-blue-50 px-3 py-2'
-                          : i < teachParaIdx
-                            ? 'opacity-40 px-1'
-                            : 'px-1'
-                      }`}>
-                        {i === teachParaIdx && isSpeaking && speakingText
-                          ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
-                          : <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
-                        }
-                      </div>
-                    ))}
+                    {teachParas.map((para, i) => {
+                      const img = teachIdx === explainSectionIdx ? lessonImages[i] : undefined;
+                      const isActive = i === teachParaIdx;
+                      const isPast = i < teachParaIdx;
+                      return (
+                        <div key={i} className={`rounded-xl transition-all duration-300 ${
+                          isActive ? 'ring-2 ring-blue-400 bg-blue-50 px-3 py-2'
+                            : isPast ? 'opacity-40 px-1' : 'px-1'
+                        }`}>
+                          {/* Image — visible on active para, faded on the one just before */}
+                          {img && (isActive || i === teachParaIdx - 1) && (
+                            <div className={`mb-2 transition-all duration-500 ${isActive ? 'opacity-100' : 'opacity-20'}`}>
+                              <img
+                                src={img.url}
+                                alt={img.caption}
+                                className="w-full max-h-44 object-contain rounded-xl bg-gray-100 border border-gray-200"
+                              />
+                              {isActive && img.caption && (
+                                <p className="text-center text-xs text-gray-400 mt-1 italic">{img.caption}</p>
+                              )}
+                            </div>
+                          )}
+                          {isActive && isSpeaking && speakingText
+                            ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
+                            : <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
+                          }
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
