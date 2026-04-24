@@ -126,8 +126,9 @@ export default function AssistantPage() {
   const [teachParas, setTeachParas] = useState<string[]>([]);
   const [teachParaIdx, setTeachParaIdx] = useState(0);
   const [paraReady, setParaReady] = useState(false);
-  const [lessonImages, setLessonImages] = useState<Record<number, { url: string; caption: string; pageUrl: string }>>({});
-  const [explainSectionIdx, setExplainSectionIdx] = useState(-1);
+  const [keywordImages, setKeywordImages] = useState<Record<string, { url: string; caption: string; pageUrl: string }>>({});
+  const [currentImage, setCurrentImage] = useState<{ url: string; caption: string; keyword: string } | null>(null);
+  const [fetchingImages, setFetchingImages] = useState(false);
 
   const { speak, stop, isSpeaking, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
@@ -151,6 +152,29 @@ export default function AssistantPage() {
 
   // Keep sections ref in sync so teaching callbacks don't go stale
   useEffect(() => { lessonSectionsRef.current = lessonSections; }, [lessonSections]);
+
+  // Detect spoken keyword and update the image panel
+  useEffect(() => {
+    if (!isSpeaking || !speakingText || charIndex === 0 || Object.keys(keywordImages).length === 0) return;
+    const fromHere = speakingText.slice(charIndex).toLowerCase();
+    // Sort longest first so multi-word keywords match before single-word prefixes
+    const sorted = Object.keys(keywordImages).sort((a, b) => b.length - a.length);
+    for (const kw of sorted) {
+      const kwLower = kw.toLowerCase();
+      if (fromHere.startsWith(kwLower)) {
+        const after = fromHere[kwLower.length];
+        if (!after || /\W/.test(after)) {
+          setCurrentImage({ ...keywordImages[kw], keyword: kw });
+          return;
+        }
+      }
+    }
+  }, [charIndex, speakingText, isSpeaking, keywordImages]);
+
+  // Clear image when speech stops
+  useEffect(() => {
+    if (!isSpeaking) setCurrentImage(null);
+  }, [isSpeaking]);
 
   // Advance to next paragraph / section when one finishes
   useEffect(() => {
@@ -263,22 +287,17 @@ export default function AssistantPage() {
       setLessonSections(sections);
       setDocStage('ready');
 
-      // Find "Full Explanation" section and fetch images for its paragraphs
-      const explainIdx = sections.findIndex(s =>
-        /full explanation|explanation/i.test(s.title)
-      );
-      setExplainSectionIdx(explainIdx);
-      if (explainIdx >= 0) {
-        const paras = splitParas(sections[explainIdx].content);
-        fetch('/api/lesson-images', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paragraphs: paras, topic: parseData.detectedTopic || file.name }),
-        })
-          .then(r => r.json())
-          .then(({ images }) => setLessonImages(images as Record<number, { url: string; caption: string; pageUrl: string }>))
-          .catch(() => {});
-      }
+      // Fetch keyword images for the whole lesson in the background
+      setFetchingImages(true);
+      fetch('/api/lesson-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonText: full, topic: parseData.detectedTopic || file.name }),
+      })
+        .then(r => r.json())
+        .then(({ images }) => setKeywordImages(images as Record<string, { url: string; caption: string; pageUrl: string }>))
+        .catch(() => {})
+        .finally(() => setFetchingImages(false));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
@@ -296,8 +315,9 @@ export default function AssistantPage() {
     setDocError('');
     setTeachParas([]);
     setTeachParaIdx(0);
-    setLessonImages({});
-    setExplainSectionIdx(-1);
+    setKeywordImages({});
+    setCurrentImage(null);
+    setFetchingImages(false);
   };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
@@ -494,8 +514,12 @@ export default function AssistantPage() {
 
             {docStage === 'generating' && (
               <span className="flex items-center gap-1.5 text-blue-200 text-xs">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Building your lesson…
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />Building your lesson…
+              </span>
+            )}
+            {docStage === 'ready' && fetchingImages && (
+              <span className="flex items-center gap-1 text-blue-200 text-xs">
+                <Loader2 className="w-3 h-3 animate-spin" />Finding images…
               </span>
             )}
 
@@ -563,7 +587,6 @@ export default function AssistantPage() {
                 {teaching && teachParas.length > 0 ? (
                   <div className="space-y-3">
                     {teachParas.map((para, i) => {
-                      const img = teachIdx === explainSectionIdx ? lessonImages[i] : undefined;
                       const isActive = i === teachParaIdx;
                       const isPast = i < teachParaIdx;
                       return (
@@ -571,19 +594,6 @@ export default function AssistantPage() {
                           isActive ? 'ring-2 ring-blue-400 bg-blue-50 px-3 py-2'
                             : isPast ? 'opacity-40 px-1' : 'px-1'
                         }`}>
-                          {/* Image — visible on active para, faded on the one just before */}
-                          {img && (isActive || i === teachParaIdx - 1) && (
-                            <div className={`mb-2 transition-all duration-500 ${isActive ? 'opacity-100' : 'opacity-20'}`}>
-                              <img
-                                src={img.url}
-                                alt={img.caption}
-                                className="w-full max-h-44 object-contain rounded-xl bg-gray-100 border border-gray-200"
-                              />
-                              {isActive && img.caption && (
-                                <p className="text-center text-xs text-gray-400 mt-1 italic">{img.caption}</p>
-                              )}
-                            </div>
-                          )}
                           {isActive && isSpeaking && speakingText
                             ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
                             : <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
@@ -598,6 +608,25 @@ export default function AssistantPage() {
               </>
             )}
           </div>
+
+          {/* Keyword image panel — appears when AI speaks a visual term */}
+          {currentImage && (
+            <div className="flex-shrink-0 border-t border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 flex items-center gap-4"
+              key={currentImage.keyword}>
+              <img
+                src={currentImage.url}
+                alt={currentImage.caption}
+                className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 shadow-sm flex-shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">{currentImage.keyword}</span>
+                  <span className="text-[10px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-medium">visual</span>
+                </div>
+                <p className="text-xs text-gray-500 leading-snug line-clamp-2">{currentImage.caption}</p>
+              </div>
+            </div>
+          )}
 
           {/* Progress + navigation */}
           {docStage === 'ready' && lessonSections.length > 0 && (
