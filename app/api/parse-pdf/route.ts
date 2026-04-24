@@ -2,9 +2,21 @@ import OpenAI from 'openai';
 import { extractText } from 'unpdf';
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MIN_TEXT_LENGTH = 150;
 
-const ACCEPTED_TYPES = ['application/pdf', PPTX_MIME];
+const ACCEPTED_TYPES = ['application/pdf', PPTX_MIME, DOCX_MIME];
+
+// ── DOCX text extraction ────────────────────────────────────────────────────
+async function extractDocxText(buffer: Buffer): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const JSZip = require('jszip') as typeof import('jszip');
+  const zip = await JSZip.loadAsync(buffer);
+  const docXml = await zip.files['word/document.xml']?.async('text');
+  if (!docXml) return '';
+  const texts = docXml.match(/<w:t[^>]*>[^<]*<\/w:t>/g) ?? [];
+  return texts.map(t => t.replace(/<[^>]+>/g, '')).join(' ').replace(/\s+/g, ' ').trim();
+}
 
 // ── PPTX text extraction ────────────────────────────────────────────────────
 // PPTX is a ZIP file; slides live at ppt/slides/slideN.xml.
@@ -48,21 +60,23 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const isPptx = file.type === PPTX_MIME;
+    const isDocx = file.type === DOCX_MIME;
 
     // ── Stage 1: text extraction ────────────────────────────────────────────
     let text = '';
     try {
       if (isPptx) {
         text = await extractPptxText(buffer);
+      } else if (isDocx) {
+        text = await extractDocxText(buffer);
       } else {
         const { text: extracted } = await extractText(new Uint8Array(buffer), { mergePages: true });
         text = (extracted as string)?.trim() ?? '';
       }
     } catch {
-      // fall through to OpenAI vision fallback (PDF only — PPTX must have text)
-      if (isPptx) {
-        return Response.json({ error: 'Could not read this PPTX file' }, { status: 422 });
-      }
+      // fall through to OpenAI vision fallback (PDF only — PPTX/DOCX must have text)
+      if (isPptx) return Response.json({ error: 'Could not read this PPTX file' }, { status: 422 });
+      if (isDocx) return Response.json({ error: 'Could not read this DOCX file' }, { status: 422 });
     }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -85,7 +99,7 @@ export async function POST(request: Request) {
         detectedTopic = r.topic || '';
       } catch { /* keep empty */ }
 
-    } else if (!isPptx) {
+    } else if (!isPptx && !isDocx) {
       // ── Image-based PDF: upload to OpenAI Files API for vision OCR ─────────
       const uploadForm = new FormData();
       uploadForm.append('file', new Blob([buffer], { type: 'application/pdf' }), file.name || 'slide.pdf');
