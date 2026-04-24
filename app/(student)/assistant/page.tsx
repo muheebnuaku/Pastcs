@@ -80,6 +80,10 @@ function sectionIcon(title: string) {
   return SECTION_ICONS[title.toLowerCase()] ?? '📄';
 }
 
+function splitParas(content: string): string[] {
+  return content.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 5);
+}
+
 function parseSections(markdown: string): LessonSection[] {
   const sections: LessonSection[] = [];
   let currentTitle = '';
@@ -119,6 +123,9 @@ export default function AssistantPage() {
   const [lessonSections, setLessonSections] = useState<LessonSection[]>([]);
   const [teaching, setTeaching] = useState(false);
   const [teachIdx, setTeachIdx] = useState(0);
+  const [teachParas, setTeachParas] = useState<string[]>([]);
+  const [teachParaIdx, setTeachParaIdx] = useState(0);
+  const [paraReady, setParaReady] = useState(false);
 
   const { speak, stop, isSpeaking, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
@@ -128,6 +135,7 @@ export default function AssistantPage() {
   const lessonAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const teachingRef = useRef(false);
+  const lessonSectionsRef = useRef<LessonSection[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -138,6 +146,35 @@ export default function AssistantPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Keep sections ref in sync so teaching callbacks don't go stale
+  useEffect(() => { lessonSectionsRef.current = lessonSections; }, [lessonSections]);
+
+  // Advance to next paragraph / section when one finishes
+  useEffect(() => {
+    if (!paraReady || !teaching) return;
+    setParaReady(false);
+    const nextPara = teachParaIdx + 1;
+    if (nextPara < teachParas.length) {
+      setTeachParaIdx(nextPara);
+      speak(teachParas[nextPara], () => setParaReady(true));
+    } else {
+      const nextSec = teachIdx + 1;
+      const sections = lessonSectionsRef.current;
+      if (nextSec >= sections.length) {
+        teachingRef.current = false;
+        setTeaching(false);
+      } else {
+        setTeachIdx(nextSec);
+        const paras = splitParas(sections[nextSec].content);
+        setTeachParas(paras);
+        setTeachParaIdx(0);
+        if (paras.length > 0) speak(paras[0], () => setParaReady(true));
+        else setParaReady(true); // skip empty section
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paraReady]);
 
   const selectedCourseObj = courses.find(c => c.id === selectedCourse);
 
@@ -150,33 +187,30 @@ export default function AssistantPage() {
 
   // ── Teaching ──────────────────────────────────────────────────────────────
 
-  const speakSection = useCallback((idx: number, sections: LessonSection[]) => {
-    if (!teachingRef.current || idx >= sections.length) {
-      teachingRef.current = false;
-      setTeaching(false);
-      return;
-    }
-    setTeachIdx(idx);
-    speak(sections[idx].content, () => speakSection(idx + 1, sections));
-  }, [speak]);
-
   const startTeaching = useCallback(() => {
     if (!voiceSupported || lessonSections.length === 0) return;
+    const paras = splitParas(lessonSections[0].content);
     teachingRef.current = true;
     setTeaching(true);
     setTeachIdx(0);
-    speakSection(0, lessonSections);
-  }, [voiceSupported, lessonSections, speakSection]);
+    setTeachParas(paras);
+    setTeachParaIdx(0);
+    setParaReady(false);
+    if (paras.length > 0) speak(paras[0], () => setParaReady(true));
+  }, [voiceSupported, lessonSections, speak]);
 
   const stopTeaching = useCallback(() => {
     teachingRef.current = false;
     stop();
     setTeaching(false);
+    setParaReady(false);
   }, [stop]);
 
   const jumpToSection = (idx: number) => {
     stopTeaching();
     setTeachIdx(idx);
+    setTeachParas(splitParas(lessonSections[idx]?.content ?? ''));
+    setTeachParaIdx(0);
   };
 
   // ── Document upload ───────────────────────────────────────────────────────
@@ -241,6 +275,8 @@ export default function AssistantPage() {
     setLessonSections([]);
     setLessonFileName('');
     setDocError('');
+    setTeachParas([]);
+    setTeachParaIdx(0);
   };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
@@ -503,10 +539,26 @@ export default function AssistantPage() {
                   )}
                 </div>
 
-                {teaching && isSpeaking && speakingText
-                  ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
-                  : <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
-                }
+                {teaching && teachParas.length > 0 ? (
+                  <div className="space-y-3">
+                    {teachParas.map((para, i) => (
+                      <div key={i} className={`rounded-xl transition-all duration-300 ${
+                        i === teachParaIdx
+                          ? 'ring-2 ring-blue-400 bg-blue-50 px-3 py-2'
+                          : i < teachParaIdx
+                            ? 'opacity-40 px-1'
+                            : 'px-1'
+                      }`}>
+                        {i === teachParaIdx && isSpeaking && speakingText
+                          ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
+                          : <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
+                        }
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
+                )}
               </>
             )}
           </div>
