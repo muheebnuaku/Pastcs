@@ -18,7 +18,22 @@ export function SpeechHighlight({ text, charIndex, className = '' }: Props) {
     const isActive = charIndex > 0 && charIndex >= wordStart && charIndex < wordStart + word.length;
     parts.push(
       <Fragment key={i++}>
-        <span className={isActive ? 'bg-yellow-300 text-gray-900 rounded px-0.5 transition-colors duration-100' : ''}>
+        <span
+          style={{
+            display: 'inline-block',
+            transform: isActive ? 'scale(1.28)' : 'scale(1)',
+            transformOrigin: 'center bottom',
+            transition: isActive
+              ? 'transform 0.08s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.06s ease'
+              : 'transform 0.12s ease-out, background-color 0.08s ease',
+            backgroundColor: isActive ? '#fde047' : 'transparent',
+            borderRadius: isActive ? '4px' : '0',
+            padding: isActive ? '0 3px' : '0',
+            fontWeight: isActive ? 600 : 'inherit',
+            zIndex: isActive ? 1 : 'auto',
+            position: 'relative',
+          }}
+        >
           {word}
         </span>
         {space}
