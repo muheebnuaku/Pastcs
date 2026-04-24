@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useSpeech } from '@/lib/hooks/useSpeech';
 import type { Course } from '@/types';
 import {
   BotMessageSquare,
@@ -11,6 +12,8 @@ import {
   BookOpen,
   ChevronDown,
   User,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -93,6 +96,9 @@ export default function AssistantPage() {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showCourseMenu, setShowCourseMenu] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+
+  const { speak, stop, isSpeaking, isSupported: voiceSupported } = useSpeech();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -127,6 +133,8 @@ export default function AssistantPage() {
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
+
+    stop(); // cancel any ongoing speech before new message
 
     const userMsg: Message = { role: 'user', content: trimmed };
     const newHistory = [...messages, userMsg];
@@ -169,6 +177,7 @@ export default function AssistantPage() {
           { role: 'assistant', content: full },
         ]);
       }
+      if (voiceEnabled && full) speak(full);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
       const errMsg = err instanceof Error ? err.message : 'Something went wrong';
@@ -190,6 +199,7 @@ export default function AssistantPage() {
 
   const clearChat = () => {
     abortRef.current?.abort();
+    stop();
     setMessages([]);
     setIsStreaming(false);
   };
@@ -208,15 +218,36 @@ export default function AssistantPage() {
             </h1>
             <p className="text-gray-500 text-sm mt-0.5">Ask anything about your courses — I explain, you understand.</p>
           </div>
-          {!isEmpty && (
-            <button
-              onClick={clearChat}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Clear
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {voiceSupported && (
+              <button
+                onClick={() => {
+                  if (isSpeaking) stop();
+                  setVoiceEnabled(v => !v);
+                }}
+                title={voiceEnabled ? 'Voice on — click to turn off' : 'Voice off — click to turn on'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  voiceEnabled
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {voiceEnabled
+                  ? <Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-pulse' : ''}`} />
+                  : <VolumeX className="w-4 h-4" />}
+                <span>{voiceEnabled ? 'Voice on' : 'Voice off'}</span>
+              </button>
+            )}
+            {!isEmpty && (
+              <button
+                onClick={clearChat}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Context bar */}

@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { formatPercentage, formatTime, getGradeBadgeColor } from '@/lib/utils';
+import { useSpeech } from '@/lib/hooks/useSpeech';
 import type { Test, TestAnswer, Question } from '@/types';
 import {
   Trophy, Target, Clock, CheckCircle, XCircle,
   ArrowLeft, RotateCcw, BookOpen, BotMessageSquare, Loader2,
+  Volume2, VolumeX,
 } from 'lucide-react';
 
 // Lightweight markdown → HTML for AI panel
@@ -46,6 +48,10 @@ export default function ResultsPage() {
   const [openAI, setOpenAI] = useState<Set<string>>(new Set());
   const abortControllers = useRef<Record<string, AbortController>>({});
 
+  // Voice
+  const { speak, stop, isSpeaking, isSupported: voiceSupported } = useSpeech();
+  const [speakingQId, setSpeakingQId] = useState<string | null>(null);
+
   useEffect(() => {
     const fetchResults = async () => {
       const supabase = createClient();
@@ -75,6 +81,7 @@ export default function ResultsPage() {
     // Toggle off if already done
     if (openAI.has(qId) && !loadingAI.has(qId)) {
       setOpenAI(prev => { const s = new Set(prev); s.delete(qId); return s; });
+      if (speakingQId === qId) { stop(); setSpeakingQId(null); }
       return;
     }
     if (loadingAI.has(qId)) return;
@@ -139,11 +146,17 @@ export default function ResultsPage() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let accumulated = '';
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
         setAiPanels(prev => ({ ...prev, [qId]: (prev[qId] ?? '') + chunk }));
+      }
+      if (voiceSupported && accumulated) {
+        setSpeakingQId(qId);
+        speak(accumulated, () => setSpeakingQId(null));
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -371,7 +384,7 @@ export default function ResultsPage() {
                           <span className="text-xs font-semibold text-purple-700 tracking-wide uppercase">
                             AI Tutor Explanation
                           </span>
-                          {isAILoading && (
+                          {isAILoading ? (
                             <span className="ml-auto flex gap-1">
                               {[0, 1, 2].map(i => (
                                 <span
@@ -381,7 +394,24 @@ export default function ResultsPage() {
                                 />
                               ))}
                             </span>
-                          )}
+                          ) : voiceSupported && aiPanels[qId] ? (
+                            <button
+                              onClick={() => {
+                                if (speakingQId === qId) {
+                                  stop(); setSpeakingQId(null);
+                                } else {
+                                  setSpeakingQId(qId);
+                                  speak(aiPanels[qId], () => setSpeakingQId(null));
+                                }
+                              }}
+                              className="ml-auto p-1 rounded-lg hover:bg-purple-200 transition-colors"
+                              title={speakingQId === qId ? 'Stop reading' : 'Read aloud'}
+                            >
+                              {speakingQId === qId
+                                ? <VolumeX className="w-4 h-4 text-purple-600" />
+                                : <Volume2 className="w-4 h-4 text-purple-500" />}
+                            </button>
+                          ) : null}
                         </div>
                         <div className="p-4">
                           {aiPanels[qId] ? (
