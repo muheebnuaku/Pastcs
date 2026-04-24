@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { formatPercentage, formatTime, getGradeBadgeColor } from '@/lib/utils';
 import { useSpeech } from '@/lib/hooks/useSpeech';
+import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import type { Test, TestAnswer, Question } from '@/types';
 import {
   Trophy, Target, Clock, CheckCircle, XCircle,
@@ -49,7 +50,7 @@ export default function ResultsPage() {
   const abortControllers = useRef<Record<string, AbortController>>({});
 
   // Voice
-  const { speak, stop, isSpeaking, isSupported: voiceSupported } = useSpeech();
+  const { speak, stop, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
   const [speakingQId, setSpeakingQId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -415,10 +416,14 @@ export default function ResultsPage() {
                         </div>
                         <div className="p-4">
                           {aiPanels[qId] ? (
-                            <div
-                              className="text-sm text-gray-800 leading-relaxed"
-                              dangerouslySetInnerHTML={{ __html: mdToHtml(aiPanels[qId]) }}
-                            />
+                            speakingQId === qId && speakingText ? (
+                              <SpeechHighlight text={speakingText} charIndex={charIndex} />
+                            ) : (
+                              <div
+                                className="text-sm text-gray-800 leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: mdToHtml(aiPanels[qId]) }}
+                              />
+                            )
                           ) : (
                             <p className="text-sm text-purple-500 italic">Generating explanation…</p>
                           )}

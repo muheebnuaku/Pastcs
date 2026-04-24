@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSpeech } from '@/lib/hooks/useSpeech';
+import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import type { Course } from '@/types';
 import {
   BotMessageSquare,
@@ -98,7 +99,7 @@ export default function AssistantPage() {
   const [showCourseMenu, setShowCourseMenu] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
 
-  const { speak, stop, isSpeaking, isSupported: voiceSupported } = useSpeech();
+  const { speak, stop, isSpeaking, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -367,7 +368,9 @@ export default function AssistantPage() {
                       <span className="text-xs text-gray-400">Thinking...</span>
                     </div>
                   ) : (
-                    <MessageContent content={msg.content} />
+                    isSpeaking && voiceEnabled && i === messages.length - 1 && speakingText
+                      ? <SpeechHighlight text={speakingText} charIndex={charIndex} />
+                      : <MessageContent content={msg.content} />
                   )}
                 </div>
 

@@ -5,6 +5,7 @@ import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Input, Avatar, Badge } from '@/components/ui';
 import { formatPercentage } from '@/lib/utils';
+import { useSpeech, VOICE_PREF_KEY } from '@/lib/hooks/useSpeech';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import {
   User,
@@ -18,6 +19,8 @@ import {
   X,
   GraduationCap,
   AlertTriangle,
+  Volume2,
+  Loader2,
 } from 'lucide-react';
 
 interface UserStats {
@@ -36,6 +39,23 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showLevelWarning, setShowLevelWarning] = useState(false);
+
+  const { speak, isSpeaking, isSupported: voiceSupported } = useSpeech();
+  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
+
+  useEffect(() => {
+    const stored = localStorage.getItem(VOICE_PREF_KEY) as 'female' | 'male' | null;
+    if (stored) setVoiceGender(stored);
+  }, []);
+
+  const handleVoiceChange = (gender: 'female' | 'male') => {
+    setVoiceGender(gender);
+    localStorage.setItem(VOICE_PREF_KEY, gender);
+  };
+
+  const testVoice = () => {
+    speak("Hi! I'm your AI study assistant. I'll help you understand your courses and ace your exams.");
+  };
 
   const fetchStats = async () => {
     if (!user) return;
@@ -301,6 +321,73 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
+          {/* Voice Preferences Card */}
+          {voiceSupported && (
+            <Card>
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-blue-600" />
+                <h2 className="font-semibold text-gray-900">AI Voice Preference</h2>
+              </div>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Choose the voice used when the AI reads explanations and tutor responses aloud.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Female */}
+                  <button
+                    onClick={() => handleVoiceChange('female')}
+                    className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                      voiceGender === 'female'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-3xl">👩</span>
+                    <span className={`text-sm font-semibold ${voiceGender === 'female' ? 'text-blue-700' : 'text-gray-700'}`}>
+                      Female
+                    </span>
+                    {voiceGender === 'female' && (
+                      <span className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Male */}
+                  <button
+                    onClick={() => handleVoiceChange('male')}
+                    className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                      voiceGender === 'male'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-3xl">👨</span>
+                    <span className={`text-sm font-semibold ${voiceGender === 'male' ? 'text-blue-700' : 'text-gray-700'}`}>
+                      Male
+                    </span>
+                    {voiceGender === 'male' && (
+                      <span className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <button
+                  onClick={testVoice}
+                  disabled={isSpeaking}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {isSpeaking
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Playing…</>
+                    : <><Volume2 className="w-4 h-4 text-blue-500" /> Test Voice</>
+                  }
+                </button>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Stats Card */}
