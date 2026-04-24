@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { NextRequest } from 'next/server';
 
 export const maxDuration = 60;
 
@@ -39,7 +38,7 @@ The 6 most important things the student must remember from this lesson. Use bull
 Document Content:
 {CONTENT}`;
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { text, context } = await req.json() as { text: string; context?: string };
     if (!text?.trim()) {
