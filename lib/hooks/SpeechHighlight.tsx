@@ -21,7 +21,7 @@ export function SpeechHighlight({ text, charIndex, className = '' }: Props) {
         <span
           style={{
             display: 'inline-block',
-            transform: isActive ? 'scale(1.28)' : 'scale(1)',
+            transform: isActive ? 'scale(1.15)' : 'scale(1)',
             transformOrigin: 'center bottom',
             transition: isActive
               ? 'transform 0.08s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.06s ease'
