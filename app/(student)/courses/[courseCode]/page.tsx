@@ -30,6 +30,7 @@ export default function CourseDetailPage() {
   const courseCode = (params.courseCode as string).toUpperCase();
   const [course, setCourse] = useState<Course | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [topicIdGroups, setTopicIdGroups] = useState<string[][]>([]); // all IDs per unique topic name
   const [allLevelCourses, setAllLevelCourses] = useState(0);
   const [showPaywall, setShowPaywall] = useState(false);
 
@@ -58,8 +59,19 @@ export default function CourseDetailPage() {
           .order('order_index');
 
         if (!cancelled && topicsData) {
-          const unique = topicsData.filter((t: Topic, i: number, arr: Topic[]) => arr.findIndex((x: Topic) => x.topic_name === t.topic_name) === i);
-          setTopics(unique);
+          // Group duplicate topic rows by name, collecting all their IDs
+          const seen = new Map<string, { topic: Topic; ids: string[] }>();
+          for (const t of topicsData as Topic[]) {
+            const key = t.topic_name.trim().toLowerCase();
+            if (!seen.has(key)) {
+              seen.set(key, { topic: t, ids: [t.id] });
+            } else {
+              seen.get(key)!.ids.push(t.id);
+            }
+          }
+          const groups = Array.from(seen.values());
+          setTopics(groups.map(g => g.topic));
+          setTopicIdGroups(groups.map(g => g.ids));
         }
       }
     };
@@ -262,10 +274,10 @@ export default function CourseDetailPage() {
         <CardContent>
           {topics.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {topics.map((topic) => (
+              {topics.map((topic, idx) => (
                 <Link
                   key={topic.id}
-                  href={`/practice/${course.course_code.toLowerCase()}?topic=${topic.id}`}
+                  href={`/practice/${course.course_code.toLowerCase()}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
                 >
                   <div>

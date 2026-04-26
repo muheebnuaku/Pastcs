@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Input, Modal, Badge } from '@/components/ui';
+import { Card, Button, Input, Modal, Badge } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
 import type { Course, Topic } from '@/types';
+
+type TopicRow = Topic & { allIds: string[] };
 import {
   Plus,
   Edit,
@@ -32,11 +34,11 @@ const ICON_PALETTE = [
 
 
 export default function AdminCoursesPage() {
-  const [courses, setCourses] = useState<(Course & { topics: Topic[] })[]>([]);
+  const [courses, setCourses] = useState<(Course & { topics: TopicRow[] })[]>([]);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [editingTopic, setEditingTopic] = useState<TopicRow | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
 
@@ -64,10 +66,19 @@ export default function AdminCoursesPage() {
       .order('course_code');
 
     if (coursesData) {
-      setCourses((coursesData as (Course & { topics: Topic[] })[]).map(c => ({
-        ...c,
-        topics: c.topics.sort((a: Topic, b: Topic) => a.order_index - b.order_index)
-      })));
+      setCourses((coursesData as (Course & { topics: Topic[] })[]).map(c => {
+        const sorted = [...c.topics].sort((a, b) => a.order_index - b.order_index);
+        const seen = new Map<string, TopicRow>();
+        for (const t of sorted) {
+          const key = t.topic_name.trim().toLowerCase();
+          if (!seen.has(key)) {
+            seen.set(key, { ...t, allIds: [t.id] });
+          } else {
+            seen.get(key)!.allIds.push(t.id);
+          }
+        }
+        return { ...c, topics: Array.from(seen.values()) };
+      }));
     }
   };
 
@@ -110,7 +121,7 @@ export default function AdminCoursesPage() {
     setShowCourseModal(true);
   };
 
-  const openTopicModal = (courseId: string, topic?: Topic) => {
+  const openTopicModal = (courseId: string, topic?: TopicRow) => {
     setSelectedCourseId(courseId);
     if (topic) {
       setEditingTopic(topic);
@@ -181,11 +192,8 @@ export default function AdminCoursesPage() {
     if (editingTopic) {
       await supabase
         .from('topics')
-        .update({
-          topic_name: topicName,
-          description: topicDescription,
-        })
-        .eq('id', editingTopic.id);
+        .update({ topic_name: topicName, description: topicDescription })
+        .in('id', editingTopic.allIds);
     } else {
       const course = courses.find(c => c.id === selectedCourseId);
       const maxOrder = course?.topics.reduce((max, t) => Math.max(max, t.order_index), 0) || 0;
@@ -204,11 +212,10 @@ export default function AdminCoursesPage() {
     fetchCourses();
   };
 
-  const handleDeleteTopic = async (topicId: string) => {
+  const handleDeleteTopic = async (allIds: string[]) => {
     if (!confirm('Are you sure?')) return;
-    
     const supabase = createClient();
-    await supabase.from('topics').delete().eq('id', topicId);
+    await supabase.from('topics').delete().in('id', allIds);
     fetchCourses();
   };
 
@@ -218,9 +225,9 @@ export default function AdminCoursesPage() {
     if (!acc[course.level][course.semester]) acc[course.level][course.semester] = [];
     acc[course.level][course.semester].push(course);
     return acc;
-  }, {} as Record<number, Record<number, (Course & { topics: Topic[] })[]>>);
+  }, {} as Record<number, Record<number, (Course & { topics: TopicRow[] })[]>>);
 
-  const renderCourse = (course: Course & { topics: Topic[] }) => (
+  const renderCourse = (course: Course & { topics: TopicRow[] }) => (
     <Card key={course.id}>
       <div
         className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 gap-2"
@@ -290,7 +297,7 @@ export default function AdminCoursesPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDeleteTopic(topic.id)}
+                      onClick={() => handleDeleteTopic(topic.allIds)}
                     >
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>

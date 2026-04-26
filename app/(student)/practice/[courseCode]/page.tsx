@@ -35,7 +35,9 @@ interface PausedState {
 }
 
 function storageKey(courseCode: string, topicId: string | null) {
-  return `pastcs_practice_${courseCode}_${topicId ?? 'all'}`;
+  // Use only the first ID in a group so the key stays stable
+  const key = topicId ? topicId.split(',')[0] : 'all';
+  return `pastcs_practice_${courseCode}_${key}`;
 }
 
 // ── Page wrapper ────────────────────────────────────────────────────────────
@@ -122,7 +124,10 @@ function PracticeContent() {
 
     let query = supabase.from('questions').select('*')
       .eq('course_id', courseData.id).eq('is_approved', true);
-    if (topicId) query = query.eq('topic_id', topicId);
+    if (topicId) {
+      const ids = topicId.split(',');
+      query = ids.length === 1 ? query.eq('topic_id', ids[0]) : query.in('topic_id', ids);
+    }
 
     const { data: qs } = await query.limit(200);
     if (qs && qs.length > 0) {
