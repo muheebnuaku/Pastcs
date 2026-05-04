@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, Button, Badge, Progress } from '@/components/ui';
@@ -112,6 +113,7 @@ function PracticeContent() {
 
     if (!courseData) { router.push('/courses'); return; }
     setCourse(courseData);
+    trackEvent('practice_start', { course: courseCode, topicId: topicId ?? undefined });
 
     if (!isPaid && !isFree) { router.push(`/courses/${courseCode.toLowerCase()}`); return; }
 

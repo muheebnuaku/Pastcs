@@ -13,6 +13,7 @@ import {
   FileQuestion,
   Users,
   BarChart3,
+  Activity,
   Sparkles,
   LogOut,
   Menu,
@@ -47,6 +48,7 @@ const adminNavSections = [
     label: 'Insights',
     items: [
       { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+      { href: '/admin/activity', label: 'Activity', icon: Activity },
       { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },
     ],
   },

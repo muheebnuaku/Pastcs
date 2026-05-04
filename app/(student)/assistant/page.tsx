@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
+import { trackEvent } from '@/lib/track';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
@@ -242,6 +243,7 @@ export default function AssistantPage() {
   // ── Document upload ───────────────────────────────────────────────────────
 
   const handleFileUpload = async (file: File) => {
+    trackEvent('document_upload', { fileName: file.name, fileType: file.type });
     setDocStage('uploading');
     setDocError('');
     setLessonFileName(file.name);
@@ -326,6 +328,7 @@ export default function AssistantPage() {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
     stop();
+    if (messages.length === 0) trackEvent('ai_chat', { course: selectedCourseObj?.course_code });
 
     const userMsg: Message = { role: 'user', content: trimmed };
     setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }]);
@@ -412,7 +415,7 @@ export default function AssistantPage() {
           <div className="flex items-center gap-2">
             {voiceSupported && (
               <button
-                onClick={() => { if (isSpeaking) stop(); setVoiceEnabled(v => !v); }}
+                onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) trackEvent('voice_enabled'); setVoiceEnabled(v => !v); }}
                 title={voiceEnabled ? 'Voice on — click to turn off' : 'Voice off — click to turn on'}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   voiceEnabled ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'

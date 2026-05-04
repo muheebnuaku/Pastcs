@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, Button, Badge, Progress, Modal } from '@/components/ui';
@@ -103,6 +104,7 @@ export default function ExamPage() {
       }
 
       setCourse(courseData);
+      trackEvent('exam_start', { course: courseData.course_code });
 
       // Access check
       if (!isPaid && !isFree) {
