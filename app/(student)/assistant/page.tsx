@@ -115,14 +115,6 @@ export default function AssistantPage() {
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
-  // Effective limit: course sub → 100, tutor credits → purchased amount, free → 5
-  const uploadLimit = isPaid
-    ? PAID_UPLOAD_LIMIT
-    : tutorCreditsPurchased > 0
-      ? tutorCreditsPurchased
-      : FREE_UPLOAD_LIMIT;
-  const uploadRemaining = Math.max(0, uploadLimit - uploadCount);
-  const limitReached = uploadChecked && uploadCount >= uploadLimit;
 
   // Chat state
   const [courses, setCourses] = useState<Course[]>([]);
@@ -154,6 +146,15 @@ export default function AssistantPage() {
   const [showTutorPricing, setShowTutorPricing] = useState(false);
   const [currentImage, setCurrentImage] = useState<{ url: string; caption: string; keyword: string } | null>(null);
   const [fetchingImages, setFetchingImages] = useState(false);
+
+  // Effective limit: course sub → 100, tutor credits → purchased amount, free → 5
+  const uploadLimit = isPaid
+    ? PAID_UPLOAD_LIMIT
+    : tutorCreditsPurchased > 0
+      ? tutorCreditsPurchased
+      : FREE_UPLOAD_LIMIT;
+  const uploadRemaining = Math.max(0, uploadLimit - uploadCount);
+  const limitReached = uploadChecked && uploadCount >= uploadLimit;
 
   const { speak, stop, isSpeaking, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
@@ -202,7 +203,7 @@ export default function AssistantPage() {
         .from('ai_tutor_credits')
         .select('total_credits')
         .eq('user_id', authUser.id);
-      purchased = (data ?? []).reduce((sum, r: { total_credits: number }) => sum + r.total_credits, 0);
+      purchased = (data ?? []).reduce((sum: number, r: { total_credits: number }) => sum + r.total_credits, 0);
     } catch { /* ai_tutor_credits table not created yet */ }
 
     setUploadCount(used);
