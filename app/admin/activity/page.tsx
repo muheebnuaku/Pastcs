@@ -179,30 +179,39 @@ export default function AdminActivityPage() {
     const supabase = createClient();
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
     try {
-      const { data } = await supabase
+      // No FK on feature_events → query without join, fetch users separately
+      const { data: evtRows } = await supabase
         .from('feature_events')
-        .select('user_id, created_at, user:user_public(full_name, email)')
+        .select('user_id, created_at')
         .eq('event', event)
         .gte('created_at', thirtyDaysAgo)
         .order('created_at', { ascending: false });
 
-      // Group by user_id
-      const map = new Map<string, FeatureUser>();
-      for (const row of (data ?? []) as Array<{ user_id: string; created_at: string; user?: { full_name: string | null; email: string } | null }>) {
+      const countMap = new Map<string, { count: number; last_used: string }>();
+      for (const row of (evtRows ?? []) as Array<{ user_id: string; created_at: string }>) {
         if (!row.user_id) continue;
-        if (!map.has(row.user_id)) {
-          map.set(row.user_id, {
-            user_id: row.user_id,
-            full_name: row.user?.full_name ?? null,
-            email: row.user?.email ?? row.user_id,
-            count: 1,
-            last_used: row.created_at,
-          });
+        if (!countMap.has(row.user_id)) {
+          countMap.set(row.user_id, { count: 1, last_used: row.created_at });
         } else {
-          map.get(row.user_id)!.count += 1;
+          countMap.get(row.user_id)!.count += 1;
         }
       }
-      setFeatureUsers(Array.from(map.values()).sort((a, b) => b.count - a.count));
+
+      const userIds = Array.from(countMap.keys());
+      const { data: userData } = userIds.length
+        ? await supabase.from('users').select('id, full_name, email').in('id', userIds)
+        : { data: [] };
+
+      const userMap = new Map((userData ?? []).map((u: { id: string; full_name: string | null; email: string }) => [u.id, u]));
+
+      setFeatureUsers(
+        Array.from(countMap.entries())
+          .map(([user_id, { count, last_used }]) => {
+            const u = userMap.get(user_id);
+            return { user_id, full_name: u?.full_name ?? null, email: u?.email ?? user_id, count, last_used };
+          })
+          .sort((a, b) => b.count - a.count)
+      );
     } catch { /* ignore */ }
     setLoadingUsers(false);
   }, [expandedFeature]);
