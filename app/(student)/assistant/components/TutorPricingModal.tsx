@@ -115,10 +115,15 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
     if (window.PaystackPop) {
       trigger();
     } else {
-      const script = document.createElement('script');
-      script.src = 'https://js.paystack.co/v1/inline.js';
-      script.onload = trigger;
-      document.head.appendChild(script);
+      const existing = document.querySelector<HTMLScriptElement>('script[src="https://js.paystack.co/v1/inline.js"]');
+      if (existing) {
+        existing.addEventListener('load', trigger, { once: true });
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://js.paystack.co/v1/inline.js';
+        script.onload = trigger;
+        document.head.appendChild(script);
+      }
     }
   };
 
