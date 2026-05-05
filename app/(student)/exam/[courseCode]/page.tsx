@@ -53,11 +53,17 @@ export default function ExamPage() {
     setIsSubmitting(true);
 
     const supabase = createClient();
-    let score = 0;
-    questions.forEach(q => {
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    const isAnswerCorrect = (q: typeof questions[number]) => {
       const answer = answers[q.id] || [];
-      if (JSON.stringify(answer.sort()) === JSON.stringify(q.correct_answers.sort())) score++;
-    });
+      if (q.question_type === 'fill_in_blank') {
+        const userAns = norm(answer[0] ?? '');
+        return (q.correct_answers ?? []).some(ca => norm(ca) === userAns);
+      }
+      return JSON.stringify(answer.sort()) === JSON.stringify(q.correct_answers.sort());
+    };
+    let score = 0;
+    questions.forEach(q => { if (isAnswerCorrect(q)) score++; });
 
     const timeTaken = (EXAM_DURATION_MINUTES * 60) - timeRemaining;
 
@@ -80,7 +86,7 @@ export default function ExamPage() {
         test_id: testData.id,
         question_id: q.id,
         selected_answer: answers[q.id] || [],
-        is_correct: JSON.stringify((answers[q.id] || []).sort()) === JSON.stringify(q.correct_answers.sort()),
+        is_correct: isAnswerCorrect(q),
       }));
       await supabase.from('test_answers').insert(testAnswers);
       await supabase.rpc('update_practice_streak', { p_user_id: user?.id });
@@ -171,7 +177,7 @@ export default function ExamPage() {
 
   const handleFillBlank = (value: string) => {
     if (lockedQuestions.has(currentQuestion.id)) return; // locked
-    setAnswers({ ...answers, [currentQuestion.id]: [value.trim().toLowerCase()] });
+    setAnswers({ ...answers, [currentQuestion.id]: [value] });
   };
 
   const answeredCount = Object.keys(answers).filter(id => answers[id]?.length > 0).length;
