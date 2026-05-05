@@ -202,7 +202,8 @@ export default function AdminActivityPage() {
         ? await supabase.from('users').select('id, full_name, email').in('id', userIds)
         : { data: [] };
 
-      const userMap = new Map((userData ?? []).map((u: { id: string; full_name: string | null; email: string }) => [u.id, u]));
+      const users = (userData ?? []) as Array<{ id: string; full_name: string | null; email: string }>;
+      const userMap = new Map(users.map(u => [u.id, u]));
 
       setFeatureUsers(
         Array.from(countMap.entries())
