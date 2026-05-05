@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/components/providers';
 import { Loader2, X, Zap, Star, Rocket, CheckCircle } from 'lucide-react';
 
@@ -64,20 +64,12 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
   const isTopUp = purchasedCredits > 0;
   const remaining = Math.max(0, purchasedCredits - usedCredits);
 
-  useEffect(() => {
-    if (window.PaystackPop) return;
-    const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v1/inline.js';
-    script.async = true;
-    document.head.appendChild(script);
-  }, []);
-
   const handlePay = (plan: typeof PLANS[number]) => {
     if (!user) return;
     setError('');
     setPayingPlan(plan.id);
 
-    const trigger = () => {
+    const openPaystack = () => {
       const ref = `tutor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
@@ -113,17 +105,12 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
     };
 
     if (window.PaystackPop) {
-      trigger();
+      openPaystack();
     } else {
-      const existing = document.querySelector<HTMLScriptElement>('script[src="https://js.paystack.co/v1/inline.js"]');
-      if (existing) {
-        existing.addEventListener('load', trigger, { once: true });
-      } else {
-        const script = document.createElement('script');
-        script.src = 'https://js.paystack.co/v1/inline.js';
-        script.onload = trigger;
-        document.head.appendChild(script);
-      }
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.onload = openPaystack;
+      document.head.appendChild(script);
     }
   };
 
