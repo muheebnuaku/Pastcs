@@ -7,12 +7,12 @@ import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
-import { PaywallModal } from '../courses/components/PaywallModal';
+import { TutorPricingModal } from './components/TutorPricingModal';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
   User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle,
-  ChevronLeft, ChevronRight, X, Lock, Sparkles,
+  ChevronLeft, ChevronRight, X, Lock,
 } from 'lucide-react';
 
 const FREE_UPLOAD_LIMIT = 5;
@@ -115,7 +115,14 @@ export default function AssistantPage() {
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
-  const uploadLimit = isPaid ? PAID_UPLOAD_LIMIT : FREE_UPLOAD_LIMIT;
+  // Effective limit: course sub → 100, tutor credits → purchased amount, free → 5
+  const uploadLimit = isPaid
+    ? PAID_UPLOAD_LIMIT
+    : tutorCreditsPurchased > 0
+      ? tutorCreditsPurchased
+      : FREE_UPLOAD_LIMIT;
+  const uploadRemaining = Math.max(0, uploadLimit - uploadCount);
+  const limitReached = uploadChecked && uploadCount >= uploadLimit;
 
   // Chat state
   const [courses, setCourses] = useState<Course[]>([]);
@@ -142,9 +149,9 @@ export default function AssistantPage() {
 
   // Upload quota
   const [uploadCount, setUploadCount] = useState(0);
+  const [tutorCreditsPurchased, setTutorCreditsPurchased] = useState(0);
   const [uploadChecked, setUploadChecked] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [showPaywallForUpgrade, setShowPaywallForUpgrade] = useState(false);
+  const [showTutorPricing, setShowTutorPricing] = useState(false);
   const [currentImage, setCurrentImage] = useState<{ url: string; caption: string; keyword: string } | null>(null);
   const [fetchingImages, setFetchingImages] = useState(false);
 
@@ -171,19 +178,35 @@ export default function AssistantPage() {
   // Keep sections ref in sync so teaching callbacks don't go stale
   useEffect(() => { lessonSectionsRef.current = lessonSections; }, [lessonSections]);
 
-  // Load how many document uploads this user has done
+  // Load upload count + purchased AI Tutor credits
   const loadUploadCount = useCallback(async () => {
     const supabase = createClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) return;
+
+    // How many uploads they've done
+    let used = 0;
     try {
       const { count } = await supabase
         .from('feature_events')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', authUser.id)
         .eq('event', 'document_upload');
-      setUploadCount(count ?? 0);
-    } catch { /* table not created yet — treat as 0 */ }
+      used = count ?? 0;
+    } catch { /* feature_events table not created yet */ }
+
+    // How many tutor credits they've purchased
+    let purchased = 0;
+    try {
+      const { data } = await supabase
+        .from('ai_tutor_credits')
+        .select('total_credits')
+        .eq('user_id', authUser.id);
+      purchased = (data ?? []).reduce((sum, r: { total_credits: number }) => sum + r.total_credits, 0);
+    } catch { /* ai_tutor_credits table not created yet */ }
+
+    setUploadCount(used);
+    setTutorCreditsPurchased(purchased);
     setUploadChecked(true);
   }, []);
 
@@ -278,8 +301,8 @@ export default function AssistantPage() {
   // ── Document upload ───────────────────────────────────────────────────────
 
   const handleFileUpload = async (file: File) => {
-    if (uploadChecked && uploadCount >= uploadLimit) {
-      setShowUpgradeModal(true);
+    if (limitReached) {
+      setShowTutorPricing(true);
       return;
     }
     trackEvent('document_upload', { fileName: file.name, fileType: file.type });
@@ -426,58 +449,18 @@ export default function AssistantPage() {
   const isEmpty = messages.length === 0;
   const isProcessing = docStage === 'uploading' || docStage === 'generating';
 
-  // How many courses does the user have access to (for PaywallModal)
-  const levelCourseCount = courses.filter(
-    c => c.level === user?.selected_level && c.semester === user?.selected_semester
-  ).length;
-
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-h-[900px]">
 
-      {/* Upgrade modal for document upload limit */}
-      {showUpgradeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center">
-                <Lock className="w-6 h-6 text-amber-600" />
-              </div>
-              <button onClick={() => setShowUpgradeModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
-            </div>
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Upload limit reached</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              You&apos;ve used all <strong>{FREE_UPLOAD_LIMIT} free document lessons</strong>. Upgrade to get{' '}
-              <strong>{PAID_UPLOAD_LIMIT} lessons</strong> this semester plus full access to all courses.
-            </p>
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  setShowUpgradeModal(false);
-                  // Open PaywallModal to handle payment
-                  setShowPaywallForUpgrade(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                Unlock All — GHC 50
-              </button>
-              <button onClick={() => setShowUpgradeModal(false)} className="w-full text-sm text-gray-500 hover:text-gray-700 py-2">
-                Maybe later
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPaywallForUpgrade && (
-        <PaywallModal
-          courseName="All Courses + Document Lessons"
-          courseCode={courses.find(c => c.level === user?.selected_level)?.course_code ?? ''}
-          totalCourses={levelCourseCount || 1}
-          onClose={() => setShowPaywallForUpgrade(false)}
-          onSuccess={() => { setShowPaywallForUpgrade(false); loadUploadCount(); }}
+      {showTutorPricing && (
+        <TutorPricingModal
+          usedCredits={uploadCount}
+          purchasedCredits={tutorCreditsPurchased}
+          onClose={() => setShowTutorPricing(false)}
+          onSuccess={(newCredits) => {
+            setTutorCreditsPurchased(prev => prev + newCredits);
+            setShowTutorPricing(false);
+          }}
         />
       )}
 
@@ -577,14 +560,14 @@ export default function AssistantPage() {
           />
 
           {/* Upload doc button */}
-          {uploadChecked && uploadCount >= uploadLimit ? (
+          {limitReached ? (
             <button
-              onClick={() => setShowUpgradeModal(true)}
+              onClick={() => setShowTutorPricing(true)}
               className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 hover:bg-amber-100 transition-colors shadow-sm whitespace-nowrap"
-              title="Upload limit reached — upgrade to continue"
+              title="Upload limit reached — get more credits"
             >
               <Lock className="w-4 h-4" />
-              <span>Limit reached ({uploadLimit}/{uploadLimit})</span>
+              <span>Get more uploads</span>
             </button>
           ) : (
             <button
@@ -601,9 +584,9 @@ export default function AssistantPage() {
               </span>
               {uploadChecked && (
                 <span className={`text-xs font-medium tabular-nums ${
-                  uploadCount >= uploadLimit - 1 ? 'text-amber-500' : 'text-gray-400'
+                  uploadRemaining <= 2 ? 'text-amber-500' : 'text-gray-400'
                 }`}>
-                  {uploadCount}/{uploadLimit}
+                  {uploadRemaining} left
                 </span>
               )}
             </button>

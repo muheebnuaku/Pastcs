@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import {
   Users, Activity, Target, BotMessageSquare, FileText,
-  Volume2, Zap, Clock, BookOpen, RefreshCw,
+  Volume2, Zap, Clock, BookOpen, RefreshCw, ChevronDown, ChevronRight, X,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -34,6 +34,13 @@ interface FeatureStat {
   label: string;
   color: string;
   icon: React.ReactNode;
+}
+interface FeatureUser {
+  user_id: string;
+  full_name: string | null;
+  email: string;
+  count: number;
+  last_used: string;
 }
 
 const TYPE_COLORS = ['#3b82f6', '#8b5cf6'];
@@ -69,6 +76,9 @@ export default function AdminActivityPage() {
   const [feed, setFeed]               = useState<FeedItem[]>([]);
   const [featureStats, setFeatureStats] = useState<FeatureStat[]>([]);
   const [hasFeatureTable, setHasFeatureTable] = useState(false);
+  const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
+  const [featureUsers, setFeatureUsers] = useState<FeatureUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -160,6 +170,42 @@ export default function AdminActivityPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadFeatureUsers = useCallback(async (event: string) => {
+    if (expandedFeature === event) { setExpandedFeature(null); return; }
+    setExpandedFeature(event);
+    setFeatureUsers([]);
+    setLoadingUsers(true);
+    const supabase = createClient();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    try {
+      const { data } = await supabase
+        .from('feature_events')
+        .select('user_id, created_at, user:user_public(full_name, email)')
+        .eq('event', event)
+        .gte('created_at', thirtyDaysAgo)
+        .order('created_at', { ascending: false });
+
+      // Group by user_id
+      const map = new Map<string, FeatureUser>();
+      for (const row of (data ?? []) as Array<{ user_id: string; created_at: string; user?: { full_name: string | null; email: string } | null }>) {
+        if (!row.user_id) continue;
+        if (!map.has(row.user_id)) {
+          map.set(row.user_id, {
+            user_id: row.user_id,
+            full_name: row.user?.full_name ?? null,
+            email: row.user?.email ?? row.user_id,
+            count: 1,
+            last_used: row.created_at,
+          });
+        } else {
+          map.get(row.user_id)!.count += 1;
+        }
+      }
+      setFeatureUsers(Array.from(map.values()).sort((a, b) => b.count - a.count));
+    } catch { /* ignore */ }
+    setLoadingUsers(false);
+  }, [expandedFeature]);
 
   const refresh = () => { setRefreshing(true); load(); };
 
@@ -280,25 +326,73 @@ create index on feature_events (user_id, created_at desc);`}</pre>
         <Card>
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-900">Feature Usage (30d)</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Click a feature to see which users used it</p>
           </div>
           <CardContent className="pt-4">
             {hasFeatureTable && featureStats.length > 0 ? (
-              <div className="space-y-3">
-                {featureStats.map(f => (
-                  <div key={f.event} className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${f.color}`}>{f.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-800">{f.label}</span>
-                        <span className="text-sm font-bold text-gray-900">{f.count}</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full transition-all"
-                          style={{ width: `${Math.round((f.count / (featureStats[0]?.count || 1)) * 100)}%` }} />
-                      </div>
+              <div className="space-y-1">
+                {featureStats.map(f => {
+                  const isOpen = expandedFeature === f.event;
+                  return (
+                    <div key={f.event}>
+                      <button
+                        onClick={() => loadFeatureUsers(f.event)}
+                        className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${f.color}`}>{f.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-800">{f.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-gray-900">{f.count}</span>
+                              {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                            </div>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: `${Math.round((f.count / (featureStats[0]?.count || 1)) * 100)}%` }} />
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* User drill-down */}
+                      {isOpen && (
+                        <div className="ml-11 mt-1 mb-2 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              Users — {f.label}
+                            </span>
+                            <button onClick={() => setExpandedFeature(null)}>
+                              <X className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                            </button>
+                          </div>
+                          {loadingUsers ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          ) : featureUsers.length > 0 ? (
+                            <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                              {featureUsers.map(u => (
+                                <div key={u.user_id} className="flex items-center gap-2 px-3 py-2">
+                                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-blue-700">
+                                    {(u.full_name || u.email).charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-gray-800 truncate">{u.full_name || u.email}</p>
+                                    {u.full_name && <p className="text-[10px] text-gray-400 truncate">{u.email}</p>}
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-600 flex-shrink-0">{u.count}×</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 text-center py-4">No users found</p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-400">
