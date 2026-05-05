@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/providers';
 import { Loader2, X, Zap, Star, Rocket, CheckCircle } from 'lucide-react';
 
@@ -19,7 +19,6 @@ const PLANS = [
     price: 30,
     pesewas: 3000,
     credits: 30,
-    period: '/month',
     badge: null,
     color: 'border-gray-200',
     btnColor: 'bg-gray-900 hover:bg-gray-800',
@@ -32,7 +31,6 @@ const PLANS = [
     price: 50,
     pesewas: 5000,
     credits: 50,
-    period: '',
     badge: 'Popular',
     color: 'border-blue-500 ring-2 ring-blue-200',
     btnColor: 'bg-blue-600 hover:bg-blue-700',
@@ -45,7 +43,6 @@ const PLANS = [
     price: 100,
     pesewas: 10000,
     credits: 100,
-    period: '',
     badge: 'Best value',
     color: 'border-purple-400 ring-2 ring-purple-100',
     btnColor: 'bg-purple-600 hover:bg-purple-700',
@@ -60,17 +57,54 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
   const [payingPlan, setPayingPlan] = useState<PlanId | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [paystackReady, setPaystackReady] = useState(false);
 
   const isTopUp = purchasedCredits > 0;
   const remaining = Math.max(0, purchasedCredits - usedCredits);
 
+  // Ensure Paystack script is loaded
+  useEffect(() => {
+    if (window.PaystackPop) {
+      setPaystackReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://js.paystack.co/v1/inline.js';
+    script.async = true;
+    script.onload = () => setPaystackReady(true);
+    script.onerror = () => setError('Could not load payment gateway. Check your connection.');
+    document.head.appendChild(script);
+  }, []);
+
+  const handleVerify = (reference: string, plan: typeof PLANS[number]) => {
+    setIsVerifying(true);
+    fetch('/api/payments/tutor-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reference, plan: plan.id }),
+    })
+      .then(r => r.json())
+      .then((data: { success?: boolean; error?: string }) => {
+        if (data.success) {
+          onSuccess(plan.credits);
+        } else {
+          setError(data.error ?? 'Payment verification failed. Please contact support.');
+        }
+      })
+      .catch(() => setError('Could not verify payment. Please contact support.'))
+      .finally(() => {
+        setIsVerifying(false);
+        setPayingPlan(null);
+      });
+  };
+
   const handlePay = (plan: typeof PLANS[number]) => {
-    if (!user) return;
+    if (!user || !paystackReady) return;
     setError('');
     setPayingPlan(plan.id);
 
-    const openPaystack = () => {
-      const ref = `tutor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const ref = `tutor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    try {
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: user.email,
@@ -78,39 +112,15 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
         currency: 'GHS',
         ref,
         metadata: { userId: user.id, plan: plan.id, product: 'ai_tutor' },
-        callback: async (response: { reference: string }) => {
-          setIsVerifying(true);
-          try {
-            const res = await fetch('/api/payments/tutor-credits', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reference: response.reference, plan: plan.id }),
-            });
-            const data = await res.json() as { success?: boolean; error?: string; credits?: number };
-            if (data.success) {
-              onSuccess(plan.credits);
-            } else {
-              setError(data.error ?? 'Payment verification failed. Please contact support.');
-            }
-          } catch {
-            setError('Could not verify payment. Please contact support.');
-          } finally {
-            setIsVerifying(false);
-            setPayingPlan(null);
-          }
+        callback: (response: { reference: string }) => {
+          handleVerify(response.reference, plan);
         },
         onClose: () => setPayingPlan(null),
       });
       handler.openIframe();
-    };
-
-    if (window.PaystackPop) {
-      openPaystack();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://js.paystack.co/v1/inline.js';
-      script.onload = openPaystack;
-      document.head.appendChild(script);
+    } catch {
+      setError('Could not open payment gateway. Please try again.');
+      setPayingPlan(null);
     }
   };
 
@@ -156,12 +166,9 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
               </div>
 
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{plan.name}</p>
-              <div className="flex items-baseline gap-0.5 mt-1 mb-0.5">
+              <div className="flex items-baseline gap-0.5 mt-1 mb-3">
                 <span className="text-2xl font-bold text-gray-900">GHC {plan.price}</span>
               </div>
-              {plan.period && (
-                <p className="text-[11px] text-gray-400 mb-2">{plan.period}</p>
-              )}
 
               <p className="text-sm font-bold text-gray-800 mb-3">{plan.credits} uploads</p>
 
@@ -176,15 +183,18 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
 
               <button
                 onClick={() => handlePay(plan)}
-                disabled={isVerifying || payingPlan !== null}
+                disabled={isVerifying || payingPlan !== null || !paystackReady}
                 className={`w-full py-2 rounded-xl text-white text-xs font-semibold transition-colors disabled:opacity-50 ${plan.btnColor}`}
               >
-                {payingPlan === plan.id
-                  ? isVerifying
+                {payingPlan === plan.id ? (
+                  isVerifying
                     ? <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Verifying…</span>
                     : <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Opening…</span>
-                  : `Get ${plan.credits} uploads`
-                }
+                ) : !paystackReady ? (
+                  <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Loading…</span>
+                ) : (
+                  `Get ${plan.credits} uploads`
+                )}
               </button>
             </div>
           ))}
