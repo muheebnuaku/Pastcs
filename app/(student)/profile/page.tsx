@@ -37,6 +37,7 @@ export default function ProfilePage() {
   const [studentId, setStudentId] = useState('');
   const [program, setProgram] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [stats, setStats] = useState<UserStats | null>(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showLevelWarning, setShowLevelWarning] = useState(false);
@@ -96,10 +97,11 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
+    setSaveError('');
 
     const supabase = createClient();
     const { error } = await supabase
-      .from('user_public')
+      .from('users')
       .update({
         full_name: fullName,
         student_id: studentId,
@@ -108,8 +110,10 @@ export default function ProfilePage() {
       .eq('id', user.id);
 
     if (!error) {
-      refreshUser();
+      await refreshUser();
       setIsEditing(false);
+    } else {
+      setSaveError(error.message);
     }
     setIsSaving(false);
   };
@@ -186,10 +190,13 @@ export default function ProfilePage() {
                     onClick={handleSave}
                     disabled={isSaving}
                   >
-                    <Check className="w-4 h-4 mr-1" />
-                    Save
+                    {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+                    {isSaving ? 'Saving…' : 'Save'}
                   </Button>
                 </div>
+                {saveError && (
+                  <p className="text-xs text-red-500 mt-1">{saveError}</p>
+                )}
               )}
             </div>
             <CardContent className="space-y-6">
@@ -229,8 +236,11 @@ export default function ProfilePage() {
                       Programme <span className="text-red-500">*</span>
                     </label>
                     <select
-                      value={program}
-                      onChange={(e) => setProgram(e.target.value)}
+                      value={['BSc Information Technology','BSc Computer Science','BSc Management Information Systems','BSc Data Science','BSc Cyber Security'].includes(program) ? program : program ? 'Other' : ''}
+                      onChange={(e) => {
+                        if (e.target.value !== 'Other') setProgram(e.target.value);
+                        else setProgram('');
+                      }}
                       className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       <option value="">— Select your programme —</option>
@@ -239,8 +249,18 @@ export default function ProfilePage() {
                       <option value="BSc Management Information Systems">BSc Management Information Systems</option>
                       <option value="BSc Data Science">BSc Data Science</option>
                       <option value="BSc Cyber Security">BSc Cyber Security</option>
-                      <option value="Other">Other</option>
+                      <option value="Other">Other (type below)</option>
                     </select>
+                    {!['BSc Information Technology','BSc Computer Science','BSc Management Information Systems','BSc Data Science','BSc Cyber Security',''].includes(program) && (
+                      <input
+                        type="text"
+                        value={program}
+                        onChange={(e) => setProgram(e.target.value)}
+                        placeholder="Type your programme name"
+                        className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                      />
+                    )}
                   </div>
                 </div>
               ) : (
