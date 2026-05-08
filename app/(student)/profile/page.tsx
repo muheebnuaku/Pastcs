@@ -100,21 +100,37 @@ export default function ProfilePage() {
     setSaveError('');
 
     const supabase = createClient();
-    const { error } = await supabase
+
+    // Save name + student ID first
+    const { error: baseError } = await supabase
       .from('users')
-      .update({
-        full_name: fullName,
-        student_id: studentId,
-        program: program || null,
-      })
+      .update({ full_name: fullName, student_id: studentId })
       .eq('id', user.id);
 
-    if (!error) {
-      await refreshUser();
-      setIsEditing(false);
-    } else {
-      setSaveError(error.message);
+    if (baseError) {
+      setSaveError(baseError.message);
+      setIsSaving(false);
+      return;
     }
+
+    // Save program separately (column may not exist yet in DB)
+    if (program !== (user.program || '')) {
+      const { error: progError } = await supabase
+        .from('users')
+        .update({ program: program || null })
+        .eq('id', user.id);
+
+      if (progError) {
+        setSaveError('Programme not saved — please run the SQL migration in Supabase: ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program TEXT;');
+        await refreshUser();
+        setIsEditing(false);
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    await refreshUser();
+    setIsEditing(false);
     setIsSaving(false);
   };
 
