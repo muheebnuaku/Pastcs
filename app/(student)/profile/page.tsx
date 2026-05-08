@@ -172,31 +172,33 @@ export default function ProfilePage() {
                   Edit
                 </Button>
               ) : (
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setFullName(user?.full_name || '');
-                      setStudentId(user?.student_id || '');
-                      setProgram(user?.program || '');
-                    }}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSave}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
-                    {isSaving ? 'Saving…' : 'Save'}
-                  </Button>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setFullName(user?.full_name || '');
+                        setStudentId(user?.student_id || '');
+                        setProgram(user?.program || '');
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSave}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+                      {isSaving ? 'Saving…' : 'Save'}
+                    </Button>
+                  </div>
+                  {saveError && (
+                    <p className="text-xs text-red-500">{saveError}</p>
+                  )}
                 </div>
-                {saveError && (
-                  <p className="text-xs text-red-500 mt-1">{saveError}</p>
-                )}
               )}
             </div>
             <CardContent className="space-y-6">
