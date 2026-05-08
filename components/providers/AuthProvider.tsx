@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchOrCreateUser = useCallback(
     async (authUser: { id: string; email?: string; user_metadata?: Record<string, string> }) => {
       const { data } = await supabase
-        .from('user_public')
+        .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
