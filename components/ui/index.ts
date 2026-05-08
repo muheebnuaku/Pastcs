@@ -8,3 +8,4 @@ export { Select } from './Select';
 export { Textarea } from './Textarea';
 export { Modal } from './Modal';
 export { Loading, PageLoading } from './Loading';
+export { PushingProgress } from './PushingProgress';

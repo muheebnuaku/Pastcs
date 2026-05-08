@@ -94,6 +94,14 @@ body {
   background-clip: text;
 }
 
+@keyframes push-strain {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-2px); }
+}
+.animate-push-strain {
+  animation: push-strain 0.65s ease-in-out infinite;
+}
+
 /* Card hover effects */
 .card-hover {
   transition: all 0.2s ease-in-out;
