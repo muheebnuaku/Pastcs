@@ -23,6 +23,7 @@ export interface User {
   selected_level: number | null;
   selected_semester: number | null;
   free_course_code: string | null;
+  program: string | null;
   created_at: string;
   updated_at: string;
 }

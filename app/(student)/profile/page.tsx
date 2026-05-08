@@ -35,6 +35,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [program, setProgram] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
@@ -86,6 +87,7 @@ export default function ProfilePage() {
     if (user) {
       setFullName(user.full_name || '');
       setStudentId(user.student_id || '');
+      setProgram(user.program || '');
       fetchStats();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,6 +103,7 @@ export default function ProfilePage() {
       .update({
         full_name: fullName,
         student_id: studentId,
+        program: program || null,
       })
       .eq('id', user.id);
 
@@ -125,6 +128,19 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+
+      {/* Program missing banner */}
+      {user && !user.program && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-900 text-sm">Please update your program</p>
+            <p className="text-amber-700 text-sm mt-0.5">
+              Tell us which programme you&apos;re enrolled in so we can personalise your experience. Click <strong>Edit</strong> below to set it.
+            </p>
+          </div>
+        </div>
+      )}
 
       {showLevelModal && (
         <LevelSemesterModal
@@ -160,6 +176,7 @@ export default function ProfilePage() {
                       setIsEditing(false);
                       setFullName(user?.full_name || '');
                       setStudentId(user?.student_id || '');
+                      setProgram(user?.program || '');
                     }}
                   >
                     <X className="w-4 h-4" />
@@ -207,6 +224,24 @@ export default function ProfilePage() {
                     onChange={(e) => setStudentId(e.target.value)}
                     placeholder="Enter your student ID"
                   />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Programme <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={program}
+                      onChange={(e) => setProgram(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">— Select your programme —</option>
+                      <option value="BSc Information Technology">BSc Information Technology</option>
+                      <option value="BSc Computer Science">BSc Computer Science</option>
+                      <option value="BSc Management Information Systems">BSc Management Information Systems</option>
+                      <option value="BSc Data Science">BSc Data Science</option>
+                      <option value="BSc Cyber Security">BSc Cyber Security</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -214,9 +249,7 @@ export default function ProfilePage() {
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">Full Name</p>
-                      <p className="font-medium text-gray-900">
-                        {user.full_name || 'Not set'}
-                      </p>
+                      <p className="font-medium text-gray-900">{user.full_name || 'Not set'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -230,8 +263,15 @@ export default function ProfilePage() {
                     <BookOpen className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">Student ID</p>
-                      <p className="font-medium text-gray-900">
-                        {user.student_id || 'Not set'}
+                      <p className="font-medium text-gray-900">{user.student_id || 'Not set'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <GraduationCap className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-500">Programme</p>
+                      <p className={`font-medium ${user.program ? 'text-gray-900' : 'text-amber-600'}`}>
+                        {user.program || 'Not set — please edit'}
                       </p>
                     </div>
                   </div>

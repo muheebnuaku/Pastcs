@@ -155,6 +155,7 @@ export default function AdminStudentsPage() {
               <tr className="border-b border-gray-100">
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Student</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Student ID</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Programme</th>
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500">Tests</th>
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500">Streak</th>
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500">XP</th>
@@ -165,7 +166,7 @@ export default function AdminStudentsPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm">
                     Loading students…
                   </td>
                 </tr>
@@ -188,6 +189,13 @@ export default function AdminStudentsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-gray-600">{student.student_id || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {student.program ? (
+                        <span className="text-sm text-gray-700">{student.program}</span>
+                      ) : (
+                        <span className="text-xs text-amber-600 italic">Not set</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">

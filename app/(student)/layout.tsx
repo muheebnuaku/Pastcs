@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/components/providers';
 import { StudentSidebar } from '@/components/layout';
 
@@ -12,12 +12,16 @@ export default function DashboardLayout({
 }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.replace('/login');
+    if (isLoading) return;
+    if (!user) { router.replace('/login'); return; }
+    // Redirect to profile if program not set (skip if already there)
+    if (!user.program && pathname !== '/profile') {
+      router.replace('/profile');
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50">
