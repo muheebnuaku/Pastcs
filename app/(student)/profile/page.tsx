@@ -233,37 +233,12 @@ export default function ProfilePage() {
                     onChange={(e) => setStudentId(e.target.value)}
                     placeholder="Enter your student ID"
                   />
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Programme <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={['BSc Information Technology','BSc Computer Science','BSc Management Information Systems','BSc Data Science','BSc Cyber Security'].includes(program) ? program : program ? 'Other' : ''}
-                      onChange={(e) => {
-                        if (e.target.value !== 'Other') setProgram(e.target.value);
-                        else setProgram('');
-                      }}
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    >
-                      <option value="">— Select your programme —</option>
-                      <option value="BSc Information Technology">BSc Information Technology</option>
-                      <option value="BSc Computer Science">BSc Computer Science</option>
-                      <option value="BSc Management Information Systems">BSc Management Information Systems</option>
-                      <option value="BSc Data Science">BSc Data Science</option>
-                      <option value="BSc Cyber Security">BSc Cyber Security</option>
-                      <option value="Other">Other (type below)</option>
-                    </select>
-                    {!['BSc Information Technology','BSc Computer Science','BSc Management Information Systems','BSc Data Science','BSc Cyber Security',''].includes(program) && (
-                      <input
-                        type="text"
-                        value={program}
-                        onChange={(e) => setProgram(e.target.value)}
-                        placeholder="Type your programme name"
-                        className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        autoFocus
-                      />
-                    )}
-                  </div>
+                  <Input
+                    label="Programme"
+                    value={program}
+                    onChange={(e) => setProgram(e.target.value)}
+                    placeholder="e.g. BSc Computer Science"
+                  />
                 </div>
               ) : (
                 <div className="space-y-4">
