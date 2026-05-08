@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
-import { Card, Button, Badge, Modal, PushingProgress } from '@/components/ui';
+import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
@@ -271,7 +271,7 @@ export default function ExamPage() {
             {answeredCount}/{questions.length} answered
           </Badge>
         </div>
-        <PushingProgress value={currentIndex} max={Math.max(1, questions.length - 1)} />
+        <Progress value={answeredCount} max={questions.length} color="blue" size="sm" />
       </div>
 
       {/* Question Card */}
