@@ -271,7 +271,7 @@ export default function ExamPage() {
             {answeredCount}/{questions.length} answered
           </Badge>
         </div>
-        <PushingProgress value={answeredCount} max={questions.length} />
+        <PushingProgress value={currentIndex} max={Math.max(1, questions.length - 1)} />
       </div>
 
       {/* Question Card */}

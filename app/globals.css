@@ -95,11 +95,13 @@ body {
 }
 
 @keyframes push-strain {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-2px); }
+  0%   { transform: translateY(0px) rotate(0deg); }
+  30%  { transform: translateY(-3px) rotate(-0.8deg); }
+  60%  { transform: translateY(-1px) rotate(0.4deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
 }
 .animate-push-strain {
-  animation: push-strain 0.65s ease-in-out infinite;
+  animation: push-strain 0.7s ease-in-out infinite;
 }
 
 /* Card hover effects */
