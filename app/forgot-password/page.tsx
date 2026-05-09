@@ -22,8 +22,12 @@ export default function ForgotPasswordPage() {
     setError('');
     setSubmitting(true);
 
+    const origin = window.location.hostname === 'localhost'
+      ? 'https://www.pastcs.com'
+      : window.location.origin;
+
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${origin}/reset-password`,
     });
 
     if (resetError) {
