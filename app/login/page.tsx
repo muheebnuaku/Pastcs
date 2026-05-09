@@ -81,17 +81,24 @@ export default function LoginPage() {
               autoComplete="email"
             />
 
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={() => setIsPasswordFocused(true)}
-              onBlur={() => setIsPasswordFocused(false)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
+            <div>
+              <Input
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setIsPasswordFocused(true)}
+                onBlur={() => setIsPasswordFocused(false)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+              />
+              <div className="text-right mt-1">
+                <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
 
             {error && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200">
