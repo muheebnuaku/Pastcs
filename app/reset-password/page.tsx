@@ -3,9 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { Button, Input } from '@/components/ui';
 import { Home, KeyRound, CheckCircle, AlertTriangle } from 'lucide-react';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -17,19 +22,16 @@ export default function ResetPasswordPage() {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    const supabase = createClient();
-    // Supabase fires PASSWORD_RECOVERY when the reset link is opened
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') setSessionReady(true);
     });
-    // Also check if session already exists (page refresh after redirect)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setSessionReady(true);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
@@ -43,7 +45,6 @@ export default function ResetPasswordPage() {
     }
 
     setSubmitting(true);
-    const supabase = createClient();
     const { error: updateError } = await supabase.auth.updateUser({ password });
 
     if (updateError) {
@@ -67,10 +68,7 @@ export default function ResetPasswordPage() {
             <p className="text-sm text-gray-500">
               This reset link is invalid or has expired. Please request a new one.
             </p>
-            <Link
-              href="/forgot-password"
-              className="inline-block text-sm text-blue-600 font-medium hover:underline"
-            >
+            <Link href="/forgot-password" className="inline-block text-sm text-blue-600 font-medium hover:underline">
               Request new link
             </Link>
           </div>
