@@ -31,7 +31,12 @@ export default function ForgotPasswordPage() {
     });
 
     if (resetError) {
-      setError(resetError.message);
+      const msg = resetError.message.toLowerCase();
+      if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('exceeded')) {
+        setError('Too many reset requests. Please wait a few minutes before trying again.');
+      } else {
+        setError(resetError.message);
+      }
     } else {
       setSent(true);
     }
