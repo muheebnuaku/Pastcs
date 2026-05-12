@@ -5,12 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, Avatar } from '@/components/ui';
 import { CheckCircle, XCircle, Clock, MessageSquareQuote } from 'lucide-react';
 
+interface UserInfo { full_name: string | null; email: string; avatar_url: string | null; program: string | null; }
 interface TestimonialRow {
   id: string;
   quote: string;
   is_approved: boolean;
   created_at: string;
-  user: { full_name: string | null; email: string; avatar_url: string | null; program: string | null } | null;
+  user_id: string | null;
+  user?: UserInfo | null;
 }
 
 export default function AdminTestimonialsPage() {
@@ -21,11 +23,31 @@ export default function AdminTestimonialsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
+
+    // 1. Fetch testimonials
+    const { data: tData } = await supabase
       .from('testimonials')
-      .select('*, user:users(full_name, email, avatar_url, program)')
+      .select('*')
       .order('created_at', { ascending: false });
-    setRows((data ?? []) as TestimonialRow[]);
+
+    const testimonials = (tData ?? []) as TestimonialRow[];
+
+    // 2. Fetch user info separately for each unique user_id
+    const userIds = [...new Set(testimonials.map(t => t.user_id).filter(Boolean))] as string[];
+    let userMap: Record<string, UserInfo> = {};
+
+    if (userIds.length > 0) {
+      const { data: uData } = await supabase
+        .from('users')
+        .select('id, full_name, email, avatar_url, program')
+        .in('id', userIds);
+
+      for (const u of (uData ?? []) as Array<UserInfo & { id: string }>) {
+        userMap[u.id] = u;
+      }
+    }
+
+    setRows(testimonials.map(t => ({ ...t, user: t.user_id ? userMap[t.user_id] ?? null : null })));
     setLoading(false);
   }, []);
 

@@ -109,13 +109,33 @@ interface Testimonial {
 async function getTestimonials(): Promise<Testimonial[]> {
   try {
     const supabase = await createClient();
-    const { data } = await supabase
+
+    const { data: tData } = await supabase
       .from('testimonials')
-      .select('id, quote, user:users(full_name, program, avatar_url)')
+      .select('id, quote, user_id')
       .eq('is_approved', true)
       .order('created_at', { ascending: false })
       .limit(6);
-    return (data ?? []) as Testimonial[];
+
+    const testimonials = (tData ?? []) as Array<{ id: string; quote: string; user_id: string | null }>;
+    const userIds = testimonials.map(t => t.user_id).filter(Boolean) as string[];
+
+    let userMap: Record<string, { full_name: string | null; program: string | null; avatar_url: string | null }> = {};
+    if (userIds.length > 0) {
+      const { data: uData } = await supabase
+        .from('users')
+        .select('id, full_name, program, avatar_url')
+        .in('id', userIds);
+      for (const u of (uData ?? []) as Array<{ id: string; full_name: string | null; program: string | null; avatar_url: string | null }>) {
+        userMap[u.id] = u;
+      }
+    }
+
+    return testimonials.map(t => ({
+      id: t.id,
+      quote: t.quote,
+      user: t.user_id ? userMap[t.user_id] ?? null : null,
+    }));
   } catch {
     return [];
   }
