@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui';
 import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { useAuth } from '@/components/providers';
+import { useNotifications } from '@/lib/hooks/useNotifications';
 import {
   Home,
   BookOpen,
@@ -21,6 +22,8 @@ import {
   ShieldCheck,
   BotMessageSquare,
   Sparkles,
+  Bell,
+  Trash2,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -39,6 +42,9 @@ export function StudentSidebar() {
   const { hasActiveSub } = useSubscriptionStore();
   const { signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
+
+  const { notifications, unreadCount, markAllRead, dismiss } = useNotifications(user?.id);
 
   const handleSignOut = async () => {
     await signOut().catch(() => {});
@@ -77,7 +83,7 @@ export function StudentSidebar() {
         )}
       >
         {/* Logo */}
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setIsOpen(false)}>
             <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-10 h-10 rounded-full object-contain" />
             <div>
@@ -85,7 +91,48 @@ export function StudentSidebar() {
               <p className="text-[11px] text-gray-400 mt-0.5">Exam Practice</p>
             </div>
           </Link>
+          <button
+            onClick={() => { setShowNotifs(v => !v); if (!showNotifs && unreadCount > 0) markAllRead(); }}
+            className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Notifications"
+          >
+            <Bell className="w-4.5 h-4.5 text-gray-500" style={{ width: '1.125rem', height: '1.125rem' }} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
         </div>
+
+        {/* Notification drawer */}
+        {showNotifs && (
+          <div className="border-b border-gray-100 max-h-72 overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notifications</span>
+              {notifications.length > 0 && (
+                <button onClick={() => Promise.all(notifications.map(n => dismiss(n.id)))}
+                  className="text-[11px] text-red-500 hover:text-red-700 font-medium">
+                  Clear all
+                </button>
+              )}
+            </div>
+            {notifications.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-5">No notifications</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {notifications.map(n => (
+                  <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 ${!n.is_read ? 'bg-blue-50/60' : ''}`}>
+                    <p className="flex-1 text-xs text-gray-700 leading-relaxed">{n.message}</p>
+                    <button onClick={() => dismiss(n.id)} className="flex-shrink-0 mt-0.5 text-gray-300 hover:text-gray-500">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Streak Badge */}
         {user && (

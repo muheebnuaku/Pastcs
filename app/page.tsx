@@ -1,10 +1,9 @@
-'use client';
-
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui';
 import { Navbar, Footer } from '@/components/layout';
 import { COURSE_ICONS } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/server';
 import {
   GraduationCap,
   BookOpen,
@@ -19,6 +18,7 @@ import {
   Layers,
   Zap,
   Star,
+  Quote,
 } from 'lucide-react';
 
 const courses = [
@@ -100,7 +100,29 @@ const studentPhotos = [
   'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=800&auto=format&fit=crop',
 ];
 
-export default function HomePage() {
+interface Testimonial {
+  id: string;
+  quote: string;
+  user: { full_name: string | null; program: string | null; avatar_url: string | null } | null;
+}
+
+async function getTestimonials(): Promise<Testimonial[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from('testimonials')
+      .select('id, quote, user:users(full_name, program, avatar_url)')
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+      .limit(6);
+    return (data ?? []) as Testimonial[];
+  } catch {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const testimonials = await getTestimonials();
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
       <Navbar />
@@ -358,6 +380,40 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── Testimonials ── */}
+      {testimonials.length > 0 && (
+        <section className="py-20 px-4 bg-white">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="animate-fade-in-up text-3xl font-bold text-gray-900 mb-3">What Students Are Saying</h2>
+              <p className="animate-fade-in-up delay-100 text-gray-500 max-w-xl mx-auto">
+                Real words from real students who used PastCS to prepare for their exams.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {testimonials.map((t, i) => (
+                <div
+                  key={t.id}
+                  className={`animate-fade-in-up delay-${(i % 3 + 1) * 100} bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-100 hover:shadow-md transition-all duration-200 flex flex-col`}
+                >
+                  <Quote className="w-7 h-7 text-blue-200 mb-3 flex-shrink-0" />
+                  <p className="text-gray-700 text-sm leading-relaxed flex-1">&ldquo;{t.quote}&rdquo;</p>
+                  <div className="flex items-center gap-3 mt-5 pt-4 border-t border-gray-100">
+                    <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                      {(t.user?.full_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{t.user?.full_name || 'Student'}</p>
+                      {t.user?.program && <p className="text-xs text-gray-400">{t.user.program}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── CTA ── */}
       <section className="py-20 px-4 bg-gradient-to-br from-blue-600 to-blue-800">

@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Volume2,
   Loader2,
+  MessageSquareQuote,
 } from 'lucide-react';
 
 interface UserStats {
@@ -41,6 +42,10 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showLevelWarning, setShowLevelWarning] = useState(false);
+  const [testimonial, setTestimonial] = useState('');
+  const [testimonialSaving, setTestimonialSaving] = useState(false);
+  const [testimonialDone, setTestimonialDone] = useState(false);
+  const [testimonialError, setTestimonialError] = useState('');
 
   const { speak, isSpeaking, isSupported: voiceSupported } = useSpeech();
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
@@ -132,6 +137,23 @@ export default function ProfilePage() {
     await refreshUser();
     setIsEditing(false);
     setIsSaving(false);
+  };
+
+  const handleSubmitTestimonial = async () => {
+    if (!user || !testimonial.trim()) return;
+    setTestimonialSaving(true);
+    setTestimonialError('');
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('testimonials')
+      .insert({ user_id: user.id, quote: testimonial.trim() });
+    if (error) {
+      setTestimonialError(error.message);
+    } else {
+      setTestimonialDone(true);
+      setTestimonial('');
+    }
+    setTestimonialSaving(false);
   };
 
   const handleChangeLevelClick = () => {
@@ -442,6 +464,44 @@ export default function ProfilePage() {
             </Card>
           )}
         </div>
+
+          {/* Testimonial Card */}
+          <Card>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <MessageSquareQuote className="w-5 h-5 text-blue-600" />
+              <h2 className="font-semibold text-gray-900">Share Your Experience</h2>
+            </div>
+            <CardContent className="space-y-4">
+              {testimonialDone ? (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-2xl">🎉</p>
+                  <p className="font-semibold text-gray-900 text-sm">Thanks for sharing!</p>
+                  <p className="text-xs text-gray-500">Your testimonial is under review and will appear on the homepage once approved.</p>
+                  <button onClick={() => setTestimonialDone(false)} className="text-xs text-blue-600 hover:underline">Submit another</button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500">How has PastCS helped your studies? Your words encourage other students.</p>
+                  <textarea
+                    value={testimonial}
+                    onChange={e => setTestimonial(e.target.value)}
+                    rows={3}
+                    maxLength={300}
+                    placeholder="e.g. PastCS helped me go from 52% to 81% in DCIT101 in just two weeks…"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">{testimonial.length}/300</span>
+                    {testimonialError && <p className="text-xs text-red-500">{testimonialError}</p>}
+                    <Button size="sm" onClick={handleSubmitTestimonial} disabled={testimonialSaving || !testimonial.trim()}>
+                      {testimonialSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                      Submit
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
         {/* Stats Card */}
         <div className="space-y-4">

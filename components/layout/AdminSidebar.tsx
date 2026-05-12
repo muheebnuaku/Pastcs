@@ -22,6 +22,7 @@ import {
   GraduationCap,
   DollarSign,
   ChevronRight,
+  MessageSquareQuote,
 } from 'lucide-react';
 
 const adminNavSections = [
@@ -42,6 +43,7 @@ const adminNavSections = [
     label: 'People',
     items: [
       { href: '/admin/students', label: 'Students', icon: Users },
+      { href: '/admin/testimonials', label: 'Testimonials', icon: MessageSquareQuote },
     ],
   },
   {

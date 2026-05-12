@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore, useSubscriptionStore } from '@/lib/store';
+import { triggerNotifications } from '@/lib/hooks/useNotifications';
 import type { User } from '@/types';
 
 interface AuthContextType {
@@ -67,7 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           const userData = await fetchOrCreateUser(session.user);
           setUser(userData);
-          if (userData) await fetchSubscriptions(userData.id);
+          if (userData) {
+            await fetchSubscriptions(userData.id);
+            triggerNotifications(userData).catch(() => {});
+          }
         } else {
           setUser(null);
           useSubscriptionStore.getState().setSubscriptions([]);
