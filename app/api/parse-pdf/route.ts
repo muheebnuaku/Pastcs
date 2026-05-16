@@ -5,6 +5,8 @@ export const maxDuration = 60;
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const OLD_PPT_MIME = 'application/vnd.ms-powerpoint';
+const OLD_DOC_MIME = 'application/msword';
 const MIN_TEXT_LENGTH = 150;
 
 const ACCEPTED_TYPES = ['application/pdf', PPTX_MIME, DOCX_MIME];
@@ -47,14 +49,47 @@ async function extractPptxText(buffer: Buffer): Promise<string> {
 
 export async function POST(request: Request) {
   try {
+    const contentType = request.headers.get('content-type') ?? '';
+
+    // ── JSON path: client already extracted the text (large PDF) ───────────
+    if (contentType.includes('application/json')) {
+      const { text, pageCount } = await request.json() as { text: string; pageCount?: number };
+      if (!text?.trim()) return Response.json({ error: 'No text provided' }, { status: 400 });
+      if (!process.env.OPENAI_API_KEY) return Response.json({ text, detectedTopic: '' });
+
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      let detectedTopic = '';
+      try {
+        const r = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: `Identify the main academic topic or chapter title from this lecture content. Respond only with JSON.\n\nContent:\n${text.slice(0, 3000)}\n\nRespond: {"topic": "short topic name here"}` }],
+          response_format: { type: 'json_object' },
+          max_tokens: 80,
+          temperature: 0.2,
+        });
+        detectedTopic = JSON.parse(r.choices[0].message.content || '{}').topic || '';
+      } catch { /* topic detection optional */ }
+      return Response.json({ text, detectedTopic, pageCount });
+    }
+
+    // ── FormData path: file upload (PPTX / DOCX) ───────────────────────────
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
 
     if (!file) {
       return Response.json({ error: 'No file provided' }, { status: 400 });
     }
+
+    // Reject old binary formats with a helpful message
+    if (file.type === OLD_PPT_MIME) {
+      return Response.json({ error: 'Old .ppt format is not supported. Please save as .pptx in PowerPoint and try again.' }, { status: 415 });
+    }
+    if (file.type === OLD_DOC_MIME) {
+      return Response.json({ error: 'Old .doc format is not supported. Please save as .docx in Word and try again.' }, { status: 415 });
+    }
+
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      return Response.json({ error: 'File must be a PDF or PPTX' }, { status: 400 });
+      return Response.json({ error: 'Unsupported file type. Use PDF, PPTX, or DOCX.' }, { status: 400 });
     }
     if (!process.env.OPENAI_API_KEY) {
       return Response.json({ error: 'OpenAI API key not configured' }, { status: 500 });

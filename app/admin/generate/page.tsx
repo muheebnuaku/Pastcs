@@ -48,9 +48,10 @@ export default function AdminGeneratePage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // PDF upload state
+  // File upload state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState('');
   const [pdfTopic, setPdfTopic] = useState('');
 
   // Load all courses once
@@ -122,30 +123,61 @@ export default function AdminGeneratePage() {
     }
 
     setIsParsing(true);
+    setParseProgress('');
     setError('');
-    const formData = new FormData();
-    formData.append('file', file);
+
     try {
-      const res = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
-      // Guard against non-JSON responses (e.g. "Request Entity Too Large")
-      const contentType = res.headers.get('content-type') ?? '';
-      if (!contentType.includes('application/json')) {
-        const text = await res.text();
-        throw new Error(
-          res.status === 413
-            ? 'File is too large for the server. Try a smaller PDF (under 10 MB) or split it into parts.'
-            : `Server error: ${text.slice(0, 120)}`
-        );
+      const isPdf    = file.type === 'application/pdf';
+      const isPptx   = file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      const isDocx   = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      const isOldPpt = file.type === 'application/vnd.ms-powerpoint';
+      const isOldDoc = file.type === 'application/msword';
+
+      if (isOldPpt) throw new Error('Old .ppt format not supported. Save as .pptx in PowerPoint and try again.');
+      if (isOldDoc) throw new Error('Old .doc format not supported. Save as .docx in Word and try again.');
+      if (!isPdf && !isPptx && !isDocx) throw new Error('Unsupported file type. Use PDF, PPTX, or DOCX.');
+
+      if (isPdf) {
+        // Extract text in the browser — bypasses Vercel body size limit entirely
+        setParseProgress('Reading PDF…');
+        const { extractPdfText } = await import('@/lib/extractPdfText');
+        const { text, pageCount } = await extractPdfText(file, (page, total) => {
+          setParseProgress(`Extracting page ${page} of ${total}…`);
+        });
+
+        if (!text.trim()) throw new Error('Could not extract text. This PDF may be a scanned image — try a text-based PDF.');
+
+        setParseProgress('Detecting topic…');
+        const res = await fetch('/api/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, pageCount }),
+        });
+        const data = await res.json() as { text?: string; detectedTopic?: string; error?: string };
+        if (!res.ok) throw new Error(data.error || 'Topic detection failed');
+        setSlideContent(data.text || text);
+        setPdfTopic(data.detectedTopic || '');
+      } else {
+        // PPTX / DOCX: server-side parsing (usually small files)
+        setParseProgress('Uploading and scanning…');
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
+        const ct = res.headers.get('content-type') ?? '';
+        if (!ct.includes('application/json')) {
+          throw new Error(res.status === 413 ? 'File too large. Try a smaller file.' : 'Server error');
+        }
+        const data = await res.json() as { text?: string; detectedTopic?: string; error?: string };
+        if (!res.ok) throw new Error(data.error || 'Failed to parse file');
+        setSlideContent(data.text || '');
+        setPdfTopic(data.detectedTopic || '');
       }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to parse PDF');
-      setSlideContent(data.text || '');
-      setPdfTopic(data.detectedTopic || '');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to parse PDF');
+      setError(err instanceof Error ? err.message : 'Failed to parse file');
       setPdfFile(null);
     } finally {
       setIsParsing(false);
+      setParseProgress('');
     }
   };
 
@@ -396,17 +428,17 @@ export default function AdminGeneratePage() {
             {/* PDF Upload area */}
             {selectedCourse && (
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Upload Slide (PDF or PPTX)</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">Upload Slide (PDF, PPTX, DOCX)</p>
 
                 {!pdfFile ? (
                   <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-colors">
                     <FileUp className="w-7 h-7 text-gray-400 mb-1" />
-                    <span className="text-sm text-gray-500">Click to upload a PDF or PPTX</span>
+                    <span className="text-sm text-gray-500">Click to upload PDF, PPTX, or DOCX</span>
                     <span className="text-xs text-gray-400">AI will scan and extract topic &amp; content</span>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                      accept="application/pdf,.pdf,.pptx,.ppt,.docx,.doc,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
                       className="hidden"
                       onChange={handlePdfSelect}
                     />
@@ -417,8 +449,10 @@ export default function AdminGeneratePage() {
                       <>
                         <ScanText className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0" />
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-blue-800">Scanning slide...</p>
-                          <p className="text-xs text-blue-500">AI is extracting topic and content</p>
+                          <p className="text-sm font-medium text-blue-800">
+                            {parseProgress || 'Processing file…'}
+                          </p>
+                          <p className="text-xs text-blue-500">Extracting content and detecting topic</p>
                         </div>
                         <RefreshCw className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
                       </>
