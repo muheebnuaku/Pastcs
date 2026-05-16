@@ -115,9 +115,8 @@ export default function AdminGeneratePage() {
   };
 
   const handlePdfParse = async (file: File) => {
-    // Warn for very large files (Vercel's limit is ~4.5MB on free plans)
-    if (file.size > 15 * 1024 * 1024) {
-      setError('File is too large (max 15 MB). For large documents, split into smaller sections.');
+    if (file.size > 500 * 1024 * 1024) {
+      setError('File is too large (max 500 MB).');
       setPdfFile(null);
       return;
     }

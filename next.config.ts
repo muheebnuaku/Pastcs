@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['unpdf', 'jszip'],
   experimental: {
     serverActions: {
-      bodySizeLimit: '20mb',
+      bodySizeLimit: '500mb',
     },
   },
   images: {
