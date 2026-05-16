@@ -122,56 +122,36 @@ export default function AdminGeneratePage() {
       return;
     }
 
+    const name = file.name.toLowerCase();
+    const isOldPpt = file.type === 'application/vnd.ms-powerpoint' || (name.endsWith('.ppt') && !name.endsWith('.pptx'));
+    const isOldDoc = file.type === 'application/msword' || (name.endsWith('.doc') && !name.endsWith('.docx'));
+    if (isOldPpt) { setError('Old .ppt format not supported. Save as .pptx in PowerPoint and try again.'); setPdfFile(null); return; }
+    if (isOldDoc) { setError('Old .doc format not supported. Save as .docx in Word and try again.'); setPdfFile(null); return; }
+
     setIsParsing(true);
     setParseProgress('');
     setError('');
 
     try {
-      const isPdf    = file.type === 'application/pdf';
-      const isPptx   = file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-      const isDocx   = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      const isOldPpt = file.type === 'application/vnd.ms-powerpoint';
-      const isOldDoc = file.type === 'application/msword';
+      // All extraction is done client-side — no file upload to server, no size limit
+      const { extractFileText } = await import('@/lib/extractPdfText');
+      const { text, pageCount } = await extractFileText(file, (page, total) => {
+        setParseProgress(`Extracting page ${page} of ${total}…`);
+      });
 
-      if (isOldPpt) throw new Error('Old .ppt format not supported. Save as .pptx in PowerPoint and try again.');
-      if (isOldDoc) throw new Error('Old .doc format not supported. Save as .docx in Word and try again.');
-      if (!isPdf && !isPptx && !isDocx) throw new Error('Unsupported file type. Use PDF, PPTX, or DOCX.');
+      if (!text.trim()) throw new Error('Could not extract text. If this is a scanned PDF, it must be text-based.');
 
-      if (isPdf) {
-        // Extract text in the browser — bypasses Vercel body size limit entirely
-        setParseProgress('Reading PDF…');
-        const { extractPdfText } = await import('@/lib/extractPdfText');
-        const { text, pageCount } = await extractPdfText(file, (page, total) => {
-          setParseProgress(`Extracting page ${page} of ${total}…`);
-        });
-
-        if (!text.trim()) throw new Error('Could not extract text. This PDF may be a scanned image — try a text-based PDF.');
-
-        setParseProgress('Detecting topic…');
-        const res = await fetch('/api/parse-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, pageCount }),
-        });
-        const data = await res.json() as { text?: string; detectedTopic?: string; error?: string };
-        if (!res.ok) throw new Error(data.error || 'Topic detection failed');
-        setSlideContent(data.text || text);
-        setPdfTopic(data.detectedTopic || '');
-      } else {
-        // PPTX / DOCX: server-side parsing (usually small files)
-        setParseProgress('Uploading and scanning…');
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
-        const ct = res.headers.get('content-type') ?? '';
-        if (!ct.includes('application/json')) {
-          throw new Error(res.status === 413 ? 'File too large. Try a smaller file.' : 'Server error');
-        }
-        const data = await res.json() as { text?: string; detectedTopic?: string; error?: string };
-        if (!res.ok) throw new Error(data.error || 'Failed to parse file');
-        setSlideContent(data.text || '');
-        setPdfTopic(data.detectedTopic || '');
-      }
+      // Send only text to server for topic detection (tiny payload)
+      setParseProgress('Detecting topic…');
+      const res = await fetch('/api/parse-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, pageCount }),
+      });
+      const data = await res.json() as { text?: string; detectedTopic?: string; error?: string };
+      if (!res.ok) throw new Error(data.error || 'Topic detection failed');
+      setSlideContent(data.text || text);
+      setPdfTopic(data.detectedTopic || '');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');
       setPdfFile(null);
