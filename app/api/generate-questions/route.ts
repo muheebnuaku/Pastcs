@@ -1,5 +1,25 @@
 import OpenAI from 'openai';
 
+// Scale question count: ~1 question per 1000 chars, capped at 50
+function targetQuestionCount(contentLength: number): number {
+  if (contentLength >= 80000) return 50;
+  if (contentLength >= 50000) return 40;
+  if (contentLength >= 30000) return 30;
+  if (contentLength >= 15000) return 20;
+  if (contentLength >= 5000)  return 15;
+  return 10;
+}
+
+// For very large documents, sample intelligently: start + middle + end
+function sampleContent(text: string, maxChars = 40000): string {
+  if (text.length <= maxChars) return text;
+  const third = Math.floor(maxChars / 3);
+  const start  = text.slice(0, third);
+  const mid    = text.slice(Math.floor(text.length / 2) - Math.floor(third / 2), Math.floor(text.length / 2) + Math.floor(third / 2));
+  const end    = text.slice(-third);
+  return `${start}\n\n[...middle section...]\n\n${mid}\n\n[...end section...]\n\n${end}`;
+}
+
 export async function POST(request: Request) {
   try {
     const { slideContent, courseId, topicId, topicName } = await request.json();
@@ -21,6 +41,10 @@ export async function POST(request: Request) {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
+
+    const contentLen = slideContent?.length ?? 0;
+    const questionTarget = slideContent ? targetQuestionCount(contentLen) : 10;
+    const sampledContent = slideContent ? sampleContent(slideContent) : '';
 
     let prompt: string;
 
@@ -61,9 +85,9 @@ Rules:
     } else {
       // Slide-content mode (topic is optional extra context)
       const topicContext = topicName ? `\nFocus specifically on the topic: "${topicName}"\n` : '';
-      prompt = `You are an expert exam question generator for university courses. Analyse the lecture slide content below and generate one exam-style question for EVERY distinct key point, concept, definition, formula, or fact you find. Do not set a limit — the number of questions should equal the number of key points in the content.
+      prompt = `You are an expert exam question generator for university courses. Analyse the lecture content below and generate exactly ${questionTarget} exam-style questions that comprehensively cover the material.
 ${topicContext}
-Mix question types naturally based on what suits each point:
+Mix question types naturally:
 - single_choice: one correct answer from 4 options
 - multiple_choice: 2–3 correct answers from 4 options
 - fill_in_blank: a short answer that completes a sentence
@@ -73,9 +97,10 @@ For every question:
 2. Write clear, unambiguous options
 3. Include a brief explanation of the correct answer
 4. Assign an appropriate difficulty (easy, medium, hard)
+5. Spread questions evenly across the full document — beginning, middle, and end
 
 LECTURE CONTENT:
-${slideContent}
+${sampledContent}
 
 Respond with a JSON object in this exact format:
 {

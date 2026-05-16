@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
 import { extractText } from 'unpdf';
 
+export const maxDuration = 60;
+
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MIN_TEXT_LENGTH = 150;

@@ -115,12 +115,29 @@ export default function AdminGeneratePage() {
   };
 
   const handlePdfParse = async (file: File) => {
+    // Warn for very large files (Vercel's limit is ~4.5MB on free plans)
+    if (file.size > 15 * 1024 * 1024) {
+      setError('File is too large (max 15 MB). For large documents, split into smaller sections.');
+      setPdfFile(null);
+      return;
+    }
+
     setIsParsing(true);
     setError('');
     const formData = new FormData();
     formData.append('file', file);
     try {
       const res = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
+      // Guard against non-JSON responses (e.g. "Request Entity Too Large")
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(
+          res.status === 413
+            ? 'File is too large for the server. Try a smaller PDF (under 10 MB) or split it into parts.'
+            : `Server error: ${text.slice(0, 120)}`
+        );
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to parse PDF');
       setSlideContent(data.text || '');

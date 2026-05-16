@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   serverExternalPackages: ['unpdf', 'jszip'],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '20mb',
+    },
+  },
   images: {
     remotePatterns: [
       {
