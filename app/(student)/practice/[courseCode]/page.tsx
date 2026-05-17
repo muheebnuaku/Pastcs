@@ -305,8 +305,8 @@ function PracticeContent() {
         selected_answer: answers[q.id] ?? [],
         is_correct: getIsCorrect(q),
       }));
-      await supabase.from('test_answers').insert(testAnswers).then(({ error: ansErr }) => {
-        if (ansErr) console.warn('test_answers insert failed:', (ansErr as { message?: string }).message);
+      await supabase.from('test_answers').insert(testAnswers).then((result: { error: { message?: string } | null }) => {
+        if (result.error) console.warn('test_answers insert failed:', result.error.message);
       });
 
       if (user?.id) await supabase.rpc('update_practice_streak', { p_user_id: user.id });
