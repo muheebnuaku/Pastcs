@@ -269,12 +269,21 @@ function PracticeContent() {
 
     try {
       const supabase = createClient();
+
+      // Verify topic_id is still valid — a deleted topic causes a FK violation
+      let safeTopicId: string | null = topicId || null;
+      if (safeTopicId) {
+        const { data: topicCheck } = await supabase
+          .from('topics').select('id').eq('id', safeTopicId).single();
+        if (!topicCheck) safeTopicId = null;
+      }
+
       const { data: testData, error: testError } = await supabase
         .from('tests')
         .insert({
-          user_id: user?.id ?? null,
+          user_id: user?.id,
           course_id: course!.id,
-          topic_id: topicId || null,
+          topic_id: safeTopicId,
           test_type: 'practice',
           score,
           total_questions: questions.length,
@@ -283,21 +292,29 @@ function PracticeContent() {
         })
         .select().single();
 
-      if (testError) throw testError;
+      if (testError) {
+        // Surface the actual Supabase error message
+        const msg = (testError as { message?: string }).message ?? JSON.stringify(testError);
+        throw new Error(msg);
+      }
 
+      // Save answers — errors here don't block the result page
       const testAnswers = questions.map(q => ({
         test_id: testData.id,
         question_id: q.id,
         selected_answer: answers[q.id] ?? [],
         is_correct: getIsCorrect(q),
       }));
-      await supabase.from('test_answers').insert(testAnswers);
+      await supabase.from('test_answers').insert(testAnswers).then(({ error }) => {
+        if (error) console.warn('test_answers insert failed:', error.message);
+      });
+
       if (user?.id) await supabase.rpc('update_practice_streak', { p_user_id: user.id });
 
       localStorage.removeItem(storageKey(courseCode, topicId));
       router.push(`/results/${testData.id}`);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit practice.');
+      setSubmitError(err instanceof Error ? err.message : 'Failed to submit practice. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
