@@ -334,6 +334,10 @@ export default function ExamPage() {
             value={answers[currentQuestion.id]?.[0] || ''}
             onChange={(e) => handleFillBlank(e.target.value)}
             disabled={lockedQuestions.has(currentQuestion.id)}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             className={`w-full p-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-80 ${
               lockedQuestions.has(currentQuestion.id) ? 'bg-gray-50' : ''
             }`}

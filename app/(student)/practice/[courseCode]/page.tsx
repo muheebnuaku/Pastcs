@@ -469,6 +469,10 @@ function PracticeContent() {
               value={answers[currentQuestion.id]?.[0] ?? ''}
               onChange={e => handleFillBlank(e.target.value)}
               disabled={showFeedback || isFillChecking}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className={`w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed transition-colors ${
                 showFeedback ? isCorrect ? 'border-green-500 bg-green-50' : 'border-red-400 bg-red-50' : 'border-gray-200'
               }`}
