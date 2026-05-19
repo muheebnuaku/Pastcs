@@ -1,34 +1,18 @@
 'use client';
 
-// Load pdf.js from CDN at runtime — avoids Next.js webpack chunk issues
-async function loadPdfjs() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const win = window as Window & { pdfjsLib?: any };
-  if (win.pdfjsLib) return win.pdfjsLib;
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load PDF library. Check your connection.'));
-    document.head.appendChild(script);
-  });
-
-  win.pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js';
-  return win.pdfjsLib;
-}
-
 // ── PDF ────────────────────────────────────────────────────────────────────
 export async function extractPdfText(
   file: File,
   onProgress?: (page: number, total: number) => void
 ): Promise<{ text: string; pageCount: number }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfjsLib: any = await loadPdfjs();
+  const pdfjs = await import('pdfjs-dist');
+
+  // Use unpkg to serve the matching worker — avoids local worker bundling complexity
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
   const pageCount: number = pdf.numPages;
   const parts: string[] = [];
 
@@ -92,8 +76,8 @@ export async function extractFileText(
   const name = file.name.toLowerCase();
   const type = file.type;
 
-  const isPdf  = type === 'application/pdf'       || name.endsWith('.pdf');
-  const isPptx = type.includes('presentationml')  || name.endsWith('.pptx');
+  const isPdf  = type === 'application/pdf'        || name.endsWith('.pdf');
+  const isPptx = type.includes('presentationml')   || name.endsWith('.pptx');
   const isDocx = type.includes('wordprocessingml') || name.endsWith('.docx');
 
   if (isPdf)  return extractPdfText(file, onProgress);
