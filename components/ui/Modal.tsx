@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 
@@ -13,6 +14,11 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+  // Portals must wait for the client to mount — document isn't available
+  // during SSR, and document.body isn't safe to touch before hydration.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -24,7 +30,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const sizes = {
     sm: 'max-w-sm',
@@ -33,9 +39,17 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
     xl: 'max-w-xl',
   };
 
-  return (
-    // Overlay: fixed full-screen, scrolls as a last resort on very short
-    // viewports, and centers the card both axes on normal screens.
+  // Rendered via portal straight onto <body> — several pages wrap their
+  // content in `.animate-fade-in`, whose `animation: ... both` fill-mode
+  // leaves `transform: translateY(0)` permanently applied after it
+  // finishes. Any non-`none` transform on an ancestor turns it into the
+  // containing block for `position: fixed` descendants, which silently
+  // breaks "fixed inset-0" (it anchors to that ancestor's box instead of
+  // the real viewport — the modal renders offset/clipped and, combined
+  // with body scroll being locked while open, becomes unreachable). A
+  // portal renders outside that tree entirely, so this can't happen no
+  // matter what animation/transform any page uses.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 py-8 sm:items-center sm:py-4">
       <div
         className="fixed inset-0 bg-black/50 transition-opacity"
@@ -71,6 +85,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
