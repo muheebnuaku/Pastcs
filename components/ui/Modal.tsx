@@ -34,30 +34,41 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-start sm:items-center justify-center p-4 py-8 sm:py-4">
-        <div
-          className="fixed inset-0 bg-black/50 transition-opacity"
-          onClick={onClose}
-        />
-        <div
-          className={cn(
-            'relative w-full max-h-[85vh] flex flex-col bg-white rounded-xl shadow-xl transform transition-all overflow-hidden',
-            sizes[size]
-          )}
-        >
-          {title && (
-            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 flex-shrink-0">
-              <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-              <button
-                onClick={onClose}
-                className="p-1 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0 ml-3"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-          )}
-          <div className="p-4 sm:p-6 overflow-y-auto min-h-0">{children}</div>
+    // Overlay: fixed full-screen, scrolls as a last resort on very short
+    // viewports, and centers the card both axes on normal screens.
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 py-8 sm:items-center sm:py-4">
+      <div
+        className="fixed inset-0 bg-black/50 transition-opacity"
+        onClick={onClose}
+      />
+      {/*
+        Card: a flex column capped at ~90% of the viewport height.
+        The body below is `flex-1 min-h-0` — flex children default to
+        `min-height: auto`, which (without min-h-0) stops them from ever
+        shrinking to fit, so long content spills out past the rounded
+        card instead of scrolling in place. min-h-0 + overflow-y-auto is
+        what actually makes the body scroll internally, and
+        overflow-hidden on the card guards against any residual bleed.
+      */}
+      <div
+        className={cn(
+          'relative z-10 flex w-full max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-xl',
+          sizes[size]
+        )}
+      >
+        {title && (
+          <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-4 py-4 sm:px-6">
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            <button
+              onClick={onClose}
+              className="ml-3 flex-shrink-0 rounded-lg p-1 transition-colors hover:bg-gray-100"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
+          {children}
         </div>
       </div>
     </div>

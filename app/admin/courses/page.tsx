@@ -397,7 +397,7 @@ export default function AdminCoursesPage() {
               Icon <span className="ml-1 text-xl">{courseIcon}</span>
             </label>
             <div className="border border-gray-200 rounded-xl p-2 max-h-44 overflow-y-auto bg-gray-50">
-              <div className="grid grid-cols-8 gap-1">
+              <div className="grid grid-cols-6 sm:grid-cols-8 gap-1">
                 {ICON_PALETTE.map((emoji) => (
                   <button
                     key={emoji}
