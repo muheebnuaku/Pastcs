@@ -13,6 +13,8 @@ import {
   X,
   Plus,
   ShieldCheck,
+  Trash2,
+  UserCog,
 } from 'lucide-react';
 
 interface StudentData extends User {
@@ -43,6 +45,11 @@ export default function AdminStudentsPage() {
   const [granting, setGranting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null); // subscriptionId being revoked
   const [actionError, setActionError] = useState('');
+
+  // Role change / delete account state
+  const [savingRole, setSavingRole] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -123,6 +130,51 @@ export default function AdminStudentsPage() {
       }));
     }
     setRevoking(null);
+  };
+
+  const handleChangeRole = async (newRole: 'student' | 'admin') => {
+    if (!modalStudent || newRole === modalStudent.role) return;
+    setSavingRole(true);
+    setActionError('');
+    const res = await fetch('/api/admin/update-role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: modalStudent.id, role: newRole }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setActionError(json.error ?? 'Failed to update role');
+    } else {
+      setModalStudent({ ...modalStudent, role: newRole });
+      await fetchStudents();
+    }
+    setSavingRole(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!modalStudent) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    setActionError('');
+    const res = await fetch('/api/admin/delete-user', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: modalStudent.id }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setActionError(json.error ?? 'Failed to delete account');
+      setDeleting(false);
+      setConfirmDelete(false);
+    } else {
+      setDeleting(false);
+      setConfirmDelete(false);
+      setModalStudent(null);
+      await fetchStudents();
+    }
   };
 
   return (
@@ -238,7 +290,7 @@ export default function AdminStudentsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => { setModalStudent(student); setActionError(''); }}
+                        onClick={() => { setModalStudent(student); setActionError(''); setConfirmDelete(false); }}
                       >
                         <Gift className="w-3.5 h-3.5 mr-1" />
                         Manage
@@ -272,8 +324,8 @@ export default function AdminStudentsPage() {
       {/* Free Pass Modal */}
       <Modal
         isOpen={!!modalStudent}
-        onClose={() => { setModalStudent(null); setActionError(''); }}
-        title="Manage Access"
+        onClose={() => { setModalStudent(null); setActionError(''); setConfirmDelete(false); }}
+        title="Manage Student"
       >
         {modalStudent && (
           <div className="space-y-5">
@@ -283,6 +335,26 @@ export default function AdminStudentsPage() {
               <div>
                 <p className="font-semibold text-gray-900">{modalStudent.full_name || 'No Name'}</p>
                 <p className="text-sm text-gray-500">{modalStudent.email}</p>
+              </div>
+            </div>
+
+            {/* Role */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                <UserCog className="w-4 h-4 text-gray-500" />
+                Role
+              </h3>
+              <div className="flex items-center gap-3">
+                <select
+                  value={modalStudent.role}
+                  onChange={e => handleChangeRole(e.target.value as 'student' | 'admin')}
+                  disabled={savingRole}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+                >
+                  <option value="student">Student</option>
+                  <option value="admin">Admin</option>
+                </select>
+                {savingRole && <span className="text-xs text-gray-400">Saving…</span>}
               </div>
             </div>
 
@@ -371,6 +443,34 @@ export default function AdminStudentsPage() {
                 <Gift className="w-4 h-4 mr-2" />
                 {granting ? 'Granting…' : 'Grant Free Pass'}
               </Button>
+            </div>
+
+            {/* Delete account */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4" />
+                Danger Zone
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Permanently deletes this account, along with their tests, answers and subscriptions. This cannot be undone.
+              </p>
+              <Button
+                className="w-full"
+                variant={confirmDelete ? 'danger' : 'outline'}
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {deleting ? 'Deleting…' : confirmDelete ? 'Click again to confirm delete' : 'Delete Account'}
+              </Button>
+              {confirmDelete && !deleting && (
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="w-full text-center text-xs text-gray-400 hover:text-gray-600 mt-1.5"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           </div>
         )}
