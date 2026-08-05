@@ -250,12 +250,12 @@ export default function AdminQuestionsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Question Bank</h1>
           <p className="text-gray-600">{filteredQuestions.length} questions total</p>
         </div>
-        <Button onClick={() => openModal()}>
+        <Button onClick={() => openModal()} className="self-start sm:self-auto">
           <Plus className="w-4 h-4 mr-2" />
           Add Question
         </Button>
@@ -402,7 +402,7 @@ export default function AdminQuestionsPage() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <Badge variant="info" size="sm">{question.course?.course_code}</Badge>
                             {question.topic && (
@@ -417,11 +417,11 @@ export default function AdminQuestionsPage() {
                           </div>
                           <p className="text-gray-900 font-medium">{question.question_text}</p>
                           {question.options && (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {question.options.map((opt, i) => (
                                 <div
                                   key={i}
-                                  className={`text-sm px-3 py-2 rounded ${
+                                  className={`text-sm px-3 py-2 rounded break-words ${
                                     question.correct_answers.includes(opt.text)
                                       ? 'bg-green-100 text-green-800'
                                       : 'bg-gray-100 text-gray-600'
@@ -488,8 +488,8 @@ export default function AdminQuestionsPage() {
         title={editingQuestion ? 'Edit Question' : 'Add New Question'}
         size="lg"
       >
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Course"
               value={formCourseId}
@@ -513,7 +513,7 @@ export default function AdminQuestionsPage() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Question Type"
               value={formType}

@@ -258,10 +258,10 @@ export default function ResultsPage() {
 
       {/* Question Review */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
           <h2 className="font-semibold text-gray-900">Question Review</h2>
           <p className="text-xs text-gray-500 flex items-center gap-1">
-            <BotMessageSquare className="w-3.5 h-3.5 text-purple-500" />
+            <BotMessageSquare className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
             Click &ldquo;Ask AI&rdquo; on any question for a detailed explanation
           </p>
         </div>

@@ -465,6 +465,8 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* Sidebar: Testimonial + Stats */}
+        <div className="space-y-4">
           {/* Testimonial Card */}
           <Card>
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -503,8 +505,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-        {/* Stats Card */}
-        <div className="space-y-4">
+          {/* Stats Card */}
           <Card>
             <CardContent className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
