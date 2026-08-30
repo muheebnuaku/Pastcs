@@ -117,9 +117,13 @@ CREATE TABLE IF NOT EXISTS public.test_answers (
   question_id     UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
   selected_answer JSONB,
   is_correct      BOOLEAN NOT NULL,
+  confidence      TEXT CHECK (confidence IN ('sure','unsure')),
   time_spent      INTEGER,
   created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add self-reported confidence if this table already existed without it
+ALTER TABLE public.test_answers ADD COLUMN IF NOT EXISTS confidence TEXT CHECK (confidence IN ('sure','unsure'));
 
 -- ================================================================
 -- ACHIEVEMENTS TABLE

@@ -21,16 +21,22 @@ import {
   Lock,
   Loader2,
   RotateCcw,
+  Users,
+  HelpCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 
 // ── Pause/resume ────────────────────────────────────────────────────────────
+
+type Confidence = 'sure' | 'unsure';
 
 interface PausedState {
   questionIds: string[];
   answers: Record<string, string[]>;
   checkedQuestions: string[];
   semanticResults: Record<string, boolean>;
+  confidence: Record<string, Confidence>;
   currentIndex: number;
   savedAt: string;
 }
@@ -78,6 +84,8 @@ function PracticeContent() {
   const [semanticResults, setSemanticResults] = useState<Record<string, boolean>>({});
   // Loading while AI grades a fill_in_blank answer
   const [isFillChecking, setIsFillChecking] = useState(false);
+  // Self-reported confidence, tapped in the same action as "Check Answer"
+  const [confidence, setConfidence] = useState<Record<string, Confidence>>({});
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -90,9 +98,9 @@ function PracticeContent() {
   const isFree = courseCode === user?.free_course_code;
 
   // Keep a ref so the auto-save effect always has fresh values
-  const stateForSave = useRef({ questions, answers, checkedQuestions, semanticResults, currentIndex });
+  const stateForSave = useRef({ questions, answers, checkedQuestions, semanticResults, confidence, currentIndex });
   useEffect(() => {
-    stateForSave.current = { questions, answers, checkedQuestions, semanticResults, currentIndex };
+    stateForSave.current = { questions, answers, checkedQuestions, semanticResults, confidence, currentIndex };
   });
 
   // ── Auto-save ───────────────────────────────────────────────────────────────
@@ -103,11 +111,12 @@ function PracticeContent() {
       answers,
       checkedQuestions: [...checkedQuestions],
       semanticResults,
+      confidence,
       currentIndex,
       savedAt: new Date().toISOString(),
     };
     try { localStorage.setItem(storageKey(courseCode, topicId, mode), JSON.stringify(state)); } catch { /* ignore */ }
-  }, [questions, answers, checkedQuestions, semanticResults, currentIndex, courseCode, topicId, mode]);
+  }, [questions, answers, checkedQuestions, semanticResults, confidence, currentIndex, courseCode, topicId, mode]);
 
   // ── Fetch fresh questions ────────────────────────────────────────────────────
   const fetchFresh = useCallback(async () => {
@@ -205,6 +214,7 @@ function PracticeContent() {
         setAnswers(resumeOffer.answers);
         setCheckedQuestions(new Set(resumeOffer.checkedQuestions));
         setSemanticResults(resumeOffer.semanticResults);
+        setConfidence(resumeOffer.confidence ?? {}); // older paused sessions predate this field
         setCurrentIndex(Math.min(resumeOffer.currentIndex, ordered.length - 1));
       }
     } finally {
@@ -256,8 +266,9 @@ function PracticeContent() {
   };
 
   // ── Check Answer (with AI semantic grading for fill_in_blank) ───────────────
-  const handleCheckAnswer = async () => {
+  const handleCheckAnswer = async (tappedConfidence: Confidence) => {
     if (!currentQuestion || !isAnswered) return;
+    setConfidence(prev => ({ ...prev, [currentQuestion.id]: tappedConfidence }));
 
     if (currentQuestion.question_type === 'fill_in_blank') {
       setIsFillChecking(true);
@@ -333,6 +344,7 @@ function PracticeContent() {
         question_id: q.id,
         selected_answer: answers[q.id] ?? [],
         is_correct: getIsCorrect(q),
+        confidence: confidence[q.id] ?? null,
       }));
       await supabase.from('test_answers').insert(testAnswers).then((result: { error: { message?: string } | null }) => {
         if (result.error) console.warn('test_answers insert failed:', result.error.message);
@@ -550,12 +562,30 @@ function PracticeContent() {
                 ? <><CheckCircle className="w-4 h-4" /> Correct!</>
                 : <><XCircle className="w-4 h-4" /> Incorrect</>}
             </p>
+            {isCorrect && confidence[currentQuestion.id] === 'unsure' && (
+              <p className="text-xs text-amber-700 bg-amber-100/70 rounded-lg px-2.5 py-1.5 mb-2 inline-block">
+                You got it right, but you weren&rsquo;t sure — worth another look before the exam.
+              </p>
+            )}
             {currentQuestion.explanation ? (
               <p className="text-gray-700 text-sm leading-relaxed">
                 <span className="font-medium">Why: </span>{currentQuestion.explanation}
               </p>
             ) : (
               <p className="text-gray-500 text-sm italic">No explanation stored for this question.</p>
+            )}
+            {currentQuestion.times_answered >= 5 && (
+              <p className="mt-3 pt-3 border-t border-black/5 text-xs text-gray-500 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                {(() => {
+                  const missRate = Math.round(
+                    ((currentQuestion.times_answered - currentQuestion.times_correct) / currentQuestion.times_answered) * 100
+                  );
+                  return isCorrect
+                    ? `${100 - missRate}% of students who've tried this also got it right.`
+                    : `${missRate}% of students who've tried this also got it wrong — you're not alone.`;
+                })()}
+              </p>
             )}
           </div>
         )}
@@ -570,13 +600,23 @@ function PracticeContent() {
         <Button variant="outline" onClick={() => goTo(currentIndex - 1)} disabled={currentIndex === 0}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Previous
         </Button>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-2">
+          {!showFeedback && isAnswered && !isFillChecking && (
+            <span className="text-xs text-gray-500 mr-1 hidden sm:inline">How sure are you?</span>
+          )}
           {!showFeedback && isAnswered && (
-            <Button onClick={handleCheckAnswer} disabled={isFillChecking}>
-              {isFillChecking
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking…</>
-                : 'Check Answer'}
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => handleCheckAnswer('unsure')} disabled={isFillChecking}>
+                {isFillChecking
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking…</>
+                  : <><HelpCircle className="w-4 h-4 mr-2" />Not Sure</>}
+              </Button>
+              <Button onClick={() => handleCheckAnswer('sure')} disabled={isFillChecking}>
+                {isFillChecking
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking…</>
+                  : <><ShieldCheck className="w-4 h-4 mr-2" />Sure</>}
+              </Button>
+            </>
           )}
           {showFeedback && currentIndex < questions.length - 1 && (
             <Button onClick={() => goTo(currentIndex + 1)}>
