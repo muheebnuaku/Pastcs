@@ -46,7 +46,10 @@ export default function CourseDetailPage() {
       const { data: courseData } = await supabase
         .from('courses')
         .select('*')
-        .eq('course_code', courseCode)
+        // Case-insensitive: a course_code saved with any casing from the
+        // admin form (e.g. "Dcit201") would never match the uppercased
+        // slug from the URL under an exact eq() match.
+        .ilike('course_code', courseCode)
         .single();
 
       if (!cancelled && courseData) {

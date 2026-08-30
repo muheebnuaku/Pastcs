@@ -39,7 +39,9 @@ export async function POST(request: Request) {
     const { data: course } = await supabase
       .from('courses')
       .select('course_code')
-      .eq('course_code', courseCode)
+      // Case-insensitive — see app/(student)/courses/[courseCode]/page.tsx
+      // for why a course_code saved with any casing needs this.
+      .ilike('course_code', courseCode)
       .eq('level', userData.selected_level)
       .eq('semester', userData.selected_semester)
       .single();
@@ -51,9 +53,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // Store the course's own canonical casing, not whatever the client sent.
     const { error } = await supabase
       .from('user_public')
-      .update({ free_course_code: courseCode })
+      .update({ free_course_code: course.course_code })
       .eq('id', authUser.id);
 
     if (error) throw error;

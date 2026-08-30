@@ -140,12 +140,17 @@ export default function AdminCoursesPage() {
     setSaveError('');
     const supabase = createClient();
 
+    // Normalize so every course_code is stored consistently. Course pages
+    // look courses up by an uppercased URL slug — a code saved in any
+    // other casing wouldn't match and the course would 404 for students.
+    const normalizedCode = courseCode.trim().toUpperCase();
+
     let error;
     if (editingCourse) {
       ({ error } = await supabase
         .from('courses')
         .update({
-          course_code: courseCode,
+          course_code: normalizedCode,
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
@@ -158,7 +163,7 @@ export default function AdminCoursesPage() {
       ({ error } = await supabase
         .from('courses')
         .insert({
-          course_code: courseCode,
+          course_code: normalizedCode,
           course_name: courseName,
           description: courseDescription,
           color: courseColor,

@@ -109,7 +109,8 @@ function PracticeContent() {
   const fetchFresh = useCallback(async () => {
     const supabase = createClient();
     const { data: courseData } = await supabase
-      .from('courses').select('*').eq('course_code', courseCode).single();
+      // Case-insensitive — see courses/[courseCode]/page.tsx for why.
+      .from('courses').select('*').ilike('course_code', courseCode).single();
 
     if (!courseData) { router.push('/courses'); return; }
     setCourse(courseData);
@@ -157,7 +158,8 @@ function PracticeContent() {
     try {
       const supabase = createClient();
       const { data: courseData } = await supabase
-        .from('courses').select('*').eq('course_code', courseCode).single();
+        // Case-insensitive — see courses/[courseCode]/page.tsx for why.
+      .from('courses').select('*').ilike('course_code', courseCode).single();
       if (courseData) setCourse(courseData);
 
       if (user?.selected_level && user?.selected_semester) {

@@ -101,7 +101,8 @@ export default function ExamPage() {
       const { data: courseData } = await supabase
         .from('courses')
         .select('*')
-        .eq('course_code', courseCode)
+        // Case-insensitive — see courses/[courseCode]/page.tsx for why.
+        .ilike('course_code', courseCode)
         .single();
 
       if (!courseData) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { triggerNotifications } from '@/lib/hooks/useNotifications';
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, setUser, isLoading, setLoading } = useAuthStore();
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
 
   const fetchOrCreateUser = useCallback(
     async (authUser: { id: string; email?: string; user_metadata?: Record<string, string> }) => {
@@ -106,6 +108,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(userData);
             if (userData) await fetchSubscriptions(userData.id);
           }
+        } else if (event === 'PASSWORD_RECOVERY') {
+          // Supabase can land a recovery link's #access_token on whatever
+          // page its dashboard-configured Site URL points to (e.g. the
+          // homepage) rather than /reset-password, if that exact path
+          // isn't in the project's Redirect URLs allow list. This client
+          // is mounted on every page, so wherever the token lands, catch
+          // the event here and route to the form that can actually use it.
+          if (window.location.pathname !== '/reset-password') {
+            router.replace('/reset-password');
+          }
         }
       }
     );
@@ -113,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, setUser, setLoading, fetchOrCreateUser, fetchSubscriptions]);
+  }, [supabase, setUser, setLoading, fetchOrCreateUser, fetchSubscriptions, router]);
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
