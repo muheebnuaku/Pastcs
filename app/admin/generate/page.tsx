@@ -275,6 +275,7 @@ export default function AdminGeneratePage() {
           explanation: q.explanation,
           difficulty: q.difficulty,
           is_approved: true,
+          is_scenario: !!q.is_scenario,
         };
       });
 

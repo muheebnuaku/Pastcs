@@ -83,9 +83,13 @@ CREATE TABLE IF NOT EXISTS public.questions (
   times_answered  INTEGER DEFAULT 0,
   times_correct   INTEGER DEFAULT 0,
   is_approved     BOOLEAN DEFAULT false,
+  is_scenario     BOOLEAN NOT NULL DEFAULT false,
   created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add scenario-style tagging if this table already existed without it
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS is_scenario BOOLEAN NOT NULL DEFAULT false;
 
 -- ================================================================
 -- TESTS TABLE
@@ -192,11 +196,41 @@ ON CONFLICT (level) DO NOTHING;
 ALTER TABLE public.subscription_prices ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- NOTIFICATIONS TABLE
+-- (read/written by lib/hooks/useNotifications.ts — streak-risk,
+-- inactivity, and milestone nudges)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL,
+  message    TEXT NOT NULL,
+  is_read    BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ================================================================
+-- FEATURE EVENTS TABLE
+-- (written by app/api/track/route.ts — lightweight product analytics)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.feature_events (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id    UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  event      TEXT NOT NULL,
+  metadata   JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feature_events  ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- INDEXES
 -- ================================================================
 CREATE INDEX IF NOT EXISTS idx_questions_course       ON public.questions(course_id);
 CREATE INDEX IF NOT EXISTS idx_questions_topic        ON public.questions(topic_id);
 CREATE INDEX IF NOT EXISTS idx_questions_approved     ON public.questions(is_approved);
+CREATE INDEX IF NOT EXISTS idx_questions_scenario     ON public.questions(course_id, is_scenario);
 CREATE INDEX IF NOT EXISTS idx_tests_user             ON public.tests(user_id);
 CREATE INDEX IF NOT EXISTS idx_tests_course           ON public.tests(course_id);
 CREATE INDEX IF NOT EXISTS idx_test_answers_test      ON public.test_answers(test_id);
@@ -204,6 +238,9 @@ CREATE INDEX IF NOT EXISTS idx_test_answers_question  ON public.test_answers(que
 CREATE INDEX IF NOT EXISTS idx_topics_course          ON public.topics(course_id);
 CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON public.user_achievements(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_level_sem ON public.subscriptions(user_id, level, semester);
+CREATE INDEX IF NOT EXISTS idx_notifications_user    ON public.notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feature_events_user    ON public.feature_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_feature_events_event    ON public.feature_events(event);
 
 -- ================================================================
 -- ROW LEVEL SECURITY
@@ -226,7 +263,8 @@ BEGIN
            WHERE schemaname = 'public'
              AND tablename IN ('users','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
-                               'lecture_slides','subscriptions','subscription_prices')
+                               'lecture_slides','subscriptions','subscription_prices',
+                               'notifications','feature_events')
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
   END LOOP;
@@ -284,6 +322,18 @@ CREATE POLICY "subscriptions_select_own" ON public.subscriptions FOR SELECT USIN
 -- Subscription prices (readable by all authenticated users, editable by admin only)
 CREATE POLICY "prices_select" ON public.subscription_prices FOR SELECT TO authenticated USING (true);
 CREATE POLICY "prices_admin"  ON public.subscription_prices FOR ALL USING (is_admin());
+
+-- Notifications (a user reads/dismisses their own; the client that
+-- creates them inserts as that same authenticated user)
+CREATE POLICY "notifications_select_own" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "notifications_insert_own" ON public.notifications FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "notifications_update_own" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "notifications_delete_own" ON public.notifications FOR DELETE USING (auth.uid() = user_id);
+
+-- Feature events (written only via the service-role client in
+-- api/track/route.ts, which bypasses RLS — this just lets admins
+-- review the raw event log; no student-facing policy needed)
+CREATE POLICY "feature_events_admin_select" ON public.feature_events FOR SELECT USING (is_admin());
 
 -- ================================================================
 -- TRIGGER: auto-create user row on auth signup

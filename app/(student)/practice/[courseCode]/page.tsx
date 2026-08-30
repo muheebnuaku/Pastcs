@@ -35,10 +35,12 @@ interface PausedState {
   savedAt: string;
 }
 
-function storageKey(courseCode: string, topicId: string | null) {
+function storageKey(courseCode: string, topicId: string | null, mode?: string | null) {
   // Use only the first ID in a group so the key stays stable
   const key = topicId ? topicId.split(',')[0] : 'all';
-  return `pastcs_practice_${courseCode}_${key}`;
+  // Mode-scoped so a paused "mistakes" session doesn't collide with (or
+  // get silently offered as a resume for) a regular practice session.
+  return `pastcs_practice_${courseCode}_${key}${mode ? `_${mode}` : ''}`;
 }
 
 // ── Page wrapper ────────────────────────────────────────────────────────────
@@ -62,6 +64,8 @@ function PracticeContent() {
 
   const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
   const topicId = searchParams.get('topic');
+  const mode = searchParams.get('mode'); // 'mistakes' = only previously-missed questions
+  const isMistakesMode = mode === 'mistakes';
 
   const [course, setCourse] = useState<Course | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -102,8 +106,8 @@ function PracticeContent() {
       currentIndex,
       savedAt: new Date().toISOString(),
     };
-    try { localStorage.setItem(storageKey(courseCode, topicId), JSON.stringify(state)); } catch { /* ignore */ }
-  }, [questions, answers, checkedQuestions, semanticResults, currentIndex, courseCode, topicId]);
+    try { localStorage.setItem(storageKey(courseCode, topicId, mode), JSON.stringify(state)); } catch { /* ignore */ }
+  }, [questions, answers, checkedQuestions, semanticResults, currentIndex, courseCode, topicId, mode]);
 
   // ── Fetch fresh questions ────────────────────────────────────────────────────
   const fetchFresh = useCallback(async () => {
@@ -125,6 +129,29 @@ function PracticeContent() {
       setAllLevelCourses(count ?? 0);
     }
 
+    // Mistakes mode: only questions this student has answered wrong before
+    // in this course, instead of a random draw across the question bank.
+    if (isMistakesMode) {
+      if (!user?.id) return;
+      const { data: pastTests } = await supabase
+        .from('tests').select('id').eq('user_id', user.id).eq('course_id', courseData.id);
+      const testIds = ((pastTests ?? []) as { id: string }[]).map(t => t.id);
+      if (testIds.length === 0) { setQuestions([]); return; }
+
+      const { data: wrongAnswers } = await supabase
+        .from('test_answers').select('question_id')
+        .in('test_id', testIds).eq('is_correct', false);
+      const missedIds = [...new Set(((wrongAnswers ?? []) as { question_id: string }[]).map(a => a.question_id))];
+      if (missedIds.length === 0) { setQuestions([]); return; }
+
+      const { data: qs } = await supabase.from('questions').select('*')
+        .in('id', missedIds).eq('is_approved', true);
+      if (qs && qs.length > 0) {
+        setQuestions(shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE));
+      }
+      return;
+    }
+
     let query = supabase.from('questions').select('*')
       .eq('course_id', courseData.id).eq('is_approved', true);
     if (topicId) {
@@ -137,19 +164,19 @@ function PracticeContent() {
       const shuffled = shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE);
       setQuestions(shuffled);
     }
-  }, [courseCode, topicId, router, isPaid, isFree, user?.selected_level, user?.selected_semester]);
+  }, [courseCode, topicId, router, isPaid, isFree, isMistakesMode, user?.id, user?.selected_level, user?.selected_semester]);
 
   // ── Initial load: detect saved session ─────────────────────────────────────
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(storageKey(courseCode, topicId));
+      const raw = localStorage.getItem(storageKey(courseCode, topicId, mode));
       if (raw) {
         const saved = JSON.parse(raw) as PausedState;
         if (saved.questionIds?.length > 0) { setResumeOffer(saved); return; }
       }
     } catch { /* corrupt */ }
     fetchFresh();
-  }, [courseCode, topicId, fetchFresh]);
+  }, [courseCode, topicId, mode, fetchFresh]);
 
   // ── Resume ──────────────────────────────────────────────────────────────────
   const handleResume = async () => {
@@ -187,7 +214,7 @@ function PracticeContent() {
   };
 
   const handleStartFresh = () => {
-    localStorage.removeItem(storageKey(courseCode, topicId));
+    localStorage.removeItem(storageKey(courseCode, topicId, mode));
     setResumeOffer(null);
     fetchFresh();
   };
@@ -313,7 +340,7 @@ function PracticeContent() {
 
       if (user?.id) await supabase.rpc('update_practice_streak', { p_user_id: user.id });
 
-      localStorage.removeItem(storageKey(courseCode, topicId));
+      localStorage.removeItem(storageKey(courseCode, topicId, mode));
       router.push(`/results/${testData.id}`);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to submit practice. Please try again.');
@@ -355,9 +382,21 @@ function PracticeContent() {
   if (questions.length === 0) {
     return (
       <div className="text-center py-12">
-        <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">No Questions Available</h2>
-        <p className="text-gray-500 mb-4">No questions available for this selection yet.</p>
+        {isMistakesMode ? (
+          <>
+            <CheckCircle className="w-16 h-16 text-green-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No mistakes to review</h2>
+            <p className="text-gray-500 mb-4">
+              Either you haven&rsquo;t practiced this course yet, or you&rsquo;ve gotten everything right so far. Nice work!
+            </p>
+          </>
+        ) : (
+          <>
+            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Questions Available</h2>
+            <p className="text-gray-500 mb-4">No questions available for this selection yet.</p>
+          </>
+        )}
         <Button onClick={() => router.back()}>Go Back</Button>
       </div>
     );
@@ -387,6 +426,13 @@ function PracticeContent() {
       {showPaywall && course && (
         <PaywallModal courseName={course.course_name} courseCode={course.course_code}
           totalCourses={allLevelCourses} onClose={() => setShowPaywall(false)} onSuccess={() => setShowPaywall(false)} />
+      )}
+
+      {isMistakesMode && (
+        <div className="flex items-center gap-1.5 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <RotateCcw className="w-3.5 h-3.5" />
+          Practicing your mistakes — questions you got wrong before
+        </div>
       )}
 
       {/* Header */}
