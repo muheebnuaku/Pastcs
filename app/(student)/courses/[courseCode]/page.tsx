@@ -19,6 +19,7 @@ import {
   Play,
   Zap,
   Lock,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function CourseDetailPage() {
@@ -221,7 +222,7 @@ export default function CourseDetailPage() {
       </div>
 
       {/* Practice Options */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-2 border-blue-100 bg-blue-50/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -263,6 +264,29 @@ export default function CourseDetailPage() {
               <Button variant="secondary" className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                 <Target className="w-4 h-4 mr-2" />
                 Start Exam Simulation
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="border-2 border-amber-100 bg-amber-50/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-900">Practice My Mistakes</h2>
+                <p className="text-sm text-gray-600">Only what you got wrong</p>
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              Revisit every question you&rsquo;ve answered incorrectly in this course until it sticks.
+            </p>
+            <Link href={`/practice/${course.course_code.toLowerCase()}?mode=mistakes`}>
+              <Button variant="secondary" className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Review Mistakes
               </Button>
             </Link>
           </CardContent>

@@ -83,6 +83,7 @@ export interface Question {
   times_answered: number;
   times_correct: number;
   is_approved: boolean;
+  is_scenario: boolean;
   created_at: string;
   updated_at: string;
   course?: Course;
@@ -160,6 +161,7 @@ export interface GeneratedQuestion {
   correct_answers: string[];
   explanation: string;
   difficulty: Difficulty;
+  is_scenario?: boolean;
 }
 
 export interface AIGenerationRequest {

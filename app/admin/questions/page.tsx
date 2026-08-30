@@ -13,7 +13,25 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
+  Puzzle,
 } from 'lucide-react';
+
+// A question this unreliable is more likely broken (ambiguous wording,
+// wrong answer key) than genuinely hard — flag it for a human look
+// instead of quietly eroding trust in results.
+const REVIEW_MIN_ATTEMPTS = 20;
+const REVIEW_MAX_ACCURACY = 25;
+
+function accuracyOf(q: Question): number | null {
+  if (!q.times_answered) return null;
+  return (q.times_correct / q.times_answered) * 100;
+}
+
+function needsReview(q: Question): boolean {
+  const acc = accuracyOf(q);
+  return acc !== null && q.times_answered >= REVIEW_MIN_ATTEMPTS && acc < REVIEW_MAX_ACCURACY;
+}
 
 export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -38,6 +56,8 @@ export default function AdminQuestionsPage() {
   const [filterCourse, setFilterCourse] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'newest' | 'accuracy'>('newest');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -128,9 +148,17 @@ export default function AdminQuestionsPage() {
     return true;
   });
 
-  const filteredQuestions = questions.filter(q =>
-    q.question_text.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const flaggedCount = questions.filter(needsReview).length;
+
+  const filteredQuestions = questions
+    .filter(q => q.question_text.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(q => !flaggedOnly || needsReview(q))
+    .sort((a, b) => {
+      if (sortBy !== 'accuracy') return 0; // already ordered by created_at from the query
+      const accA = accuracyOf(a) ?? 101; // unanswered questions sort last, not first
+      const accB = accuracyOf(b) ?? 101;
+      return accA - accB;
+    });
 
   const totalPages = Math.ceil(filteredQuestions.length / pageSize);
   const paginatedQuestions = filteredQuestions.slice(
@@ -320,6 +348,30 @@ export default function AdminQuestionsPage() {
               <option value="fill_in_blank">Fill in Blank</option>
             </Select>
           </div>
+
+          {filterLevel && (
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'newest' | 'accuracy')}
+                className="w-auto"
+              >
+                <option value="newest">Sort: Newest first</option>
+                <option value="accuracy">Sort: Lowest accuracy first</option>
+              </Select>
+              <button
+                onClick={() => setFlaggedOnly(v => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  flaggedOnly
+                    ? 'bg-red-50 border-red-300 text-red-700'
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                {flaggedOnly ? 'Showing needs-review only' : `Needs review (${flaggedCount})`}
+              </button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -388,8 +440,13 @@ export default function AdminQuestionsPage() {
 
           {paginatedQuestions.map((question) => {
             const isSelected = selectedIds.has(question.id);
+            const accuracy = accuracyOf(question);
+            const flagged = needsReview(question);
             return (
-              <Card key={question.id} className={isSelected ? 'ring-2 ring-blue-400' : ''}>
+              <Card
+                key={question.id}
+                className={isSelected ? 'ring-2 ring-blue-400' : flagged ? 'ring-2 ring-red-300' : ''}
+              >
                 <div className="p-4">
                   <div className="flex items-start gap-3">
                     {/* Checkbox */}
@@ -414,6 +471,27 @@ export default function AdminQuestionsPage() {
                             <Badge variant="default" size="sm">
                               {QUESTION_TYPE_LABELS[question.question_type]}
                             </Badge>
+                            {question.is_scenario && (
+                              <Badge variant="info" size="sm" className="!bg-purple-100 !text-purple-700">
+                                <Puzzle className="w-3 h-3 mr-1" />
+                                Scenario
+                              </Badge>
+                            )}
+                            {accuracy !== null && (
+                              <Badge
+                                variant={flagged ? 'danger' : 'default'}
+                                size="sm"
+                                title={`${question.times_correct} of ${question.times_answered} attempts correct`}
+                              >
+                                {accuracy.toFixed(0)}% correct · n={question.times_answered}
+                              </Badge>
+                            )}
+                            {flagged && (
+                              <Badge variant="danger" size="sm">
+                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                Needs review
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-gray-900 font-medium">{question.question_text}</p>
                           {question.options && (
