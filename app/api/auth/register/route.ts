@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: Request) {
   try {
-    const { email, password, fullName } = await request.json();
+    const { email, password, fullName, referralCode } = await request.json();
 
     if (!email || !password || !fullName) {
       return Response.json({ error: 'email, password and fullName are required' }, { status: 400 });
@@ -23,7 +23,10 @@ export async function POST(request: Request) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: fullName },
+      // referral_code here is the CODE THEY WERE INVITED WITH (their
+      // referrer's code) — handle_new_user() resolves it to the referrer's
+      // user id. An invalid/typo'd code is silently ignored, not blocking.
+      user_metadata: { full_name: fullName, referral_code: referralCode || null },
     });
 
     if (authError) {

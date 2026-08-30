@@ -22,6 +22,9 @@ import {
   Volume2,
   Loader2,
   MessageSquareQuote,
+  Gift,
+  Copy,
+  Share2,
 } from 'lucide-react';
 
 interface UserStats {
@@ -46,6 +49,9 @@ export default function ProfilePage() {
   const [testimonialSaving, setTestimonialSaving] = useState(false);
   const [testimonialDone, setTestimonialDone] = useState(false);
   const [testimonialError, setTestimonialError] = useState('');
+
+  const [referralStats, setReferralStats] = useState({ referred: 0, rewarded: 0 });
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const { speak, isSpeaking, isSupported: voiceSupported } = useSpeech();
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
@@ -89,12 +95,41 @@ export default function ProfilePage() {
     }
   };
 
+  const fetchReferralStats = async () => {
+    if (!user) return;
+    const supabase = createClient();
+    try {
+      const { data } = await supabase
+        .from('referrals')
+        .select('referred_rewarded_at')
+        .eq('referrer_id', user.id);
+      if (data) {
+        setReferralStats({
+          referred: data.length,
+          rewarded: data.filter((r: { referred_rewarded_at: string | null }) => r.referred_rewarded_at).length,
+        });
+      }
+    } catch {
+      // referrals table not migrated on this environment yet
+    }
+  };
+
+  const copyReferralLink = () => {
+    if (!user?.referral_code) return;
+    const link = `${window.location.origin}/register?ref=${user.referral_code}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     if (user) {
       setFullName(user.full_name || '');
       setStudentId(user.student_id || '');
       setProgram(user.program || '');
       fetchStats();
+      fetchReferralStats();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -396,6 +431,40 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Refer a Friend */}
+          {user.referral_code && (
+            <Card>
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-green-600" />
+                  Refer a Friend
+                </h2>
+              </div>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Share your link. When a friend joins and finishes their first test, you <strong>both</strong> get a free pass.
+                </p>
+                <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                  <code className="flex-1 text-sm text-gray-700 truncate">
+                    pastcs.com/register?ref={user.referral_code}
+                  </code>
+                  <Button size="sm" variant={codeCopied ? 'secondary' : 'outline'} onClick={copyReferralLink} className="flex-shrink-0">
+                    {codeCopied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+                    {codeCopied ? 'Copied!' : 'Copy Link'}
+                  </Button>
+                </div>
+                {referralStats.referred > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Share2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    {referralStats.referred} friend{referralStats.referred !== 1 ? 's' : ''} joined with your code
+                    {referralStats.rewarded > 0 && ` · ${referralStats.rewarded} free pass${referralStats.rewarded !== 1 ? 'es' : ''} earned`}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Voice Preferences Card */}
           {voiceSupported && (
             <Card>

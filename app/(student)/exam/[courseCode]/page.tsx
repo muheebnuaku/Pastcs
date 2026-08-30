@@ -90,6 +90,7 @@ export default function ExamPage() {
       }));
       await supabase.from('test_answers').insert(testAnswers);
       await supabase.rpc('update_practice_streak', { p_user_id: user?.id });
+      fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
       router.push(`/results/${testData.id}`);
     }
   }, [isSubmitting, questions, answers, timeRemaining, course, user, router]);

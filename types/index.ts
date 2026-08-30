@@ -24,8 +24,19 @@ export interface User {
   selected_semester: number | null;
   free_course_code: string | null;
   program: string | null;
+  referral_code: string | null;
+  referred_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Referral {
+  id: string;
+  referrer_id: string;
+  referred_id: string;
+  status: 'pending' | 'rewarded';
+  rewarded_at: string | null;
+  created_at: string;
 }
 
 export interface Subscription {
