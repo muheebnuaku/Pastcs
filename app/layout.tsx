@@ -1,18 +1,23 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-import { AuthProvider } from "@/components/providers";
+import { AuthProvider, ServiceWorkerRegister } from "@/components/providers";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
+};
+
 export const metadata: Metadata = {
   title: "PastCS - Exam Practice Platform",
   description: "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: '/past.png', type: 'image/png', sizes: '32x32' },
@@ -54,6 +59,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased bg-gray-50`}>
         <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
+        <ServiceWorkerRegister />
         <AuthProvider>
           {children}
         </AuthProvider>

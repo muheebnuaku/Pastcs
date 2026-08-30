@@ -1,0 +1,15 @@
+{
+  "name": "PastCS - Exam Practice Platform",
+  "short_name": "PastCS",
+  "description": "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
+  "start_url": "/dashboard",
+  "id": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/past.png", "sizes": "864x724", "type": "image/png", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "864x724", "type": "image/png", "purpose": "any" }
+  ]
+}
