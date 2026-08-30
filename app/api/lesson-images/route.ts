@@ -1,4 +1,6 @@
 import OpenAI from 'openai';
+import { withOpenAIRetry } from '@/lib/openaiRetry';
+import { logAiUsage } from '@/lib/aiUsage';
 
 export interface LessonImage {
   url: string;
@@ -14,7 +16,7 @@ export async function POST(req: Request) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     // Ask GPT-4o-mini to extract all visual keywords from the full lesson
-    const completion = await openai.chat.completions.create({
+    const completion = await withOpenAIRetry(() => openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{
         role: 'user',
@@ -35,7 +37,9 @@ Only include terms where a visual clearly helps (skip abstract/non-visual concep
       response_format: { type: 'json_object' },
       max_tokens: 700,
       temperature: 0.2,
-    });
+    }));
+
+    logAiUsage('lesson_images', 'gpt-4o-mini', completion.usage).catch(() => {});
 
     let keywords: Array<{ term: string; query: string }> = [];
     try {

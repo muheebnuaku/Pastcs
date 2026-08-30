@@ -256,6 +256,42 @@ CREATE TABLE IF NOT EXISTS public.referrals (
 ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- CHAT MESSAGES TABLE
+-- Persists AI Tutor conversations (previously lived only in page
+-- state — closing the tab erased everything). One flat, ongoing log
+-- per user; course_id just tags which context a message was sent in.
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  course_id  UUID REFERENCES public.courses(id) ON DELETE SET NULL,
+  role       TEXT NOT NULL CHECK (role IN ('user','assistant')),
+  content    TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- AI USAGE LOG TABLE
+-- One row per OpenAI call across every AI feature, so spend is
+-- actually visible instead of a surprise bill. Written via the
+-- service-role client from each AI route — no student-facing policy.
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.ai_usage_log (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id           UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  feature           TEXT NOT NULL,
+  model             TEXT NOT NULL,
+  prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  total_tokens      INTEGER NOT NULL DEFAULT 0,
+  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.ai_usage_log ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- INDEXES
 -- ================================================================
 CREATE INDEX IF NOT EXISTS idx_questions_course       ON public.questions(course_id);
@@ -274,6 +310,9 @@ CREATE INDEX IF NOT EXISTS idx_feature_events_user    ON public.feature_events(u
 CREATE INDEX IF NOT EXISTS idx_feature_events_event    ON public.feature_events(event);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer      ON public.referrals(referrer_id);
 CREATE INDEX IF NOT EXISTS idx_users_referral_code     ON public.users(referral_code);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user      ON public.chat_messages(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_log_feature    ON public.ai_usage_log(feature, created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_log_user       ON public.ai_usage_log(user_id);
 
 -- ================================================================
 -- ROW LEVEL SECURITY
@@ -297,7 +336,8 @@ BEGIN
              AND tablename IN ('users','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
                                'lecture_slides','subscriptions','subscription_prices',
-                               'notifications','feature_events','referrals')
+                               'notifications','feature_events','referrals',
+                               'chat_messages','ai_usage_log')
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
   END LOOP;
@@ -374,6 +414,15 @@ CREATE POLICY "feature_events_admin_select" ON public.feature_events FOR SELECT 
 CREATE POLICY "referrals_select_own" ON public.referrals FOR SELECT
   USING (auth.uid() = referrer_id OR auth.uid() = referred_id);
 CREATE POLICY "referrals_admin" ON public.referrals FOR ALL USING (is_admin());
+
+-- Chat messages (a user reads/writes/clears only their own)
+CREATE POLICY "chat_messages_select_own" ON public.chat_messages FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "chat_messages_insert_own" ON public.chat_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "chat_messages_delete_own" ON public.chat_messages FOR DELETE USING (auth.uid() = user_id);
+
+-- AI usage log (written only via the service-role client from each AI
+-- route; admins can review spend)
+CREATE POLICY "ai_usage_log_admin_select" ON public.ai_usage_log FOR SELECT USING (is_admin());
 
 -- ================================================================
 -- TRIGGER: auto-create user row on auth signup

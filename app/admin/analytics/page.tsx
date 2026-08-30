@@ -24,6 +24,8 @@ import {
   Users,
   Target,
   Activity,
+  Sparkles,
+  Coins,
 } from 'lucide-react';
 
 interface TestTrend {
@@ -50,7 +52,23 @@ interface TestData {
   percentage: number;
 }
 
+interface FeatureUsage {
+  feature: string;
+  calls: number;
+  totalTokens: number;
+}
+
 const COLORS = ['#22c55e', '#eab308', '#ef4444'];
+
+const FEATURE_LABELS: Record<string, string> = {
+  assistant_chat: 'AI Tutor Chat',
+  generate_lesson: 'Lesson Generator',
+  generate_questions: 'Question Generator',
+  check_answer: 'Answer Grading',
+  parse_pdf_topic: 'Topic Detection',
+  parse_pdf_vision_ocr: 'Scanned-PDF OCR',
+  lesson_images: 'Lesson Images',
+};
 
 export default function AdminAnalyticsPage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -65,6 +83,45 @@ export default function AdminAnalyticsPage() {
     activeStudents: 0,
     passRate: 0,
   });
+
+  const [aiUsage, setAiUsage] = useState<FeatureUsage[]>([]);
+  const [aiUsageTotal, setAiUsageTotal] = useState({ calls: 0, tokens: 0 });
+
+  // Platform-wide, not course-scoped — how much the 6 AI features have
+  // actually cost, previously invisible anywhere.
+  useEffect(() => {
+    const fetchAiUsage = async () => {
+      const supabase = createClient();
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+
+      try {
+        const { data } = await supabase
+          .from('ai_usage_log')
+          .select('feature, total_tokens')
+          .gte('created_at', since.toISOString())
+          .limit(10000);
+
+        const rows = (data ?? []) as { feature: string; total_tokens: number }[];
+        const byFeature = new Map<string, FeatureUsage>();
+        for (const row of rows) {
+          const existing = byFeature.get(row.feature) ?? { feature: row.feature, calls: 0, totalTokens: 0 };
+          existing.calls += 1;
+          existing.totalTokens += row.total_tokens ?? 0;
+          byFeature.set(row.feature, existing);
+        }
+        const grouped = [...byFeature.values()].sort((a, b) => b.totalTokens - a.totalTokens);
+        setAiUsage(grouped);
+        setAiUsageTotal({
+          calls: rows.length,
+          tokens: rows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0),
+        });
+      } catch {
+        // ai_usage_log not migrated on this environment yet
+      }
+    };
+    fetchAiUsage();
+  }, []);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -209,6 +266,40 @@ export default function AdminAnalyticsPage() {
           }))}
         />
       </div>
+
+      {/* AI Usage — platform-wide, not course-scoped */}
+      <Card>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            AI Usage — Last 30 Days (All Courses)
+          </h2>
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            <span>{aiUsageTotal.calls.toLocaleString()} calls</span>
+            <span className="flex items-center gap-1">
+              <Coins className="w-3.5 h-3.5 text-amber-500" />
+              {aiUsageTotal.tokens.toLocaleString()} tokens
+            </span>
+          </div>
+        </div>
+        <CardContent>
+          {aiUsage.length > 0 ? (
+            <ResponsiveContainer width="100%" height={Math.max(180, aiUsage.length * 44)}>
+              <BarChart data={aiUsage.map(u => ({ ...u, label: FEATURE_LABELS[u.feature] ?? u.feature }))} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="label" type="category" width={160} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value: number, name: string) => [value.toLocaleString(), name === 'totalTokens' ? 'Tokens' : 'Calls']} />
+                <Bar dataKey="totalTokens" fill="#7c3aed" radius={[0, 4, 4, 0]} name="Tokens" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="py-10 text-center text-gray-500 text-sm">
+              No AI usage recorded yet — this table only exists once <code className="bg-gray-100 px-1.5 py-0.5 rounded">005_chat_history_and_ai_usage.sql</code> has been run.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">

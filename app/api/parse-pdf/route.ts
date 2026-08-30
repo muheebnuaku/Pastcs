@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { extractText } from 'unpdf';
+import { withOpenAIRetry } from '@/lib/openaiRetry';
+import { logAiUsage } from '@/lib/aiUsage';
 
 export const maxDuration = 60;
 
@@ -60,13 +62,14 @@ export async function POST(request: Request) {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       let detectedTopic = '';
       try {
-        const r = await openai.chat.completions.create({
+        const r = await withOpenAIRetry(() => openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [{ role: 'user', content: `Identify the main academic topic or chapter title from this lecture content. Respond only with JSON.\n\nContent:\n${text.slice(0, 3000)}\n\nRespond: {"topic": "short topic name here"}` }],
           response_format: { type: 'json_object' },
           max_tokens: 80,
           temperature: 0.2,
-        });
+        }));
+        logAiUsage('parse_pdf_topic', 'gpt-4o', r.usage).catch(() => {});
         detectedTopic = JSON.parse(r.choices[0].message.content || '{}').topic || '';
       } catch { /* topic detection optional */ }
       return Response.json({ text, detectedTopic, pageCount });
@@ -121,7 +124,7 @@ export async function POST(request: Request) {
 
     if (text.length >= MIN_TEXT_LENGTH) {
       // ── Text-rich file: detect topic only ──────────────────────────────────
-      const completion = await openai.chat.completions.create({
+      const completion = await withOpenAIRetry(() => openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [{
           role: 'user',
@@ -130,7 +133,8 @@ export async function POST(request: Request) {
         response_format: { type: 'json_object' },
         max_tokens: 80,
         temperature: 0.2,
-      });
+      }));
+      logAiUsage('parse_pdf_topic', 'gpt-4o', completion.usage).catch(() => {});
       try {
         const r = JSON.parse(completion.choices[0].message.content || '{}');
         detectedTopic = r.topic || '';
@@ -182,10 +186,12 @@ export async function POST(request: Request) {
 
         const data = await completionRes.json() as {
           choices?: Array<{ message: { content: string } }>;
+          usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
           error?: { message: string };
         };
 
         if (data.error) throw new Error(data.error.message);
+        logAiUsage('parse_pdf_vision_ocr', 'gpt-4o', data.usage).catch(() => {});
         const r = JSON.parse(data.choices?.[0]?.message?.content || '{}');
         text = r.text || '';
         detectedTopic = r.topic || '';
