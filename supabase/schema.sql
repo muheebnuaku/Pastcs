@@ -499,6 +499,20 @@ BEGIN
   END IF;
 
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Referral bookkeeping is a nice-to-have; account creation is not.
+  -- Log the real reason (visible in Postgres Logs) and fall back to
+  -- exactly the pre-referral insert so signup always succeeds.
+  RAISE WARNING 'handle_new_user: referral logic failed (%), falling back to minimal insert', SQLERRM;
+  INSERT INTO public.users (id, email, full_name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
