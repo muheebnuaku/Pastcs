@@ -12,7 +12,7 @@ import type { Test, TestAnswer, Question } from '@/types';
 import {
   Trophy, Target, Clock, CheckCircle, XCircle,
   ArrowLeft, RotateCcw, BookOpen, BotMessageSquare, Loader2,
-  Volume2, VolumeX,
+  Volume2, VolumeX, HelpCircle,
 } from 'lucide-react';
 
 // Lightweight markdown → HTML for AI panel
@@ -293,6 +293,12 @@ export default function ResultsPage() {
                       } size="sm">
                         {answer.question.question_type.replace(/_/g, ' ')}
                       </Badge>
+                      {answer.is_correct && answer.confidence === 'unsure' && (
+                        <Badge variant="warning" size="sm">
+                          <HelpCircle className="w-3 h-3 mr-1" />
+                          Lucky guess?
+                        </Badge>
+                      )}
                     </div>
 
                     <p className="text-gray-900 font-medium mb-3">{answer.question.question_text}</p>

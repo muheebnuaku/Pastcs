@@ -113,6 +113,7 @@ export interface TestAnswer {
   question_id: string;
   selected_answer: string[] | null;
   is_correct: boolean;
+  confidence: 'sure' | 'unsure' | null;
   time_spent: number | null;
   created_at: string;
   question?: Question;
