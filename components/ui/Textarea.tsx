@@ -21,7 +21,8 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           ref={ref}
           className={cn(
-            'w-full px-4 py-2 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 resize-y min-h-[100px]',
+            // text-base — see Input.tsx for why (iOS zoom-on-focus under 16px)
+            'w-full px-4 py-2 text-base border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 resize-y min-h-[100px]',
             error
               ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
               : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',

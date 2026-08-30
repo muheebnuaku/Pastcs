@@ -597,36 +597,36 @@ function PracticeContent() {
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => goTo(currentIndex - 1)} disabled={currentIndex === 0}>
-          <ArrowLeft className="w-4 h-4 mr-2" /> Previous
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="outline" size="sm" onClick={() => goTo(currentIndex - 1)} disabled={currentIndex === 0}>
+          <ArrowLeft className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Previous</span>
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           {!showFeedback && isAnswered && !isFillChecking && (
-            <span className="text-xs text-gray-500 mr-1 hidden sm:inline">How sure are you?</span>
+            <span className="text-xs text-gray-500 mr-1 hidden md:inline">How sure are you?</span>
           )}
           {!showFeedback && isAnswered && (
             <>
-              <Button variant="outline" onClick={() => handleCheckAnswer('unsure')} disabled={isFillChecking}>
+              <Button variant="outline" size="sm" onClick={() => handleCheckAnswer('unsure')} disabled={isFillChecking}>
                 {isFillChecking
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking…</>
-                  : <><HelpCircle className="w-4 h-4 mr-2" />Not Sure</>}
+                  ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">Checking…</span></>
+                  : <><HelpCircle className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Not Sure</span></>}
               </Button>
-              <Button onClick={() => handleCheckAnswer('sure')} disabled={isFillChecking}>
+              <Button size="sm" onClick={() => handleCheckAnswer('sure')} disabled={isFillChecking}>
                 {isFillChecking
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking…</>
-                  : <><ShieldCheck className="w-4 h-4 mr-2" />Sure</>}
+                  ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">Checking…</span></>
+                  : <><ShieldCheck className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Sure</span></>}
               </Button>
             </>
           )}
           {showFeedback && currentIndex < questions.length - 1 && (
-            <Button onClick={() => goTo(currentIndex + 1)}>
-              Next <ArrowRight className="w-4 h-4 ml-2" />
+            <Button size="sm" onClick={() => goTo(currentIndex + 1)}>
+              <span className="hidden sm:inline">Next</span> <ArrowRight className="w-4 h-4 sm:ml-2" />
             </Button>
           )}
           {allChecked && (
-            <Button onClick={handleFinish} isLoading={isSubmitting} className="bg-green-600 hover:bg-green-700">
-              <Flag className="w-4 h-4 mr-2" /> Finish Practice
+            <Button size="sm" onClick={handleFinish} isLoading={isSubmitting} className="bg-green-600 hover:bg-green-700">
+              <Flag className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Finish Practice</span>
             </Button>
           )}
         </div>
