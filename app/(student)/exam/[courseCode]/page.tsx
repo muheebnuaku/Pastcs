@@ -7,7 +7,7 @@ import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
-import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
+import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
 import {
@@ -27,7 +27,7 @@ export default function ExamPage() {
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
-  const courseCode = (params.courseCode as string).toUpperCase();
+  const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);

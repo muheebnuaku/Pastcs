@@ -5,6 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Course codes with a space (e.g. "STAT 112") get percent-encoded by the
+// browser when navigated to (/courses/stat%20112). useParams() has been
+// observed returning that segment still encoded rather than decoded, so
+// a raw "%20" ends up baked into course_code queries and gets encoded a
+// second time on the wire (course_code=ilike.STAT%2520112) — never
+// matching anything. Decode defensively; a plain code with no encoded
+// characters passes through decodeURIComponent unchanged.
+export function decodeRouteParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
