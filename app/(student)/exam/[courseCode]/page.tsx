@@ -8,6 +8,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
+import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
 import {
@@ -91,6 +92,9 @@ export default function ExamPage() {
       await supabase.from('test_answers').insert(testAnswers);
       await supabase.rpc('update_practice_streak', { p_user_id: user?.id });
       fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
+      if (user?.id) {
+        updateReviewSchedule(supabase, user.id, questions.map(q => ({ questionId: q.id, correct: isAnswerCorrect(q) }))).catch(() => {});
+      }
       router.push(`/results/${testData.id}`);
     }
   }, [isSubmitting, questions, answers, timeRemaining, course, user, router]);

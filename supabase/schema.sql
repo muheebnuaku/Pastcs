@@ -292,6 +292,26 @@ CREATE TABLE IF NOT EXISTS public.ai_usage_log (
 ALTER TABLE public.ai_usage_log ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- REVIEW SCHEDULE TABLE
+-- Light SM-2-style spaced repetition. One row per (user, question)
+-- ever answered. On a wrong answer the interval resets to 1 day; on a
+-- right answer it advances through 1 -> 3 -> 7 -> 14 -> 30 (capped).
+-- "Due for review" practice pulls whatever has next_review_at <= today.
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.review_schedule (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id        UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  question_id    UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
+  interval_days  INTEGER NOT NULL DEFAULT 1,
+  next_review_at DATE NOT NULL,
+  last_result    BOOLEAN,
+  updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, question_id)
+);
+
+ALTER TABLE public.review_schedule ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- INDEXES
 -- ================================================================
 CREATE INDEX IF NOT EXISTS idx_questions_course       ON public.questions(course_id);
@@ -313,6 +333,7 @@ CREATE INDEX IF NOT EXISTS idx_users_referral_code     ON public.users(referral_
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user      ON public.chat_messages(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_log_feature    ON public.ai_usage_log(feature, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_log_user       ON public.ai_usage_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_review_schedule_due     ON public.review_schedule(user_id, next_review_at);
 
 -- ================================================================
 -- ROW LEVEL SECURITY
@@ -337,7 +358,7 @@ BEGIN
                                'test_answers','achievements','user_achievements',
                                'lecture_slides','subscriptions','subscription_prices',
                                'notifications','feature_events','referrals',
-                               'chat_messages','ai_usage_log')
+                               'chat_messages','ai_usage_log','review_schedule')
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
   END LOOP;
@@ -423,6 +444,13 @@ CREATE POLICY "chat_messages_delete_own" ON public.chat_messages FOR DELETE USIN
 -- AI usage log (written only via the service-role client from each AI
 -- route; admins can review spend)
 CREATE POLICY "ai_usage_log_admin_select" ON public.ai_usage_log FOR SELECT USING (is_admin());
+
+-- Review schedule (fully owned by the student — no reward/abuse risk
+-- like the referral free-passes, so the regular authenticated client
+-- can read/write its own rows directly, no service-role route needed)
+CREATE POLICY "review_schedule_select_own" ON public.review_schedule FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "review_schedule_insert_own" ON public.review_schedule FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "review_schedule_update_own" ON public.review_schedule FOR UPDATE USING (auth.uid() = user_id);
 
 -- ================================================================
 -- TRIGGER: auto-create user row on auth signup

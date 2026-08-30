@@ -34,9 +34,19 @@ export interface Referral {
   id: string;
   referrer_id: string;
   referred_id: string;
-  status: 'pending' | 'rewarded';
-  rewarded_at: string | null;
+  referred_rewarded_at: string | null;
+  referrer_rewarded_at: string | null;
   created_at: string;
+}
+
+export interface ReviewSchedule {
+  id: string;
+  user_id: string;
+  question_id: string;
+  interval_days: number;
+  next_review_at: string;
+  last_result: boolean | null;
+  updated_at: string;
 }
 
 export interface Subscription {
