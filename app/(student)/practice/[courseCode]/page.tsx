@@ -7,7 +7,7 @@ import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, Button, Badge, Progress } from '@/components/ui';
-import { shuffleArray, QUESTIONS_PER_PRACTICE } from '@/lib/utils';
+import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
 import type { Question, Course } from '@/types';
 import {
   ArrowLeft,
@@ -60,7 +60,7 @@ function PracticeContent() {
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
-  const courseCode = (params.courseCode as string).toUpperCase();
+  const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
   const topicId = searchParams.get('topic');
 
   const [course, setCourse] = useState<Course | null>(null);

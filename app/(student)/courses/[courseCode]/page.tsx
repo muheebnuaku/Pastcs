@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
-import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES } from '@/lib/utils';
+import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
 import type { Course, Topic } from '@/types';
 import {
@@ -27,7 +27,7 @@ export default function CourseDetailPage() {
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
-  const courseCode = (params.courseCode as string).toUpperCase();
+  const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
   const [course, setCourse] = useState<Course | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicIdGroups, setTopicIdGroups] = useState<string[][]>([]); // all IDs per unique topic name
