@@ -3,14 +3,23 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 import { Button, Input } from '@/components/ui';
 import { Home, KeyRound, CheckCircle, AlertTriangle } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Shared ssr-backed browser client — same one AuthProvider uses. A raw
+// @supabase/supabase-js client here would read/write a different storage
+// backend (localStorage) than the app's cookie-backed session, so a
+// recovery session detected elsewhere (e.g. AuthProvider catching the
+// PASSWORD_RECOVERY event on another page) wouldn't be visible here.
+const supabase = createClient();
+// The installed @supabase/ssr (0.1.0) re-exports type paths from an old
+// @supabase/supabase-js layout that no longer exists in the installed
+// 2.x, which corrupts its own generic return type and hides real methods
+// (updateUser included) from TS. It exists at runtime — this narrows
+// just the `.auth` surface this page needs to call it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const auth = supabase.auth as any;
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -45,7 +54,7 @@ export default function ResetPasswordPage() {
     }
 
     setSubmitting(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    const { error: updateError } = await auth.updateUser({ password });
 
     if (updateError) {
       setError(updateError.message);

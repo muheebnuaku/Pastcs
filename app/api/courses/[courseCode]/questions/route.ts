@@ -30,7 +30,9 @@ export async function GET(
     const { data: course, error: courseError } = await supabase
       .from('courses')
       .select('id, course_code')
-      .eq('course_code', courseCode)
+      // Case-insensitive — a course_code saved with any casing from the
+      // admin form would never match an exact eq() against the URL slug.
+      .ilike('course_code', courseCode)
       .single();
 
     if (courseError || !course) {

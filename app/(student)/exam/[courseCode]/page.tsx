@@ -101,7 +101,8 @@ export default function ExamPage() {
       const { data: courseData } = await supabase
         .from('courses')
         .select('*')
-        .eq('course_code', courseCode)
+        // Case-insensitive — see courses/[courseCode]/page.tsx for why.
+        .ilike('course_code', courseCode)
         .single();
 
       if (!courseData) {
@@ -259,7 +260,7 @@ export default function ExamPage() {
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       {/* Sticky Header */}
       <div className="sticky top-0 z-10 bg-gray-50 py-4 -mx-6 px-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <Badge variant="info">{course?.course_code}</Badge>
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-semibold ${
             timeRemaining <= 300 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'

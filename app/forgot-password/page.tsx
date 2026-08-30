@@ -6,6 +6,12 @@ import { createClient } from '@supabase/supabase-js';
 import { Button, Input } from '@/components/ui';
 import { Home, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 
+// Deliberately NOT the shared ssr/cookie client: that one is configured
+// for the PKCE flow (see lib/supabase/client.ts), which ties the reset
+// link's code_verifier to this browser's storage — breaking the very
+// common case of requesting a reset here and opening the email on a
+// different device. The plain client below defaults to the implicit
+// flow, whose link is a self-contained token any device can open.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

@@ -140,12 +140,17 @@ export default function AdminCoursesPage() {
     setSaveError('');
     const supabase = createClient();
 
+    // Normalize so every course_code is stored consistently. Course pages
+    // look courses up by an uppercased URL slug — a code saved in any
+    // other casing wouldn't match and the course would 404 for students.
+    const normalizedCode = courseCode.trim().toUpperCase();
+
     let error;
     if (editingCourse) {
       ({ error } = await supabase
         .from('courses')
         .update({
-          course_code: courseCode,
+          course_code: normalizedCode,
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
@@ -158,7 +163,7 @@ export default function AdminCoursesPage() {
       ({ error } = await supabase
         .from('courses')
         .insert({
-          course_code: courseCode,
+          course_code: normalizedCode,
           course_name: courseName,
           description: courseDescription,
           color: courseColor,
@@ -397,7 +402,7 @@ export default function AdminCoursesPage() {
               Icon <span className="ml-1 text-xl">{courseIcon}</span>
             </label>
             <div className="border border-gray-200 rounded-xl p-2 max-h-44 overflow-y-auto bg-gray-50">
-              <div className="grid grid-cols-8 gap-1">
+              <div className="grid grid-cols-6 sm:grid-cols-8 gap-1">
                 {ICON_PALETTE.map((emoji) => (
                   <button
                     key={emoji}

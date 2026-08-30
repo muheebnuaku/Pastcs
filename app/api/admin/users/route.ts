@@ -6,17 +6,18 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET() {
-  const { data: students, error } = await supabaseAdmin
+  // Includes every account — students and admins alike — so admin access
+  // can be reviewed and managed from the same place as student access.
+  const { data: users, error } = await supabaseAdmin
     .from('user_public')
     .select('*')
-    .eq('role', 'student')
     .order('created_at', { ascending: false });
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  const userIds = (students ?? []).map((s: { id: string }) => s.id);
+  const userIds = (users ?? []).map((s: { id: string }) => s.id);
 
   const { data: subscriptions } = await supabaseAdmin
     .from('subscriptions')
@@ -25,7 +26,7 @@ export async function GET() {
     .eq('status', 'active');
 
   return Response.json({
-    students: students ?? [],
+    users: users ?? [],
     subscriptions: subscriptions ?? [],
   });
 }

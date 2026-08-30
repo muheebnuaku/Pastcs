@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
 import { Loader2, X, Zap, Star, Rocket, CheckCircle } from 'lucide-react';
 
@@ -58,6 +59,13 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
   const [paystackReady, setPaystackReady] = useState(false);
+
+  // Portal to <body> — see Modal.tsx: rendering inline under a page that
+  // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
+  // leaves a transform applied forever, which makes that ancestor the
+  // containing block for fixed descendants instead of the viewport).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const isTopUp = purchasedCredits > 0;
   const remaining = Math.max(0, purchasedCredits - usedCredits);
@@ -124,9 +132,11 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 py-8 sm:py-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">
@@ -146,7 +156,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
         </div>
 
         {/* Plans */}
-        <div className="grid grid-cols-3 gap-3 px-6 pb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 pb-4">
           {PLANS.map(plan => (
             <div key={plan.id} className={`relative rounded-2xl border-2 p-4 flex flex-col ${plan.color}`}>
               {plan.badge && (
@@ -211,6 +221,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

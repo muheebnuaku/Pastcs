@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
 import { Button } from '@/components/ui';
 import { X, ArrowRight, BookOpen, Loader2 } from 'lucide-react';
@@ -28,6 +29,13 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Portal to <body> — see Modal.tsx: rendering inline under a page that
+  // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
+  // leaves a transform applied forever, which makes that ancestor the
+  // containing block for fixed descendants instead of the viewport).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const handleGainAccess = async () => {
     if (!selectedLevel || !selectedSemester) return;
@@ -57,7 +65,9 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-y-auto max-h-[90vh]">
 
@@ -153,6 +163,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

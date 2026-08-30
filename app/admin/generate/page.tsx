@@ -15,6 +15,7 @@ import {
   FileUp,
   X,
   ScanText,
+  Puzzle,
 } from 'lucide-react';
 
 interface GeneratedQuestion {
@@ -24,6 +25,7 @@ interface GeneratedQuestion {
   correct_answer: string | string[];
   explanation: string;
   difficulty: 'easy' | 'medium' | 'hard';
+  is_scenario?: boolean;
   selected?: boolean;
 }
 
@@ -531,6 +533,8 @@ Binary Number System
             {generatedQuestions.length > 0 && (
               <span className="text-sm text-gray-500">
                 {generatedQuestions.filter(q => q.selected).length} selected
+                {' · '}
+                {generatedQuestions.filter(q => q.is_scenario).length} scenario-based
               </span>
             )}
           </div>
@@ -575,6 +579,12 @@ Binary Number System
                           <Badge variant="default" size="sm">
                             {question.question_type.replace('_', ' ')}
                           </Badge>
+                          {question.is_scenario && (
+                            <Badge variant="info" size="sm" className="!bg-purple-100 !text-purple-700">
+                              <Puzzle className="w-3 h-3 mr-1" />
+                              Scenario
+                            </Badge>
+                          )}
                         </div>
                         <p className="font-medium text-gray-900 mb-2">{question.question_text}</p>
                         {question.options && (
