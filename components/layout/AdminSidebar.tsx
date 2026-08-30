@@ -42,7 +42,7 @@ const adminNavSections = [
   {
     label: 'People',
     items: [
-      { href: '/admin/students', label: 'Students', icon: Users },
+      { href: '/admin/users', label: 'Users', icon: Users },
       { href: '/admin/testimonials', label: 'Testimonials', icon: MessageSquareQuote },
     ],
   },

@@ -9,7 +9,7 @@ const routeMeta: Record<string, { title: string; description: string }> = {
   '/admin/courses': { title: 'Courses', description: 'Manage courses and topics' },
   '/admin/questions': { title: 'Question Bank', description: 'Browse, filter, and edit questions' },
   '/admin/generate': { title: 'AI Generator', description: 'Generate questions from slides or topics' },
-  '/admin/students': { title: 'Students', description: 'View students and manage access' },
+  '/admin/users': { title: 'Users', description: 'View students and admins, and manage access' },
   '/admin/analytics': { title: 'Analytics', description: 'Performance and engagement metrics' },
   '/admin/pricing': { title: 'Pricing', description: 'Set subscription prices per level' },
 };
