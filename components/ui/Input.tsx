@@ -22,7 +22,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           type={type}
           ref={ref}
           className={cn(
-            'w-full px-4 py-2 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0',
+            // text-base (not the ambient text-sm many forms sit inside) —
+            // an input under 16px triggers iOS Safari's zoom-on-focus.
+            'w-full px-4 py-2 text-base border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0',
             error
               ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
               : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',
