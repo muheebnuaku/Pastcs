@@ -48,21 +48,43 @@ export async function POST(request: Request) {
 
     let prompt: string;
 
+    // Shared guidance on question *style* — independent of answer format.
+    // A meaningful share of every batch should be scenario-based: a short,
+    // realistic situation the student must reason through, not just a
+    // dressed-up definition lookup.
+    const scenarioGuidance = `
+Vary the question STYLE, not just the answer format. Use a mix of:
+- Recall/definition: tests knowledge of a term, fact, or formula directly.
+- Conceptual/applied: tests understanding by asking "why" or "how" something works.
+- Scenario-based: opens with a brief, concrete, realistic situation (2–3
+  sentences — a workplace task, a dataset, a piece of code, a system
+  behaving a certain way, a student/professional facing a decision) built
+  from specifics in the material, then asks what the correct action,
+  outcome, or diagnosis is. It should read like a mini case, not a
+  definition with a scenario label glued on.
+
+At least 30–40% of the questions in this batch must be genuine
+scenario-based questions. Mark each question with "is_scenario": true or
+false so reviewers can tell at a glance. Scenario questions can use any of
+the answer formats below (single_choice, multiple_choice, or
+fill_in_blank) — the format is independent of the style.`;
+
     if (topicName && !slideContent) {
       // Topic-only mode: generate without slides
       prompt = `You are an expert exam question generator for university courses. Generate a comprehensive set of exam-style questions for the topic: "${topicName}".
 
-Generate at least 10 questions covering different aspects of this topic. Mix question types naturally:
+Generate at least 10 questions covering different aspects of this topic. Mix answer formats naturally:
 - single_choice: one correct answer from 4 options
 - multiple_choice: 2–3 correct answers from 4 options
 - fill_in_blank: a short answer that completes a sentence
+${scenarioGuidance}
 
 For every question:
 1. Test understanding of the topic, not just memorization
 2. Write clear, unambiguous options
 3. Include a brief explanation of the correct answer
 4. Assign an appropriate difficulty (easy, medium, hard)
-5. Cover foundational concepts, applied knowledge, and edge cases
+5. Cover foundational concepts, applied knowledge, edge cases, and realistic scenarios
 
 Respond with a JSON object in this exact format:
 {
@@ -73,7 +95,8 @@ Respond with a JSON object in this exact format:
       "options": ["Option A", "Option B", "Option C", "Option D"] | null,
       "correct_answer": "Option A" | ["Option A", "Option C"] | "answer text",
       "explanation": "Brief explanation",
-      "difficulty": "easy" | "medium" | "hard"
+      "difficulty": "easy" | "medium" | "hard",
+      "is_scenario": true | false
     }
   ]
 }
@@ -87,10 +110,11 @@ Rules:
       const topicContext = topicName ? `\nFocus specifically on the topic: "${topicName}"\n` : '';
       prompt = `You are an expert exam question generator for university courses. Analyse the lecture content below and generate exactly ${questionTarget} exam-style questions that comprehensively cover the material.
 ${topicContext}
-Mix question types naturally:
+Mix answer formats naturally:
 - single_choice: one correct answer from 4 options
 - multiple_choice: 2–3 correct answers from 4 options
 - fill_in_blank: a short answer that completes a sentence
+${scenarioGuidance}
 
 For every question:
 1. Test understanding, not just memorization
@@ -98,6 +122,10 @@ For every question:
 3. Include a brief explanation of the correct answer
 4. Assign an appropriate difficulty (easy, medium, hard)
 5. Spread questions evenly across the full document — beginning, middle, and end
+6. Ground scenario questions in specifics actually present in the content
+   below (its examples, procedures, data, or terminology) rather than
+   generic filler — extract the concrete detail, then build the situation
+   around it
 
 LECTURE CONTENT:
 ${sampledContent}
@@ -111,7 +139,8 @@ Respond with a JSON object in this exact format:
       "options": ["Option A", "Option B", "Option C", "Option D"] | null,
       "correct_answer": "Option A" | ["Option A", "Option C"] | "answer text",
       "explanation": "Brief explanation",
-      "difficulty": "easy" | "medium" | "hard"
+      "difficulty": "easy" | "medium" | "hard",
+      "is_scenario": true | false
     }
   ]
 }
@@ -150,6 +179,7 @@ Rules:
       correct_answer: q.correct_answer,
       explanation: q.explanation || '',
       difficulty: q.difficulty || 'medium',
+      is_scenario: !!q.is_scenario,
     }));
 
     return Response.json({ questions: validatedQuestions });
