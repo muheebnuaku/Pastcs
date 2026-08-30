@@ -9,6 +9,7 @@ import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Progress } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
+import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import type { Question, Course } from '@/types';
 import {
   ArrowLeft,
@@ -25,6 +26,7 @@ import {
   Users,
   HelpCircle,
   ShieldCheck,
+  CalendarClock,
 } from 'lucide-react';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 
@@ -71,8 +73,9 @@ function PracticeContent() {
 
   const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
   const topicId = searchParams.get('topic');
-  const mode = searchParams.get('mode'); // 'mistakes' = only previously-missed questions
+  const mode = searchParams.get('mode'); // 'mistakes' | 'due' (spaced repetition)
   const isMistakesMode = mode === 'mistakes';
+  const isDueMode = mode === 'due';
 
   const [course, setCourse] = useState<Course | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -163,6 +166,28 @@ function PracticeContent() {
       return;
     }
 
+    // Due-for-review mode: the spaced-repetition queue — whatever this
+    // student has previously answered (right or wrong) and is now due
+    // again, per review_schedule's 1/3/7/14/30-day ladder.
+    if (isDueMode) {
+      if (!user?.id) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: due } = await supabase
+        .from('review_schedule')
+        .select('question_id')
+        .eq('user_id', user.id)
+        .lte('next_review_at', today);
+      const dueIds = ((due ?? []) as { question_id: string }[]).map(r => r.question_id);
+      if (dueIds.length === 0) { setQuestions([]); return; }
+
+      const { data: qs } = await supabase.from('questions').select('*')
+        .eq('course_id', courseData.id).in('id', dueIds).eq('is_approved', true);
+      if (qs && qs.length > 0) {
+        setQuestions(shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE));
+      }
+      return;
+    }
+
     let query = supabase.from('questions').select('*')
       .eq('course_id', courseData.id).eq('is_approved', true);
     if (topicId) {
@@ -175,7 +200,7 @@ function PracticeContent() {
       const shuffled = shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE);
       setQuestions(shuffled);
     }
-  }, [courseCode, topicId, router, isPaid, isFree, isMistakesMode, user?.id, user?.selected_level, user?.selected_semester]);
+  }, [courseCode, topicId, router, isPaid, isFree, isMistakesMode, isDueMode, user?.id, user?.selected_level, user?.selected_semester]);
 
   // ── Initial load: detect saved session ─────────────────────────────────────
   useEffect(() => {
@@ -354,6 +379,9 @@ function PracticeContent() {
 
       if (user?.id) await supabase.rpc('update_practice_streak', { p_user_id: user.id });
       fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
+      if (user?.id) {
+        updateReviewSchedule(supabase, user.id, questions.map(q => ({ questionId: q.id, correct: getIsCorrect(q) }))).catch(() => {});
+      }
 
       localStorage.removeItem(storageKey(courseCode, topicId, mode));
       router.push(`/results/${testData.id}`);
@@ -405,6 +433,14 @@ function PracticeContent() {
               Either you haven&rsquo;t practiced this course yet, or you&rsquo;ve gotten everything right so far. Nice work!
             </p>
           </>
+        ) : isDueMode ? (
+          <>
+            <CheckCircle className="w-16 h-16 text-green-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Nothing due right now</h2>
+            <p className="text-gray-500 mb-4">
+              You&rsquo;re all caught up on this course&rsquo;s review schedule — come back once something&rsquo;s due again.
+            </p>
+          </>
         ) : (
           <>
             <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -447,6 +483,13 @@ function PracticeContent() {
         <div className="flex items-center gap-1.5 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <RotateCcw className="w-3.5 h-3.5" />
           Practicing your mistakes — questions you got wrong before
+        </div>
+      )}
+
+      {isDueMode && (
+        <div className="flex items-center gap-1.5 text-sm text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+          <CalendarClock className="w-3.5 h-3.5" />
+          Due for review — spaced out so it actually sticks before the exam
         </div>
       )}
 
