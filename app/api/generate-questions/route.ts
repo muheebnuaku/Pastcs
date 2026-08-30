@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { sampleContent } from '@/lib/utils';
 
 // Scale question count: ~1 question per 1000 chars, capped at 50
 function targetQuestionCount(contentLength: number): number {
@@ -8,16 +9,6 @@ function targetQuestionCount(contentLength: number): number {
   if (contentLength >= 15000) return 20;
   if (contentLength >= 5000)  return 15;
   return 10;
-}
-
-// For very large documents, sample intelligently: start + middle + end
-function sampleContent(text: string, maxChars = 40000): string {
-  if (text.length <= maxChars) return text;
-  const third = Math.floor(maxChars / 3);
-  const start  = text.slice(0, third);
-  const mid    = text.slice(Math.floor(text.length / 2) - Math.floor(third / 2), Math.floor(text.length / 2) + Math.floor(third / 2));
-  const end    = text.slice(-third);
-  return `${start}\n\n[...middle section...]\n\n${mid}\n\n[...end section...]\n\n${end}`;
 }
 
 export async function POST(request: Request) {
@@ -44,7 +35,7 @@ export async function POST(request: Request) {
 
     const contentLen = slideContent?.length ?? 0;
     const questionTarget = slideContent ? targetQuestionCount(contentLen) : 10;
-    const sampledContent = slideContent ? sampleContent(slideContent) : '';
+    const sampledContent = slideContent ? sampleContent(slideContent, 40000) : '';
 
     let prompt: string;
 

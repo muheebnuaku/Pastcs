@@ -74,21 +74,78 @@ const SUGGESTIONS = [
   'Summarise the key points',
 ];
 
+// Fixed sections get a specific icon; every concept section in between
+// (one per topic in the document, so the name is different every time)
+// falls back to a consistent "idea" icon.
 const SECTION_ICONS: Record<string, string> = {
   'introduction': '📚',
-  'key concepts': '🔑',
-  'full explanation': '📖',
-  'real-world examples': '💡',
   'practice review': '🎯',
   'summary': '📝',
 };
 
 function sectionIcon(title: string) {
-  return SECTION_ICONS[title.toLowerCase()] ?? '📄';
+  return SECTION_ICONS[title.toLowerCase()] ?? '💡';
 }
 
 function splitParas(content: string): string[] {
   return content.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 5);
+}
+
+interface PracticeQA { question: string; answer: string }
+
+// Parses the "**Q1.** ... / *Answer:* ..." pairs the lesson prompt asks
+// for, so the UI can hide each answer behind a tap instead of printing
+// it right under the question — an answer key isn't a practice test.
+function parsePracticeQA(content: string): PracticeQA[] {
+  const pairs: PracticeQA[] = [];
+  const re = /\*\*Q\d+\.?\*\*\s*([\s\S]*?)\n\*Answer:?\*\s*([\s\S]*?)(?=\n\*\*Q\d+\.?\*\*|$)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(content)) !== null) {
+    const question = match[1].trim();
+    const answer = match[2].trim();
+    if (question && answer) pairs.push({ question, answer });
+  }
+  return pairs;
+}
+
+function PracticeReviewPanel({ content }: { content: string }) {
+  const pairs = parsePracticeQA(content);
+  const [revealed, setRevealed] = useState<Set<number>>(new Set());
+
+  useEffect(() => { setRevealed(new Set()); }, [content]);
+
+  if (pairs.length === 0) {
+    // The model didn't follow the Q/A format — fall back to raw rendering
+    // rather than showing nothing.
+    return <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {pairs.map((pair, i) => {
+        const isRevealed = revealed.has(i);
+        return (
+          <div key={i} className="rounded-xl border border-gray-200 p-3">
+            <p className="text-sm font-semibold text-gray-900 mb-2">
+              <span className="text-blue-600">Q{i + 1}.</span>{' '}
+              <span dangerouslySetInnerHTML={{ __html: mdToHtml(pair.question) }} />
+            </p>
+            {isRevealed ? (
+              <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2"
+                dangerouslySetInnerHTML={{ __html: mdToHtml(pair.answer) }} />
+            ) : (
+              <button
+                onClick={() => setRevealed(prev => new Set([...prev, i]))}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Think it through, then show answer
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function parseSections(markdown: string): LessonSection[] {
@@ -701,6 +758,8 @@ export default function AssistantPage() {
                       );
                     })}
                   </div>
+                ) : lessonSections[teachIdx].title.toLowerCase() === 'practice review' ? (
+                  <PracticeReviewPanel content={lessonSections[teachIdx].content} />
                 ) : (
                   <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
                 )}

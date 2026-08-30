@@ -20,6 +20,20 @@ export function decodeRouteParam(value: string): string {
   }
 }
 
+// For very large documents (slides, lecture notes), sample intelligently
+// instead of silently truncating: keep the start, middle, and end so the
+// model sees how the material opens, develops, and concludes rather than
+// just its first few pages. Shared by every AI feature that reads an
+// uploaded document (question generation, lesson generation).
+export function sampleContent(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const third = Math.floor(maxChars / 3);
+  const start  = text.slice(0, third);
+  const mid    = text.slice(Math.floor(text.length / 2) - Math.floor(third / 2), Math.floor(text.length / 2) + Math.floor(third / 2));
+  const end    = text.slice(-third);
+  return `${start}\n\n[...middle section omitted — document continues...]\n\n${mid}\n\n[...more omitted — this is the end of the document...]\n\n${end}`;
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
