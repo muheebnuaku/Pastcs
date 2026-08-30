@@ -26,6 +26,7 @@ export interface User {
   program: string | null;
   referral_code: string | null;
   referred_by: string | null;
+  exam_date: string | null;
   created_at: string;
   updated_at: string;
 }

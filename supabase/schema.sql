@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   program            TEXT,
   referral_code      TEXT UNIQUE,
   referred_by        UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  exam_date          DATE,
   created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -37,6 +38,8 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS free_course_code  TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program          TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referral_code     TEXT UNIQUE;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referred_by       UUID REFERENCES public.users(id) ON DELETE SET NULL;
+-- Powers the dashboard's exam countdown + study plan widget
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS exam_date         DATE;
 
 -- View alias used throughout the app
 DROP VIEW IF EXISTS public.user_public;

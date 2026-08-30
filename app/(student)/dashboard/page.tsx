@@ -24,10 +24,12 @@ import {
   Zap,
   ShieldCheck,
   Sparkles,
+  CalendarClock,
+  Pencil,
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
   const [courses, setCourses] = useState<Course[]>([]);
@@ -37,6 +39,25 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ totalTests: 0, avgScore: 0, coursesCount: 0 });
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+
+  // Exam countdown
+  const [editingExamDate, setEditingExamDate] = useState(false);
+  const [examDateInput, setExamDateInput] = useState('');
+  const [savingExamDate, setSavingExamDate] = useState(false);
+
+  const daysUntilExam = user?.exam_date
+    ? Math.ceil((new Date(user.exam_date + 'T00:00:00').getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
+    : null;
+
+  const saveExamDate = async () => {
+    if (!user?.id || !examDateInput) return;
+    setSavingExamDate(true);
+    const supabase = createClient();
+    await supabase.from('users').update({ exam_date: examDateInput }).eq('id', user.id);
+    await refreshUser();
+    setSavingExamDate(false);
+    setEditingExamDate(false);
+  };
 
   const level = user?.selected_level;
   const semester = user?.selected_semester;
@@ -300,6 +321,76 @@ export default function DashboardPage() {
 
         {/* Sidebar */}
         <div className="space-y-5 sm:space-y-6">
+          {/* Exam Countdown & Study Plan */}
+          <Card>
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                <CalendarClock className="w-4 h-4 text-violet-500" />
+                Exam Countdown
+              </h2>
+              {user?.exam_date && !editingExamDate && (
+                <button
+                  onClick={() => { setExamDateInput(user.exam_date ?? ''); setEditingExamDate(true); }}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Change exam date"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <CardContent className="px-3 sm:px-6">
+              {!user?.exam_date || editingExamDate ? (
+                <div className="space-y-3 py-1">
+                  <p className="text-sm text-gray-600">
+                    Set your exam date for a countdown and a focused study list.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={examDateInput}
+                      onChange={e => setExamDateInput(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
+                    <Button size="sm" onClick={saveExamDate} isLoading={savingExamDate} disabled={!examDateInput}>
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 py-1">
+                  <div className="text-center p-4 bg-violet-50 rounded-xl">
+                    <p className="text-3xl font-bold text-violet-900 tabular-nums">
+                      {daysUntilExam !== null && daysUntilExam >= 0 ? daysUntilExam : 0}
+                    </p>
+                    <p className="text-sm text-violet-600 font-medium mt-0.5">
+                      {daysUntilExam !== null && daysUntilExam < 0
+                        ? 'Exam date has passed'
+                        : daysUntilExam === 0
+                          ? 'Exam is today!'
+                          : `day${daysUntilExam === 1 ? '' : 's'} to go`}
+                    </p>
+                  </div>
+                  {weakTopics.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        Focus on
+                      </p>
+                      <ul className="space-y-1.5">
+                        {weakTopics.slice(0, 3).map(topic => (
+                          <li key={topic.topic_id} className="flex items-center gap-2 text-sm text-gray-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
+                            <span className="truncate">{topic.topic_name}</span>
+                            <span className="text-xs text-gray-400 flex-shrink-0">{topic.course_code}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Weak Topics */}
           <Card>
             <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
