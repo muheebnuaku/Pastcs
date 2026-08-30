@@ -351,6 +351,7 @@ function PracticeContent() {
       });
 
       if (user?.id) await supabase.rpc('update_practice_streak', { p_user_id: user.id });
+      fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
 
       localStorage.removeItem(storageKey(courseCode, topicId, mode));
       router.push(`/results/${testData.id}`);

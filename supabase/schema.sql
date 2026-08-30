@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS public.users (
   selected_level     INTEGER CHECK (selected_level    IN (100,200,300,400)),
   selected_semester  INTEGER CHECK (selected_semester IN (1,2)),
   free_course_code   TEXT,
+  program            TEXT,
+  referral_code      TEXT UNIQUE,
+  referred_by        UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -29,6 +32,11 @@ CREATE TABLE IF NOT EXISTS public.users (
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS selected_level    INTEGER CHECK (selected_level    IN (100,200,300,400));
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS selected_semester INTEGER CHECK (selected_semester IN (1,2));
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS free_course_code  TEXT;
+-- Used by the profile page and the student layout's onboarding redirect —
+-- was referenced throughout the app but never actually added here.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program          TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referral_code     TEXT UNIQUE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referred_by       UUID REFERENCES public.users(id) ON DELETE SET NULL;
 
 -- View alias used throughout the app
 DROP VIEW IF EXISTS public.user_public;
@@ -229,6 +237,25 @@ ALTER TABLE public.notifications   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feature_events  ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- REFERRALS TABLE
+-- One row per successful referral signup. Each side's reward is
+-- tracked independently — the referred user always has a level/
+-- semester by the time they can finish a test, but the referrer might
+-- not have picked one yet, so their grant can lag and catch up later
+-- (see api/referrals/complete and api/user/selection).
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.referrals (
+  id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  referrer_id          UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  referred_id          UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE UNIQUE,
+  referred_rewarded_at TIMESTAMP WITH TIME ZONE,
+  referrer_rewarded_at TIMESTAMP WITH TIME ZONE,
+  created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- INDEXES
 -- ================================================================
 CREATE INDEX IF NOT EXISTS idx_questions_course       ON public.questions(course_id);
@@ -245,6 +272,8 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_level_sem ON public.subscripti
 CREATE INDEX IF NOT EXISTS idx_notifications_user    ON public.notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_feature_events_user    ON public.feature_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_feature_events_event    ON public.feature_events(event);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer      ON public.referrals(referrer_id);
+CREATE INDEX IF NOT EXISTS idx_users_referral_code     ON public.users(referral_code);
 
 -- ================================================================
 -- ROW LEVEL SECURITY
@@ -268,7 +297,7 @@ BEGIN
              AND tablename IN ('users','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
                                'lecture_slides','subscriptions','subscription_prices',
-                               'notifications','feature_events')
+                               'notifications','feature_events','referrals')
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
   END LOOP;
@@ -339,20 +368,56 @@ CREATE POLICY "notifications_delete_own" ON public.notifications FOR DELETE USIN
 -- review the raw event log; no student-facing policy needed)
 CREATE POLICY "feature_events_admin_select" ON public.feature_events FOR SELECT USING (is_admin());
 
+-- Referrals (a user sees referrals where they're either side; the
+-- reward-granting update happens via the service-role client in
+-- api/referrals/complete, which bypasses RLS)
+CREATE POLICY "referrals_select_own" ON public.referrals FOR SELECT
+  USING (auth.uid() = referrer_id OR auth.uid() = referred_id);
+CREATE POLICY "referrals_admin" ON public.referrals FOR ALL USING (is_admin());
+
 -- ================================================================
 -- TRIGGER: auto-create user row on auth signup
 -- ================================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  new_code   TEXT;
+  referrer   UUID;
+  ref_input  TEXT;
 BEGIN
-  INSERT INTO public.users (id, email, full_name, role)
+  -- Every user gets their own shareable referral code, regardless of
+  -- whether they arrived via one. Retry-until-unique is cheap here —
+  -- with an 8-hex-char space, a first-try collision is already rare.
+  LOOP
+    new_code := UPPER(SUBSTRING(REPLACE(uuid_generate_v4()::text, '-', ''), 1, 8));
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM public.users WHERE referral_code = new_code);
+  END LOOP;
+
+  -- Resolve the code they signed up with (if any) to its owner. An
+  -- invalid or mistyped code just means no referrer — never blocks signup.
+  ref_input := NEW.raw_user_meta_data->>'referral_code';
+  referrer := NULL;
+  IF ref_input IS NOT NULL AND TRIM(ref_input) <> '' THEN
+    SELECT id INTO referrer FROM public.users WHERE referral_code = UPPER(TRIM(ref_input));
+  END IF;
+
+  INSERT INTO public.users (id, email, full_name, role, referral_code, referred_by)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+    COALESCE(NEW.raw_user_meta_data->>'role', 'student'),
+    new_code,
+    referrer
   )
   ON CONFLICT (id) DO NOTHING;
+
+  IF referrer IS NOT NULL THEN
+    INSERT INTO public.referrals (referrer_id, referred_id)
+    VALUES (referrer, NEW.id)
+    ON CONFLICT (referred_id) DO NOTHING;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -371,6 +436,22 @@ SELECT
   COALESCE(raw_user_meta_data->>'role', 'student')
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+-- Backfill: assign a referral code to any existing user who predates
+-- this feature. Safe to re-run — only ever touches NULL rows.
+DO $$
+DECLARE
+  r RECORD;
+  new_code TEXT;
+BEGIN
+  FOR r IN SELECT id FROM public.users WHERE referral_code IS NULL LOOP
+    LOOP
+      new_code := UPPER(SUBSTRING(REPLACE(uuid_generate_v4()::text, '-', ''), 1, 8));
+      EXIT WHEN NOT EXISTS (SELECT 1 FROM public.users WHERE referral_code = new_code);
+    END LOOP;
+    UPDATE public.users SET referral_code = new_code WHERE id = r.id;
+  END LOOP;
+END $$;
 
 -- ================================================================
 -- FUNCTIONS

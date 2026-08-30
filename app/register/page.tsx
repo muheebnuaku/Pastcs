@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
@@ -25,6 +26,12 @@ export default function RegisterPage() {
       router.replace('/dashboard');
     }
   }, [user, isLoading, router]);
+
+  // Pick up a shared referral link, e.g. pastcs.com/register?ref=A3F9C21B
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) setReferralCode(ref.toUpperCase());
+  }, []);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -40,7 +47,7 @@ export default function RegisterPage() {
     }
 
     setSubmitting(true);
-    const result = await signUp(email, password, fullName);
+    const result = await signUp(email, password, fullName, referralCode.trim() || undefined);
     if (result.error) {
       setError(result.error);
       setSubmitting(false);
@@ -112,6 +119,14 @@ export default function RegisterPage() {
               placeholder="••••••••"
               required
               autoComplete="new-password"
+            />
+
+            <Input
+              label="Referral code (optional)"
+              type="text"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              placeholder="e.g. A3F9C21B"
             />
 
             {error && (
