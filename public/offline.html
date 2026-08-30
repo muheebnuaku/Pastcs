@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're offline — PastCS</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    background: #f9fafb; color: #111827;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  .card {
+    max-width: 380px; text-align: center;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 16px;
+    padding: 32px 28px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: #eff6ff; color: #2563eb;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px; font-size: 26px;
+  }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { font-size: 14px; color: #6b7280; line-height: 1.5; margin: 0 0 20px; }
+  button {
+    background: #2563eb; color: #fff; border: none; border-radius: 10px;
+    padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>You're offline</h1>
+    <p>PastCS needs a connection to load your courses and questions. Any practice session you already had open should still be saved — reconnect and pick up where you left off.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>
