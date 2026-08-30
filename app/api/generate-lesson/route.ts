@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { sampleContent } from '@/lib/utils';
+import { logAiUsage } from '@/lib/aiUsage';
 
 export const maxDuration = 120;
 
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
       ],
       temperature: 0.7,
       max_tokens: 12000,
+      stream_options: { include_usage: true }, // the final chunk carries token usage
     });
 
     const readable = new ReadableStream({
@@ -100,6 +102,7 @@ export async function POST(req: Request) {
         for await (const chunk of stream) {
           const delta = chunk.choices[0]?.delta?.content ?? '';
           if (delta) controller.enqueue(new TextEncoder().encode(delta));
+          if (chunk.usage) logAiUsage('generate_lesson', 'gpt-4o', chunk.usage).catch(() => {});
         }
         controller.close();
       },

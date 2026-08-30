@@ -1,4 +1,6 @@
 import OpenAI from 'openai';
+import { withOpenAIRetry } from '@/lib/openaiRetry';
+import { logAiUsage } from '@/lib/aiUsage';
 
 export async function POST(request: Request) {
   try {
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const completion = await openai.chat.completions.create({
+    const completion = await withOpenAIRetry(() => openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
@@ -52,7 +54,9 @@ Respond with ONLY valid JSON: {"isCorrect": true} or {"isCorrect": false}`,
       response_format: { type: 'json_object' },
       max_tokens: 20,
       temperature: 0,
-    });
+    }));
+
+    logAiUsage('check_answer', 'gpt-4o-mini', completion.usage).catch(() => {});
 
     const result = JSON.parse(completion.choices[0].message.content || '{}');
     return Response.json({ isCorrect: result.isCorrect === true });

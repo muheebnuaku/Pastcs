@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { withOpenAIRetry } from '@/lib/openaiRetry';
+import { logAiUsage } from '@/lib/aiUsage';
 
 const SYSTEM_PROMPT = `You are an expert AI tutor for university students — equally comfortable introducing a first-year student to a brand-new topic and engaging a graduate student critically on advanced material. You don't apply one fixed register by default; you read the sophistication of the question in front of you and match it.
 
@@ -57,13 +59,14 @@ export async function POST(request: Request) {
       { role: 'user', content: message },
     ];
 
-    const stream = await openai.chat.completions.create({
+    const stream = await withOpenAIRetry(() => openai.chat.completions.create({
       model: 'gpt-4o',
       messages,
       stream: true,
       temperature: 0.7,
       max_tokens: 3200, // room for a genuinely deep answer without truncating mid-explanation
-    });
+      stream_options: { include_usage: true }, // the final chunk carries token usage
+    }));
 
     const readable = new ReadableStream({
       async start(controller) {
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
           for await (const chunk of stream) {
             const text = chunk.choices[0]?.delta?.content ?? '';
             if (text) controller.enqueue(new TextEncoder().encode(text));
+            if (chunk.usage) logAiUsage('assistant_chat', 'gpt-4o', chunk.usage).catch(() => {});
           }
         } finally {
           controller.close();

@@ -229,6 +229,23 @@ export default function AssistantPage() {
       .then(({ data }: { data: Course[] | null }) => { if (data) setCourses(data); });
   }, []);
 
+  // Restore the ongoing conversation — previously lived only in page
+  // state, so closing the tab erased everything.
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    supabase
+      .from('chat_messages')
+      .select('role, content')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(50)
+      .then(({ data }: { data: Message[] | null }) => {
+        if (data && data.length > 0) setMessages(data);
+      })
+      .catch(() => {}); // chat_messages not migrated on this environment yet
+  }, [user?.id]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -445,6 +462,17 @@ export default function AssistantPage() {
 
   // ── Chat ──────────────────────────────────────────────────────────────────
 
+  const saveMessage = (role: 'user' | 'assistant', content: string) => {
+    if (!user?.id || !content.trim()) return;
+    const supabase = createClient();
+    supabase.from('chat_messages').insert({
+      user_id: user.id,
+      course_id: selectedCourse || null,
+      role,
+      content,
+    }).then(() => {}).catch(() => {}); // chat_messages not migrated on this environment yet
+  };
+
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
@@ -453,6 +481,7 @@ export default function AssistantPage() {
 
     const userMsg: Message = { role: 'user', content: trimmed };
     setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }]);
+    saveMessage('user', trimmed);
     setInput('');
     setIsStreaming(true);
     abortRef.current = new AbortController();
@@ -483,6 +512,7 @@ export default function AssistantPage() {
         full += decoder.decode(value, { stream: true });
         setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: full }]);
       }
+      if (full) saveMessage('assistant', full);
       if (voiceEnabled && full) speak(full);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -502,6 +532,10 @@ export default function AssistantPage() {
     stop();
     setMessages([]);
     setIsStreaming(false);
+    if (user?.id) {
+      const supabase = createClient();
+      supabase.from('chat_messages').delete().eq('user_id', user.id).then(() => {}).catch(() => {});
+    }
   };
 
   const isEmpty = messages.length === 0;

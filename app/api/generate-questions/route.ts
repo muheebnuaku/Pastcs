@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { sampleContent } from '@/lib/utils';
+import { withOpenAIRetry } from '@/lib/openaiRetry';
+import { logAiUsage } from '@/lib/aiUsage';
 
 // Scale question count: ~1 question per 1000 chars, capped at 50
 function targetQuestionCount(contentLength: number): number {
@@ -143,7 +145,7 @@ Rules:
 - Cover every key point — do not skip any`;
     }
 
-    const completion = await openai.chat.completions.create({
+    const completion = await withOpenAIRetry(() => openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
@@ -155,7 +157,9 @@ Rules:
       response_format: { type: 'json_object' },
       temperature: 0.7,
       max_tokens: 16000,
-    });
+    }));
+
+    logAiUsage('generate_questions', 'gpt-4o', completion.usage).catch(() => {});
 
     const responseContent = completion.choices[0].message.content;
     if (!responseContent) throw new Error('No response from OpenAI');
