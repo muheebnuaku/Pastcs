@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Progress } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
 import type { Question, Course } from '@/types';
@@ -95,6 +96,7 @@ function PracticeContent() {
   const [isLoadingResume, setIsLoadingResume] = useState(false);
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
+  const { label: priceLabel } = usePricing(user?.selected_level);
   const isFree = courseCode === user?.free_course_code;
 
   // Keep a ref so the auto-save effect always has fresh values
@@ -426,7 +428,7 @@ function PracticeContent() {
             <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0" />
             <span>
               <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
-              Unlock {allLevelCourses - 1} more for just GHC 50.
+              Unlock {allLevelCourses - 1} more for just {priceLabel}.
             </span>
           </div>
           <button onClick={() => setShowPaywall(true)}

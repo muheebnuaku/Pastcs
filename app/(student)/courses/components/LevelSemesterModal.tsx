@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { Button } from '@/components/ui';
 import { X, ArrowRight, BookOpen, Loader2 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const { label: priceLabel } = usePricing(selectedLevel);
 
   // Portal to <body> — see Modal.tsx: rendering inline under a page that
   // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
@@ -144,7 +146,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
             <BookOpen className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-green-700">
               <span className="font-semibold">One course free.</span>{' '}
-              Unlock the rest for just <span className="font-semibold">GHC 50</span>.
+              Unlock the rest for just <span className="font-semibold">{priceLabel}</span>.
             </p>
           </div>
 

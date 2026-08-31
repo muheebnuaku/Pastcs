@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
@@ -37,6 +38,7 @@ export default function CourseDetailPage() {
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
   const isFree = course?.course_code === user?.free_course_code;
+  const { label: priceLabel } = usePricing(user?.selected_level);
   const hasAccess = isPaid || isFree;
 
   useEffect(() => {
@@ -146,12 +148,12 @@ export default function CourseDetailPage() {
               <Lock className="w-7 h-7 text-gray-400" />
             </div>
             <p className="font-semibold text-gray-900 mb-1">This course is locked</p>
-            <p className="text-sm text-gray-500 mb-4">Unlock all courses for just GHC 50 this semester</p>
+            <p className="text-sm text-gray-500 mb-4">Unlock all courses for just {priceLabel} this semester</p>
             <button
               onClick={() => setShowPaywall(true)}
               className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
             >
-              Unlock Now — GHC 50
+              Unlock Now — {priceLabel}
             </button>
           </div>
         </div>
@@ -179,7 +181,7 @@ export default function CourseDetailPage() {
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
           <p className="text-sm text-blue-800">
             <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
-            Unlock {allLevelCourses - 1} more for just GHC 50 this semester.
+            Unlock {allLevelCourses - 1} more for just {priceLabel} this semester.
           </p>
           <button
             onClick={() => setShowPaywall(true)}

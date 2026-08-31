@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, CardContent, Badge } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
 import { LevelSemesterModal } from './components/LevelSemesterModal';
@@ -40,6 +41,7 @@ export default function CoursesPage() {
   const semester = user?.selected_semester;
   const freeCourseCode = user?.free_course_code;
   const isPaid = hasActiveSub(level, semester);
+  const { label: priceLabel } = usePricing(level);
   const lockedCount = !isPaid && freeCourseCode
     ? courses.filter(c => c.course_code !== freeCourseCode).length
     : 0;
@@ -142,7 +144,7 @@ export default function CoursesPage() {
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
           >
             <Sparkles className="w-4 h-4" />
-            Unlock All — GHC 50
+            Unlock All — {priceLabel}
           </button>
         )}
       </div>
@@ -159,7 +161,7 @@ export default function CoursesPage() {
               <p className="text-sm text-blue-200 mt-0.5">
                 Pick any course below to start practicing — no payment needed.
                 Unlock all {courses.length} courses &amp; {totalQuestions}+ questions for just{' '}
-                <strong className="text-white">GHC 50</strong>.
+                <strong className="text-white">{priceLabel}</strong>.
               </p>
             </div>
           </div>
@@ -172,7 +174,7 @@ export default function CoursesPage() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-gray-900">
-                {lockedCount} course{lockedCount > 1 ? 's' : ''} locked — unlock everything for GHC 50
+                {lockedCount} course{lockedCount > 1 ? 's' : ''} locked — unlock everything for {priceLabel}
               </p>
               <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
                 {[
@@ -191,7 +193,7 @@ export default function CoursesPage() {
               onClick={() => setPaywallCourse(courses.find(c => c.course_code !== freeCourseCode) ?? null)}
               className="flex-shrink-0 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap"
             >
-              Unlock All — GHC 50
+              Unlock All — {priceLabel}
             </button>
           </div>
         </div>
@@ -287,7 +289,7 @@ export default function CoursesPage() {
                       </div>
                       <div className="flex items-center justify-center gap-1.5 bg-blue-600 group-hover:bg-blue-700 text-white rounded-xl py-2 text-xs font-semibold transition-colors">
                         <Sparkles className="w-3.5 h-3.5" />
-                        Unlock for GHC 50
+                        Unlock for {priceLabel}
                       </div>
                     </CardContent>
                   </Card>
