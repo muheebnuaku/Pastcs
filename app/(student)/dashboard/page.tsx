@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage } from '@/lib/utils';
@@ -61,6 +62,7 @@ export default function DashboardPage() {
   const level = user?.selected_level;
   const semester = user?.selected_semester;
   const isPaid = hasActiveSub(level, semester);
+  const { label: priceLabel } = usePricing(level);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -193,7 +195,7 @@ export default function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-gray-900 text-sm sm:text-base">
-                  {lockedCourseCount} course{lockedCourseCount > 1 ? 's' : ''} locked — unlock all for GHC 50
+                  {lockedCourseCount} course{lockedCourseCount > 1 ? 's' : ''} locked — unlock all for {priceLabel}
                 </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
                   {[
@@ -213,7 +215,7 @@ export default function DashboardPage() {
               onClick={() => setShowPaywall(true)}
               className="flex-shrink-0 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap w-full sm:w-auto"
             >
-              Unlock All — GHC 50
+              Unlock All — {priceLabel}
             </button>
           </div>
         </div>

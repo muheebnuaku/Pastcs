@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { Button } from '@/components/ui';
 import { Lock, X, CheckCircle, XCircle, Loader2, Users } from 'lucide-react';
 import type { Subscription } from '@/types';
@@ -29,8 +30,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
   const [isVerifying, setIsVerifying] = useState(false);
   const [paymentClosed, setPaymentClosed] = useState(false);
   const [error, setError] = useState('');
-  // Dynamic price in pesewas; defaults to 5000 (GHC 50) while loading
-  const [priceAmount, setPriceAmount] = useState(5000);
+  const { amountPesewas: priceAmount, label: priceLabel } = usePricing(user?.selected_level);
 
   // Portal to <body> — see Modal.tsx: rendering inline under a page that
   // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
@@ -38,18 +38,6 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
   // containing block for fixed descendants instead of the viewport).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    fetch('/api/pricing')
-      .then(r => r.json())
-      .then(data => {
-        const level = user?.selected_level;
-        if (data.prices && level && data.prices[level]) {
-          setPriceAmount(data.prices[level]);
-        }
-      })
-      .catch(() => {});
-  }, [user?.selected_level]);
 
   // Load Paystack script on mount
   useEffect(() => {
@@ -211,7 +199,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           {/* Price + anchoring */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-4">
             <div className="flex items-center justify-center gap-2">
-              <p className="text-3xl font-bold text-white">GHC {priceAmount / 100}</p>
+              <p className="text-3xl font-bold text-white">{priceLabel}</p>
             </div>
             <p className="text-blue-200 text-sm mt-1">this semester — invest in your grades</p>
           </div>
@@ -244,7 +232,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
                 Verifying payment…
               </>
             ) : (
-              `Unlock Now — GHC ${priceAmount / 100}`
+              `Unlock Now — ${priceLabel}`
             )}
           </Button>
 

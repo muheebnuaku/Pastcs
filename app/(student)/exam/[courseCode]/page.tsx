@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
+import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
@@ -47,6 +48,7 @@ export default function ExamPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
+  const { label: priceLabel } = usePricing(user?.selected_level);
   const isFree = courseCode === user?.free_course_code;
 
   const submitExam = useCallback(async () => {
@@ -198,7 +200,7 @@ export default function ExamPage() {
               <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <span>
                 <span className="font-medium">Free course.</span>{' '}
-                Unlock {allLevelCourses - 1} more for just GHC 50.
+                Unlock {allLevelCourses - 1} more for just {priceLabel}.
               </span>
             </div>
             <button
