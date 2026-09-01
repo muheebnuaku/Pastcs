@@ -135,24 +135,62 @@ export default function AdminGeneratePage() {
     setError('');
 
     try {
-      // All extraction is done client-side — no file upload to server, no size limit
+      // All text extraction is done client-side — no file upload to server, no size limit
       const { extractFileText } = await import('@/lib/extractPdfText');
       const { text, pageCount } = await extractFileText(file, (page, total) => {
         setParseProgress(`Extracting page ${page} of ${total}…`);
       });
 
-      if (!text.trim()) throw new Error('Could not extract text. If this is a scanned PDF, it must be text-based.');
+      const isPptx = file.type.includes('presentationml') || name.endsWith('.pptx');
+      const isDocx = file.type.includes('wordprocessingml') || name.endsWith('.docx');
+      const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
 
-      // Send only text to server for topic detection (tiny payload)
+      // A page/slide whose content was flattened into a picture (an exported
+      // image, or a scanned page) has essentially no extractable text — not
+      // because extraction failed, but because there's genuinely none there.
+      // A whole-file average catches that even when a handful of characters
+      // (a repeated footer, a slide number) technically make text non-empty.
+      const avgCharsPerUnit = pageCount > 0 ? text.length / pageCount : text.length;
+      const looksImageOnly = avgCharsPerUnit < 80;
+
+      let finalText = text;
+
+      if (looksImageOnly && (isPptx || isDocx || isPdf)) {
+        setParseProgress('Slides look like images — reading them with AI vision…');
+        const { extractPptxImages, extractDocxImages, extractPdfPageImages, visionOcrImages } =
+          await import('@/lib/extractPdfText');
+
+        const images = isPptx ? await extractPptxImages(file)
+          : isDocx ? await extractDocxImages(file)
+          : await extractPdfPageImages(file, (page, total) => {
+              setParseProgress(`Rendering page ${page} of ${total}…`);
+            });
+
+        if (images.length === 0) {
+          if (!text.trim()) throw new Error('Could not extract text and found no embedded images to read visually either.');
+        } else {
+          const visionText = await visionOcrImages(images, (done, total) => {
+            setParseProgress(`Reading slide images with AI vision (${done}/${total})…`);
+          });
+          if (!visionText.trim() && !text.trim()) {
+            throw new Error('AI vision could not read any content from these slide images.');
+          }
+          finalText = text.trim() ? `${text}\n\n${visionText}` : visionText;
+        }
+      }
+
+      if (!finalText.trim()) throw new Error('Could not extract text. If this is a scanned PDF, it must be text-based.');
+
+      // Send the (possibly vision-recovered) text to the server for topic detection
       setParseProgress('Detecting topic…');
       const res = await fetch('/api/parse-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, pageCount }),
+        body: JSON.stringify({ text: finalText, pageCount }),
       });
       const data = await res.json() as { text?: string; detectedTopic?: string; error?: string };
       if (!res.ok) throw new Error(data.error || 'Topic detection failed');
-      setSlideContent(data.text || text);
+      setSlideContent(data.text || finalText);
       setPdfTopic(data.detectedTopic || '');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');

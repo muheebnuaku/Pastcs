@@ -159,33 +159,37 @@ function chunk<T>(items: T[], size: number): T[][] {
 // would mean the back half of a deck never generates any questions.
 // Batches run in parallel so a large deck doesn't multiply latency
 // against this route's time budget — only the request count grows.
+async function visionOcrBatch(openai: OpenAI, batch: EmbeddedImage[], partLabel: string): Promise<string> {
+  const completion = await withOpenAIRetry(() => openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        ...batch.map(img => ({
+          type: 'image_url' as const,
+          image_url: { url: `data:${img.mime};base64,${img.buffer.toString('base64')}` },
+        })),
+        {
+          type: 'text' as const,
+          text: `These are slide images from a lecture deck (each slide's content was flattened into a picture, so there is no separate extractable text).${partLabel} Read every image and transcribe ALL visible text, labels, and data — and describe what any diagram, chart, or figure shows if it has no text of its own. Keep the slides in the order given. Return only JSON: {"text": "everything read from the images, slide by slide"}`,
+        },
+      ],
+    }],
+    response_format: { type: 'json_object' },
+    max_tokens: 4096,
+  }));
+  logAiUsage('parse_pptx_vision_ocr', 'gpt-4o', completion.usage).catch(() => {});
+  const r = JSON.parse(completion.choices[0].message.content || '{}');
+  return (r.text || '') as string;
+}
+
 async function runImageVisionOcr(images: EmbeddedImage[], apiKey: string): Promise<VisionOcrResult> {
   const openai = new OpenAI({ apiKey });
   const batches = chunk(images, IMAGES_PER_VISION_CALL);
 
-  const results = await Promise.all(batches.map(async (batch, i) => {
-    const completion = await withOpenAIRetry(() => openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [{
-        role: 'user',
-        content: [
-          ...batch.map(img => ({
-            type: 'image_url' as const,
-            image_url: { url: `data:${img.mime};base64,${img.buffer.toString('base64')}` },
-          })),
-          {
-            type: 'text' as const,
-            text: `These are slide images from a lecture deck (each slide's content was flattened into a picture, so there is no separate extractable text). This is part ${i + 1} of ${batches.length} of the full deck. Read every image and transcribe ALL visible text, labels, and data — and describe what any diagram, chart, or figure shows if it has no text of its own. Keep the slides in the order given. Return only JSON: {"text": "everything read from the images, slide by slide"}`,
-          },
-        ],
-      }],
-      response_format: { type: 'json_object' },
-      max_tokens: 4096,
-    }));
-    logAiUsage('parse_pptx_vision_ocr', 'gpt-4o', completion.usage).catch(() => {});
-    const r = JSON.parse(completion.choices[0].message.content || '{}');
-    return (r.text || '') as string;
-  }));
+  const results = await Promise.all(batches.map((batch, i) =>
+    visionOcrBatch(openai, batch, ` This is part ${i + 1} of ${batches.length} of the full deck.`)
+  ));
 
   const text = results.filter(Boolean).join('\n\n');
 
@@ -283,6 +287,36 @@ export async function POST(request: Request) {
     // ── FormData path: file upload (PPTX / DOCX) ───────────────────────────
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+
+    // ── Image-batch path: client already pulled/rendered images itself
+    // (a pptx/docx's embedded pictures, or a scanned PDF's rendered pages)
+    // and downscaled them — used instead of uploading the whole original
+    // file, which for a large deck would blow past a serverless request
+    // body limit long before it reached OpenAI. One batch in, one batch of
+    // transcribed text out; the caller merges batches and topic-detects
+    // the combined result itself via the JSON path above.
+    if (!file) {
+      const imageEntries = formData.getAll('images').filter((v): v is File => v instanceof File);
+      if (imageEntries.length > 0) {
+        if (!process.env.OPENAI_API_KEY) {
+          return Response.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+        }
+        try {
+          const images: EmbeddedImage[] = await Promise.all(imageEntries.map(async f => ({
+            buffer: Buffer.from(await f.arrayBuffer()),
+            mime: f.type || 'image/jpeg',
+          })));
+          const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+          const text = await visionOcrBatch(openai, images, '');
+          return Response.json({ text });
+        } catch (err) {
+          return Response.json(
+            { error: err instanceof Error ? err.message : 'Failed to read slide images with AI vision' },
+            { status: 500 }
+          );
+        }
+      }
+    }
 
     if (!file) {
       return Response.json({ error: 'No file provided' }, { status: 400 });
