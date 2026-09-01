@@ -8,11 +8,12 @@ import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { TutorPricingModal } from './components/TutorPricingModal';
+import { PasteTextModal } from './components/PasteTextModal';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
   User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle, PauseCircle,
-  ChevronLeft, ChevronRight, X, Lock,
+  ChevronLeft, ChevronRight, X, Lock, ClipboardPaste,
 } from 'lucide-react';
 
 const FREE_UPLOAD_LIMIT = 5;
@@ -201,6 +202,7 @@ export default function AssistantPage() {
   const [tutorCreditsPurchased, setTutorCreditsPurchased] = useState(0);
   const [uploadChecked, setUploadChecked] = useState(false);
   const [showTutorPricing, setShowTutorPricing] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
   const [currentImage, setCurrentImage] = useState<{ url: string; caption: string; keyword: string } | null>(null);
   const [fetchingImages, setFetchingImages] = useState(false);
 
@@ -373,38 +375,20 @@ export default function AssistantPage() {
     setTeachParaIdx(0);
   };
 
-  // ── Document upload ───────────────────────────────────────────────────────
+  // ── Document upload / pasted text → lesson ──────────────────────────────────
 
-  const handleFileUpload = async (file: File) => {
-    if (limitReached) {
-      setShowTutorPricing(true);
-      return;
-    }
-    trackEvent('document_upload', { fileName: file.name, fileType: file.type });
-    setUploadCount(prev => prev + 1);
-    setDocStage('uploading');
-    setDocError('');
-    setLessonFileName(file.name);
-    setLessonText('');
-    setLessonSections([]);
-    setTeachIdx(0);
-
+  // Shared by both source paths below: once we have the raw text (extracted
+  // server-side from a file, or typed/pasted directly), the rest of the
+  // pipeline — stream the lesson, then fetch keyword images — is identical.
+  const runLessonPipeline = async (text: string, detectedTopic: string, imageLookupLabel: string) => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const parseRes = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
-      const parseData = await parseRes.json() as { text?: string; detectedTopic?: string; error?: string };
-      if (!parseRes.ok || !parseData.text) throw new Error(parseData.error || 'Could not read the document');
-
-      if (parseData.detectedTopic) setTopic(parseData.detectedTopic);
-
       setDocStage('generating');
 
       lessonAbortRef.current = new AbortController();
       const lessonRes = await fetch('/api/generate-lesson', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: parseData.text, context: getContext() }),
+        body: JSON.stringify({ text, context: getContext() }),
         signal: lessonAbortRef.current.signal,
       });
 
@@ -432,12 +416,85 @@ export default function AssistantPage() {
       fetch('/api/lesson-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lessonText: full, topic: parseData.detectedTopic || file.name }),
+        body: JSON.stringify({ lessonText: full, topic: detectedTopic || imageLookupLabel }),
       })
         .then(r => r.json())
         .then(({ images }) => setKeywordImages(images as Record<string, { url: string; caption: string; pageUrl: string }>))
         .catch(() => {})
         .finally(() => setFetchingImages(false));
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
+      setDocError(e instanceof Error ? e.message : 'Something went wrong');
+      setDocStage('idle');
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (limitReached) {
+      setShowTutorPricing(true);
+      return;
+    }
+    trackEvent('document_upload', { fileName: file.name, fileType: file.type });
+    setUploadCount(prev => prev + 1);
+    setDocStage('uploading');
+    setDocError('');
+    setLessonFileName(file.name);
+    setLessonText('');
+    setLessonSections([]);
+    setTeachIdx(0);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const parseRes = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
+      const parseData = await parseRes.json() as { text?: string; detectedTopic?: string; error?: string };
+      if (!parseRes.ok || !parseData.text) throw new Error(parseData.error || 'Could not read the document');
+
+      if (parseData.detectedTopic) setTopic(parseData.detectedTopic);
+      await runLessonPipeline(parseData.text, parseData.detectedTopic || '', file.name);
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
+      setDocError(e instanceof Error ? e.message : 'Something went wrong');
+      setDocStage('idle');
+    }
+  };
+
+  // Same pipeline as a file upload, just skipping the file-parsing step —
+  // a student with notes as plain text (pasted from WhatsApp, a textbook
+  // excerpt, an old assignment) shouldn't have to turn it into a document
+  // first just to get a lesson out of it.
+  const handlePastedText = async (text: string) => {
+    setShowPasteModal(false);
+    if (!text.trim()) return;
+    if (limitReached) {
+      setShowTutorPricing(true);
+      return;
+    }
+    trackEvent('document_upload', { fileName: 'pasted-text', fileType: 'text/plain' });
+    setUploadCount(prev => prev + 1);
+    setDocStage('uploading');
+    setDocError('');
+    setLessonFileName('Pasted text');
+    setLessonText('');
+    setLessonSections([]);
+    setTeachIdx(0);
+
+    try {
+      // Reuses the same topic-detection call a file upload gets, just via
+      // the JSON branch (there's no file here, so nothing to extract).
+      let detectedTopic = '';
+      try {
+        const topicRes = await fetch('/api/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const topicData = await topicRes.json() as { detectedTopic?: string };
+        detectedTopic = topicData.detectedTopic || '';
+        if (detectedTopic) setTopic(detectedTopic);
+      } catch { /* topic detection optional */ }
+
+      await runLessonPipeline(text, detectedTopic, 'Pasted text');
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
@@ -556,6 +613,13 @@ export default function AssistantPage() {
         />
       )}
 
+      {showPasteModal && (
+        <PasteTextModal
+          onClose={() => setShowPasteModal(false)}
+          onSubmit={handlePastedText}
+        />
+      )}
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -577,7 +641,7 @@ export default function AssistantPage() {
               <BotMessageSquare className="w-7 h-7 text-blue-600" />
               AI Study Assistant
             </h1>
-            <p className="text-gray-500 text-sm mt-0.5">Ask anything, or upload a document to get a full lesson.</p>
+            <p className="text-gray-500 text-sm mt-0.5">Ask anything, or upload a document (or paste text) to get a full lesson.</p>
           </div>
           <div className="flex items-center gap-2">
             {voiceSupported && (
@@ -681,6 +745,19 @@ export default function AssistantPage() {
                   {uploadRemaining} left
                 </span>
               )}
+            </button>
+          )}
+
+          {/* Paste text button — same lesson pipeline, no file needed */}
+          {!limitReached && (
+            <button
+              onClick={() => setShowPasteModal(true)}
+              disabled={isProcessing}
+              title="Paste text — notes, an excerpt, anything — to get a full AI lesson"
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap"
+            >
+              <ClipboardPaste className="w-4 h-4" />
+              <span>Paste Text</span>
             </button>
           )}
         </div>
@@ -872,7 +949,7 @@ export default function AssistantPage() {
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-1">Ready to help you learn</h2>
               <p className="text-gray-500 text-sm max-w-sm">
-                Ask me anything, or upload a <strong>PDF, Word, or PowerPoint</strong> file to instantly generate a full beginner lesson with voice reading.
+                Ask me anything, or upload a <strong>PDF, Word, or PowerPoint</strong> file — or just paste text — to instantly generate a full beginner lesson with voice reading.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
