@@ -21,7 +21,10 @@ ${sampleContent(text, 6000)}
 Respond: {"topic": "short topic name here"}`;
 }
 
-export const maxDuration = 60;
+// A large image-only deck now runs several vision batches (parallel,
+// but still real API latency each) plus a final topic call — 60s was
+// comfortable for a single vision pass but tight for that.
+export const maxDuration = 120;
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -106,9 +109,10 @@ const IMAGE_EXT_MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
   gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp',
 };
-const MIN_IMAGE_BYTES = 15_000;   // skip small icons/logos/bullets
-const MAX_IMAGE_BYTES = 8_000_000; // stay well under request-size limits
-const MAX_VISION_IMAGES = 12;      // cap cost/request size on huge decks
+const MIN_IMAGE_BYTES = 15_000;    // skip small icons/logos/bullets
+const MAX_IMAGE_BYTES = 8_000_000;  // stay well under per-image request limits
+const MAX_TOTAL_IMAGES = 80;        // sanity ceiling, not a real-world cap
+const IMAGES_PER_VISION_CALL = 8;   // batch size — see runImageVisionOcr
 
 // Pulls real photo/screenshot-sized images out of a PPTX/DOCX's media
 // folder (both are ZIPs; embedded images sit under ppt/media/ or
@@ -133,38 +137,76 @@ async function collectMediaImages(
     images.push({ buffer, mime, size: buffer.length });
   }
 
-  // Largest first — a full-slide picture is almost always bigger than
-  // whatever small decorative images happen to also be embedded.
-  return images.sort((a, b) => b.size - a.size).slice(0, MAX_VISION_IMAGES);
+  // Largest first, so if a deck genuinely has more embedded images than
+  // MAX_TOTAL_IMAGES can sanely cover, the ones most likely to be full
+  // slide pictures (rather than small leftover decorative art) win.
+  return images.sort((a, b) => b.size - a.size).slice(0, MAX_TOTAL_IMAGES);
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
 }
 
 // Sends embedded images straight to GPT-4o vision as inline data URIs —
 // the standard way to feed it images (unlike the PDF path above, which
 // needs the Files API since it's uploading a whole document, not
 // individual pictures). No file upload/cleanup dance needed.
+//
+// Batched rather than one call with every image: a real deck can easily
+// have 20-30+ slide pictures, and silently capping how many get read
+// would mean the back half of a deck never generates any questions.
+// Batches run in parallel so a large deck doesn't multiply latency
+// against this route's time budget — only the request count grows.
 async function runImageVisionOcr(images: EmbeddedImage[], apiKey: string): Promise<VisionOcrResult> {
   const openai = new OpenAI({ apiKey });
-  const completion = await withOpenAIRetry(() => openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [{
-      role: 'user',
-      content: [
-        ...images.map(img => ({
-          type: 'image_url' as const,
-          image_url: { url: `data:${img.mime};base64,${img.buffer.toString('base64')}` },
-        })),
-        {
-          type: 'text' as const,
-          text: `These are slide images from a lecture deck (each slide's content was flattened into a picture, so there is no separate extractable text). Read every image and transcribe ALL visible text, labels, and data — and describe what any diagram, chart, or figure shows if it has no text of its own. Keep the slides in the order given. Then identify the specific topic actually being taught, based on the content, not a repeated header. Return only JSON: {"text": "everything read from the images, slide by slide", "topic": "short topic name"}`,
-        },
-      ],
-    }],
-    response_format: { type: 'json_object' },
-    max_tokens: 4096,
+  const batches = chunk(images, IMAGES_PER_VISION_CALL);
+
+  const results = await Promise.all(batches.map(async (batch, i) => {
+    const completion = await withOpenAIRetry(() => openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'user',
+        content: [
+          ...batch.map(img => ({
+            type: 'image_url' as const,
+            image_url: { url: `data:${img.mime};base64,${img.buffer.toString('base64')}` },
+          })),
+          {
+            type: 'text' as const,
+            text: `These are slide images from a lecture deck (each slide's content was flattened into a picture, so there is no separate extractable text). This is part ${i + 1} of ${batches.length} of the full deck. Read every image and transcribe ALL visible text, labels, and data — and describe what any diagram, chart, or figure shows if it has no text of its own. Keep the slides in the order given. Return only JSON: {"text": "everything read from the images, slide by slide"}`,
+          },
+        ],
+      }],
+      response_format: { type: 'json_object' },
+      max_tokens: 4096,
+    }));
+    logAiUsage('parse_pptx_vision_ocr', 'gpt-4o', completion.usage).catch(() => {});
+    const r = JSON.parse(completion.choices[0].message.content || '{}');
+    return (r.text || '') as string;
   }));
-  logAiUsage('parse_pptx_vision_ocr', 'gpt-4o', completion.usage).catch(() => {});
-  const r = JSON.parse(completion.choices[0].message.content || '{}');
-  return { text: r.text || '', topic: r.topic || '' };
+
+  const text = results.filter(Boolean).join('\n\n');
+
+  // One topic call over the combined content rather than trusting a
+  // single batch's guess — a batch only ever sees a slice of the deck.
+  let topic = '';
+  if (text) {
+    try {
+      const topicCompletion = await withOpenAIRetry(() => openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: topicDetectionPrompt(text) }],
+        response_format: { type: 'json_object' },
+        max_tokens: 80,
+        temperature: 0.2,
+      }));
+      logAiUsage('parse_pdf_topic', 'gpt-4o', topicCompletion.usage).catch(() => {});
+      topic = JSON.parse(topicCompletion.choices[0].message.content || '{}').topic || '';
+    } catch { /* topic detection optional */ }
+  }
+
+  return { text, topic };
 }
 
 // ── DOCX text extraction ────────────────────────────────────────────────────
@@ -182,7 +224,7 @@ async function extractDocxText(buffer: Buffer): Promise<{ text: string; images: 
 // ── PPTX text extraction ────────────────────────────────────────────────────
 // PPTX is a ZIP file; slides live at ppt/slides/slideN.xml.
 // Text content is wrapped in <a:t> tags. We parse this without any DOM APIs.
-async function extractPptxText(buffer: Buffer): Promise<{ text: string; slideCount: number; images: EmbeddedImage[] }> {
+async function extractPptxText(buffer: Buffer): Promise<{ text: string; slideCount: number; sparseSlideCount: number; images: EmbeddedImage[] }> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const JSZip = require('jszip') as typeof import('jszip');
   const zip = await JSZip.loadAsync(buffer);
@@ -195,14 +237,21 @@ async function extractPptxText(buffer: Buffer): Promise<{ text: string; slideCou
     });
 
   const parts: string[] = [];
+  let sparseSlideCount = 0;
   for (const path of slideFiles) {
     const xml = await zip.files[path].async('text');
     const texts = xml.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) ?? [];
     const slideText = texts.map(t => t.replace(/<[^>]+>/g, '')).join(' ').trim();
+    // Per-slide, not just the whole-deck total — a deck of 25 slides
+    // that each contribute only their own slide number ("1", "2", ...)
+    // easily adds up past a whole-document length check while every
+    // single slide is, individually, exactly the "no real content"
+    // case this is meant to catch.
+    if (slideText.length < SPARSE_PAGE_CHARS) sparseSlideCount++;
     if (slideText) parts.push(slideText);
   }
   const images = await collectMediaImages(zip, 'ppt/media/');
-  return { text: parts.join('\n\n'), slideCount: slideFiles.length, images };
+  return { text: parts.join('\n\n'), slideCount: slideFiles.length, sparseSlideCount, images };
 }
 
 export async function POST(request: Request) {
@@ -273,6 +322,7 @@ export async function POST(request: Request) {
         const result = await extractPptxText(buffer);
         text = result.text;
         totalPageCount = result.slideCount;
+        sparsePageCount = result.sparseSlideCount;
         embeddedImages = result.images;
       } else if (isDocx) {
         const result = await extractDocxText(buffer);
