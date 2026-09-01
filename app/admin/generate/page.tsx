@@ -127,7 +127,7 @@ export default function AdminGeneratePage() {
     const name = file.name.toLowerCase();
     const isOldPpt = file.type === 'application/vnd.ms-powerpoint' || (name.endsWith('.ppt') && !name.endsWith('.pptx'));
     const isOldDoc = file.type === 'application/msword' || (name.endsWith('.doc') && !name.endsWith('.docx'));
-    if (isOldPpt) { setError('Old .ppt format not supported. Save as .pptx in PowerPoint and try again.'); setPdfFile(null); return; }
+    if (isOldPpt) { setError('Old .ppt format isn’t supported — open it in PowerPoint and use Save As → .pptx, then upload that instead. Slides that are mostly images convert fine and will still be read correctly.'); setPdfFile(null); return; }
     if (isOldDoc) { setError('Old .doc format not supported. Save as .docx in Word and try again.'); setPdfFile(null); return; }
 
     setIsParsing(true);

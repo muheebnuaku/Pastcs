@@ -100,21 +100,89 @@ async function runVisionOcr(buffer: Buffer<ArrayBuffer>, filename: string, apiKe
   }
 }
 
+interface EmbeddedImage { buffer: Buffer; mime: string }
+
+const IMAGE_EXT_MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp',
+};
+const MIN_IMAGE_BYTES = 15_000;   // skip small icons/logos/bullets
+const MAX_IMAGE_BYTES = 8_000_000; // stay well under request-size limits
+const MAX_VISION_IMAGES = 12;      // cap cost/request size on huge decks
+
+// Pulls real photo/screenshot-sized images out of a PPTX/DOCX's media
+// folder (both are ZIPs; embedded images sit under ppt/media/ or
+// word/media/ as plain files). Used when a slide's "text" is actually a
+// flattened picture — a common source of a slide that a lecturer
+// exported as an image, or a scanned page pasted in — which normal XML
+// text extraction has nothing to find, since there IS no text there.
+async function collectMediaImages(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  zip: any,
+  mediaPrefix: string
+): Promise<EmbeddedImage[]> {
+  const entries = Object.keys(zip.files).filter((name: string) => name.startsWith(mediaPrefix));
+  const images: (EmbeddedImage & { size: number })[] = [];
+
+  for (const name of entries) {
+    const ext = name.split('.').pop()?.toLowerCase() ?? '';
+    const mime = IMAGE_EXT_MIME[ext];
+    if (!mime) continue;
+    const buffer = await zip.files[name].async('nodebuffer') as Buffer;
+    if (buffer.length < MIN_IMAGE_BYTES || buffer.length > MAX_IMAGE_BYTES) continue;
+    images.push({ buffer, mime, size: buffer.length });
+  }
+
+  // Largest first — a full-slide picture is almost always bigger than
+  // whatever small decorative images happen to also be embedded.
+  return images.sort((a, b) => b.size - a.size).slice(0, MAX_VISION_IMAGES);
+}
+
+// Sends embedded images straight to GPT-4o vision as inline data URIs —
+// the standard way to feed it images (unlike the PDF path above, which
+// needs the Files API since it's uploading a whole document, not
+// individual pictures). No file upload/cleanup dance needed.
+async function runImageVisionOcr(images: EmbeddedImage[], apiKey: string): Promise<VisionOcrResult> {
+  const openai = new OpenAI({ apiKey });
+  const completion = await withOpenAIRetry(() => openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        ...images.map(img => ({
+          type: 'image_url' as const,
+          image_url: { url: `data:${img.mime};base64,${img.buffer.toString('base64')}` },
+        })),
+        {
+          type: 'text' as const,
+          text: `These are slide images from a lecture deck (each slide's content was flattened into a picture, so there is no separate extractable text). Read every image and transcribe ALL visible text, labels, and data — and describe what any diagram, chart, or figure shows if it has no text of its own. Keep the slides in the order given. Then identify the specific topic actually being taught, based on the content, not a repeated header. Return only JSON: {"text": "everything read from the images, slide by slide", "topic": "short topic name"}`,
+        },
+      ],
+    }],
+    response_format: { type: 'json_object' },
+    max_tokens: 4096,
+  }));
+  logAiUsage('parse_pptx_vision_ocr', 'gpt-4o', completion.usage).catch(() => {});
+  const r = JSON.parse(completion.choices[0].message.content || '{}');
+  return { text: r.text || '', topic: r.topic || '' };
+}
+
 // ── DOCX text extraction ────────────────────────────────────────────────────
-async function extractDocxText(buffer: Buffer): Promise<string> {
+async function extractDocxText(buffer: Buffer): Promise<{ text: string; images: EmbeddedImage[] }> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const JSZip = require('jszip') as typeof import('jszip');
   const zip = await JSZip.loadAsync(buffer);
   const docXml = await zip.files['word/document.xml']?.async('text');
-  if (!docXml) return '';
-  const texts = docXml.match(/<w:t[^>]*>[^<]*<\/w:t>/g) ?? [];
-  return texts.map(t => t.replace(/<[^>]+>/g, '')).join(' ').replace(/\s+/g, ' ').trim();
+  const texts = docXml ? (docXml.match(/<w:t[^>]*>[^<]*<\/w:t>/g) ?? []) : [];
+  const text = texts.map(t => t.replace(/<[^>]+>/g, '')).join(' ').replace(/\s+/g, ' ').trim();
+  const images = await collectMediaImages(zip, 'word/media/');
+  return { text, images };
 }
 
 // ── PPTX text extraction ────────────────────────────────────────────────────
 // PPTX is a ZIP file; slides live at ppt/slides/slideN.xml.
 // Text content is wrapped in <a:t> tags. We parse this without any DOM APIs.
-async function extractPptxText(buffer: Buffer): Promise<string> {
+async function extractPptxText(buffer: Buffer): Promise<{ text: string; slideCount: number; images: EmbeddedImage[] }> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const JSZip = require('jszip') as typeof import('jszip');
   const zip = await JSZip.loadAsync(buffer);
@@ -133,7 +201,8 @@ async function extractPptxText(buffer: Buffer): Promise<string> {
     const slideText = texts.map(t => t.replace(/<[^>]+>/g, '')).join(' ').trim();
     if (slideText) parts.push(slideText);
   }
-  return parts.join('\n\n');
+  const images = await collectMediaImages(zip, 'ppt/media/');
+  return { text: parts.join('\n\n'), slideCount: slideFiles.length, images };
 }
 
 export async function POST(request: Request) {
@@ -172,7 +241,7 @@ export async function POST(request: Request) {
 
     // Reject old binary formats with a helpful message
     if (file.type === OLD_PPT_MIME) {
-      return Response.json({ error: 'Old .ppt format is not supported. Please save as .pptx in PowerPoint and try again.' }, { status: 415 });
+      return Response.json({ error: 'Old .ppt format isn’t supported — open it in PowerPoint and use Save As → .pptx, then upload that instead. Slides that are mostly images convert fine and will still be read correctly.' }, { status: 415 });
     }
     if (file.type === OLD_DOC_MIME) {
       return Response.json({ error: 'Old .doc format is not supported. Please save as .docx in Word and try again.' }, { status: 415 });
@@ -194,11 +263,21 @@ export async function POST(request: Request) {
     let text = '';
     let sparsePageCount = 0;
     let totalPageCount = 0;
+    let embeddedImages: EmbeddedImage[] = [];
     try {
       if (isPptx) {
-        text = await extractPptxText(buffer);
+        // A slide whose "content" is a lecturer's exported picture (or a
+        // scanned page pasted in) has no <a:t> text to find at all — that's
+        // not a parsing failure, there just is none. embeddedImages carries
+        // the actual pictures so vision can read them below.
+        const result = await extractPptxText(buffer);
+        text = result.text;
+        totalPageCount = result.slideCount;
+        embeddedImages = result.images;
       } else if (isDocx) {
-        text = await extractDocxText(buffer);
+        const result = await extractDocxText(buffer);
+        text = result.text;
+        embeddedImages = result.images;
       } else {
         // Per-page (not merged) so a graphics-heavy slide buried in an
         // otherwise text-rich deck can still be detected below — a
@@ -236,6 +315,36 @@ export async function POST(request: Request) {
         const r = JSON.parse(completion.choices[0].message.content || '{}');
         detectedTopic = r.topic || '';
       } catch { /* keep empty */ }
+
+    } else if ((isPptx || isDocx) && apiKey) {
+      // ── PPTX/DOCX whose slides/pages are actually pictures: read the
+      // embedded images directly with vision instead of the PDF path's
+      // whole-document upload (there's no single-file "vision of a PPTX"
+      // endpoint — the images are what's real here).
+      if (embeddedImages.length === 0) {
+        // Nothing to recover from — no text AND no images found at all.
+        if (text.length < MIN_TEXT_LENGTH) {
+          return Response.json(
+            { error: 'This file has almost no extractable text and no embedded images to read visually. If the slides are pictures pasted from elsewhere, try exporting/printing to PDF instead — that format keeps a photo of each slide vision can read directly.' },
+            { status: 422 }
+          );
+        }
+      } else {
+        try {
+          const vision = await runImageVisionOcr(embeddedImages, apiKey);
+          text = text.length >= MIN_TEXT_LENGTH
+            ? `${text}\n\n[...additional content read from slide images via AI vision...]\n\n${vision.text}`
+            : vision.text;
+          detectedTopic = vision.topic;
+        } catch (err) {
+          if (text.length < MIN_TEXT_LENGTH) {
+            return Response.json(
+              { error: err instanceof Error ? err.message : 'Failed to read the slide images visually' },
+              { status: 500 }
+            );
+          }
+        }
+      }
 
     } else if (!isPptx && !isDocx && apiKey) {
       // ── PDF with too little text overall, OR some graphics-heavy pages
