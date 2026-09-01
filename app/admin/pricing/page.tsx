@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, Button } from '@/components/ui';
+import { invalidatePricingCache } from '@/lib/hooks/usePricing';
 import { DollarSign, Save, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 
 const LEVELS = [100, 200, 300, 400] as const;
@@ -66,6 +67,7 @@ export default function AdminPricingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');
 
+      invalidatePricingCache();
       setSuccess('Prices updated successfully!');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save prices');
