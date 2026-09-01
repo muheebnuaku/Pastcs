@@ -2,6 +2,24 @@ import OpenAI from 'openai';
 import { extractText } from 'unpdf';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
+import { sampleContent } from '@/lib/utils';
+
+// Shared by both topic-detection call sites below. A prompt that only
+// reads the opening of the document tends to grab whatever running
+// header, course code, or chapter title repeats at the top of every
+// slide — so two uploads with genuinely different content but the same
+// header end up tagged with the identical topic. Sampling the start,
+// middle, and end (not just the start) surfaces the content that
+// actually varies, and the instruction spells out to prefer that over
+// boilerplate that repeats unchanged.
+function topicDetectionPrompt(text: string): string {
+  return `Identify the specific topic actually being taught in this lecture content — not a repeated running header, footer, course code, or chapter title that appears unchanged across every slide. Base it on the concepts, definitions, and examples that are actually present. If a heading and the real content disagree (e.g. the heading is a generic chapter name but the slides cover one particular concept within it), go with the content. Respond with only a JSON object.
+
+Content:
+${sampleContent(text, 6000)}
+
+Respond: {"topic": "short topic name here"}`;
+}
 
 export const maxDuration = 60;
 
@@ -55,7 +73,7 @@ async function runVisionOcr(buffer: Buffer<ArrayBuffer>, filename: string, apiKe
             { type: 'file', file: { file_id: uploaded.id } },
             {
               type: 'text',
-              text: 'Extract ALL readable text and content from this PDF slide deck, including text, labels, and data visible inside images, diagrams, charts, or screenshots — describe what a diagram or chart shows if it has no text of its own. Then identify the main academic topic or chapter title. Return only JSON: {"text": "all extracted text and diagram descriptions here", "topic": "short topic name"}',
+              text: 'Extract ALL readable text and content from this PDF slide deck, including text, labels, and data visible inside images, diagrams, charts, or screenshots — describe what a diagram or chart shows if it has no text of its own. Then identify the specific topic actually being taught — based on the concepts and content present, not a running header, footer, course code, or chapter title that just repeats unchanged across every slide. Return only JSON: {"text": "all extracted text and diagram descriptions here", "topic": "short topic name"}',
             },
           ],
         }],
@@ -133,7 +151,7 @@ export async function POST(request: Request) {
       try {
         const r = await withOpenAIRetry(() => openai.chat.completions.create({
           model: 'gpt-4o',
-          messages: [{ role: 'user', content: `Identify the main academic topic or chapter title from this lecture content. Respond only with JSON.\n\nContent:\n${text.slice(0, 3000)}\n\nRespond: {"topic": "short topic name here"}` }],
+          messages: [{ role: 'user', content: topicDetectionPrompt(text) }],
           response_format: { type: 'json_object' },
           max_tokens: 80,
           temperature: 0.2,
@@ -208,10 +226,7 @@ export async function POST(request: Request) {
       // ── Text-rich file, no graphics-heavy pages: detect topic only ─────────
       const completion = await withOpenAIRetry(() => openai.chat.completions.create({
         model: 'gpt-4o',
-        messages: [{
-          role: 'user',
-          content: `Identify the main academic topic or chapter title from this lecture slide content. Respond with only a JSON object.\n\nContent:\n${text.slice(0, 3000)}\n\nRespond: {"topic": "short topic name here"}`,
-        }],
+        messages: [{ role: 'user', content: topicDetectionPrompt(text) }],
         response_format: { type: 'json_object' },
         max_tokens: 80,
         temperature: 0.2,
