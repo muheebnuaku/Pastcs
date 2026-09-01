@@ -13,6 +13,75 @@ const MIN_TEXT_LENGTH = 150;
 
 const ACCEPTED_TYPES = ['application/pdf', PPTX_MIME, DOCX_MIME];
 
+// A page with fewer characters than this is almost certainly a
+// diagram, screenshot, or photo rather than a text slide — pure text
+// extraction returns next to nothing for it even though it may carry
+// real content a student needs questions generated from.
+const SPARSE_PAGE_CHARS = 40;
+
+interface VisionOcrResult { text: string; topic: string }
+
+// Uploads the raw PDF to OpenAI's Files API and asks a vision-capable
+// model to read it directly (including text baked into images/diagrams),
+// then deletes the upload. Shared by both the "almost no text at all"
+// case and the "some pages are graphics-heavy" case below.
+async function runVisionOcr(buffer: Buffer<ArrayBuffer>, filename: string, apiKey: string): Promise<VisionOcrResult> {
+  const uploadForm = new FormData();
+  uploadForm.append('file', new Blob([buffer], { type: 'application/pdf' }), filename || 'slide.pdf');
+  uploadForm.append('purpose', 'user_data');
+
+  const uploadRes = await fetch('https://api.openai.com/v1/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: uploadForm,
+  });
+  const uploaded = await uploadRes.json() as { id?: string; error?: { message: string } };
+  if (!uploaded.id) {
+    throw new Error(uploaded.error?.message || 'Failed to upload PDF for scanning');
+  }
+
+  try {
+    const completionRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'file', file: { file_id: uploaded.id } },
+            {
+              type: 'text',
+              text: 'Extract ALL readable text and content from this PDF slide deck, including text, labels, and data visible inside images, diagrams, charts, or screenshots — describe what a diagram or chart shows if it has no text of its own. Then identify the main academic topic or chapter title. Return only JSON: {"text": "all extracted text and diagram descriptions here", "topic": "short topic name"}',
+            },
+          ],
+        }],
+        response_format: { type: 'json_object' },
+        max_tokens: 4096,
+      }),
+    });
+
+    const data = await completionRes.json() as {
+      choices?: Array<{ message: { content: string } }>;
+      usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+      error?: { message: string };
+    };
+
+    if (data.error) throw new Error(data.error.message);
+    logAiUsage('parse_pdf_vision_ocr', 'gpt-4o', data.usage).catch(() => {});
+    const r = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+    return { text: r.text || '', topic: r.topic || '' };
+  } finally {
+    await fetch(`https://api.openai.com/v1/files/${uploaded.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }).catch(() => {});
+  }
+}
+
 // ── DOCX text extraction ────────────────────────────────────────────────────
 async function extractDocxText(buffer: Buffer): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -101,17 +170,25 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const isPptx = file.type === PPTX_MIME;
     const isDocx = file.type === DOCX_MIME;
+    const apiKey = process.env.OPENAI_API_KEY;
 
     // ── Stage 1: text extraction ────────────────────────────────────────────
     let text = '';
+    let sparsePageCount = 0;
+    let totalPageCount = 0;
     try {
       if (isPptx) {
         text = await extractPptxText(buffer);
       } else if (isDocx) {
         text = await extractDocxText(buffer);
       } else {
-        const { text: extracted } = await extractText(new Uint8Array(buffer), { mergePages: true });
-        text = (extracted as string)?.trim() ?? '';
+        // Per-page (not merged) so a graphics-heavy slide buried in an
+        // otherwise text-rich deck can still be detected below — a
+        // whole-document length check alone would never notice it.
+        const { text: pages, totalPages } = await extractText(new Uint8Array(buffer), { mergePages: false });
+        totalPageCount = totalPages;
+        sparsePageCount = pages.filter(p => p.trim().length < SPARSE_PAGE_CHARS).length;
+        text = pages.join('\n\n').trim();
       }
     } catch {
       // fall through to OpenAI vision fallback (PDF only — PPTX/DOCX must have text)
@@ -119,11 +196,16 @@ export async function POST(request: Request) {
       if (isDocx) return Response.json({ error: 'Could not read this DOCX file' }, { status: 422 });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey });
     let detectedTopic = '';
 
-    if (text.length >= MIN_TEXT_LENGTH) {
-      // ── Text-rich file: detect topic only ──────────────────────────────────
+    // At least one sparse page, and either they're a meaningful share of
+    // the deck or it's a small deck where even one matters.
+    const hasGraphicsHeavyPages = sparsePageCount > 0
+      && (sparsePageCount / Math.max(totalPageCount, 1) >= 0.1 || totalPageCount <= 3);
+
+    if (text.length >= MIN_TEXT_LENGTH && !hasGraphicsHeavyPages) {
+      // ── Text-rich file, no graphics-heavy pages: detect topic only ─────────
       const completion = await withOpenAIRetry(() => openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [{
@@ -140,66 +222,27 @@ export async function POST(request: Request) {
         detectedTopic = r.topic || '';
       } catch { /* keep empty */ }
 
-    } else if (!isPptx && !isDocx) {
-      // ── Image-based PDF: upload to OpenAI Files API for vision OCR ─────────
-      const uploadForm = new FormData();
-      uploadForm.append('file', new Blob([buffer], { type: 'application/pdf' }), file.name || 'slide.pdf');
-      uploadForm.append('purpose', 'user_data');
-
-      const uploadRes = await fetch('https://api.openai.com/v1/files', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: uploadForm,
-      });
-      const uploaded = await uploadRes.json() as { id?: string; error?: { message: string } };
-
-      if (!uploaded.id) {
-        return Response.json(
-          { error: uploaded.error?.message || 'Failed to upload PDF for scanning' },
-          { status: 500 }
-        );
-      }
-
+    } else if (!isPptx && !isDocx && apiKey) {
+      // ── PDF with too little text overall, OR some graphics-heavy pages
+      // mixed into an otherwise text-rich deck: run vision OCR and either
+      // use it outright (nothing else to go on) or merge it in alongside
+      // what plain extraction already found (don't throw that away).
       try {
-        const completionRes = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'file', file: { file_id: uploaded.id } },
-                {
-                  type: 'text',
-                  text: 'Extract ALL readable text from this PDF slide, including text visible inside images or screenshots. Then identify the main academic topic or chapter title. Return only JSON: {"text": "all extracted text here", "topic": "short topic name"}',
-                },
-              ],
-            }],
-            response_format: { type: 'json_object' },
-            max_tokens: 4096,
-          }),
-        });
-
-        const data = await completionRes.json() as {
-          choices?: Array<{ message: { content: string } }>;
-          usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-          error?: { message: string };
-        };
-
-        if (data.error) throw new Error(data.error.message);
-        logAiUsage('parse_pdf_vision_ocr', 'gpt-4o', data.usage).catch(() => {});
-        const r = JSON.parse(data.choices?.[0]?.message?.content || '{}');
-        text = r.text || '';
-        detectedTopic = r.topic || '';
-      } finally {
-        await fetch(`https://api.openai.com/v1/files/${uploaded.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        }).catch(() => {});
+        const vision = await runVisionOcr(buffer, file.name, apiKey);
+        if (text.length >= MIN_TEXT_LENGTH) {
+          text = `${text}\n\n[...additional content from graphics/diagrams, read via AI vision...]\n\n${vision.text}`;
+        } else {
+          text = vision.text;
+        }
+        detectedTopic = vision.topic;
+      } catch (err) {
+        // Only fatal if plain extraction had nothing at all to fall back on.
+        if (text.length < MIN_TEXT_LENGTH) {
+          return Response.json(
+            { error: err instanceof Error ? err.message : 'Failed to scan graphics on this PDF' },
+            { status: 500 }
+          );
+        }
       }
     }
 

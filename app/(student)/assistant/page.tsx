@@ -11,7 +11,7 @@ import { TutorPricingModal } from './components/TutorPricingModal';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
-  User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle,
+  User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle, PauseCircle,
   ChevronLeft, ChevronRight, X, Lock,
 } from 'lucide-react';
 
@@ -213,7 +213,7 @@ export default function AssistantPage() {
   const uploadRemaining = Math.max(0, uploadLimit - uploadCount);
   const limitReached = uploadChecked && uploadCount >= uploadLimit;
 
-  const { speak, stop, isSpeaking, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
+  const { speak, stop, pause, resume, isSpeaking, isPaused, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -715,9 +715,17 @@ export default function AssistantPage() {
 
             {docStage === 'ready' && voiceSupported && (
               teaching ? (
-                <button onClick={stopTeaching} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors">
-                  <StopCircle className="w-3.5 h-3.5" />Stop
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => (isPaused ? resume() : pause())}
+                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors"
+                  >
+                    {isPaused ? <><Play className="w-3.5 h-3.5" />Resume</> : <><PauseCircle className="w-3.5 h-3.5" />Pause</>}
+                  </button>
+                  <button onClick={stopTeaching} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors">
+                    <StopCircle className="w-3.5 h-3.5" />Stop
+                  </button>
+                </div>
               ) : (
                 <button onClick={startTeaching} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors">
                   <Play className="w-3.5 h-3.5" />Teach Me
@@ -765,11 +773,16 @@ export default function AssistantPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-lg">{sectionIcon(lessonSections[teachIdx].title)}</span>
                   <h3 className="font-semibold text-gray-900">{lessonSections[teachIdx].title}</h3>
-                  {teaching && isSpeaking && (
+                  {teaching && isSpeaking && !isPaused && (
                     <span className="ml-auto flex gap-1">
                       {[0, 1, 2].map(i => (
                         <span key={i} className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
+                    </span>
+                  )}
+                  {teaching && isPaused && (
+                    <span className="ml-auto text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      Paused
                     </span>
                   )}
                 </div>
