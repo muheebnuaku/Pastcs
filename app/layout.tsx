@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-import { AuthProvider, ServiceWorkerRegister } from "@/components/providers";
+import { AuthProvider, ServiceWorkerRegister, ThemeProvider } from "@/components/providers";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -67,9 +67,11 @@ export default function RootLayout({
       <body className={`${inter.variable} ${plusJakarta.variable} font-sans antialiased bg-gray-50`}>
         <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
         <ServiceWorkerRegister />
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

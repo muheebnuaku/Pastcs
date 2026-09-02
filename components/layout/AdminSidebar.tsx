@@ -17,7 +17,6 @@ import {
   Sparkles,
   LogOut,
   Menu,
-  X,
   Shield,
   GraduationCap,
   DollarSign,
@@ -74,13 +73,17 @@ export function AdminSidebar() {
   return (
     <>
       {/* Mobile menu button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
-        aria-label="Toggle menu"
-      >
-        {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
+      {/* Hidden once open — it sits right over the drawer's own logo, and
+          clicking the overlay already closes it. */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      )}
 
       {/* Mobile overlay */}
       {isOpen && (
@@ -93,18 +96,18 @@ export function AdminSidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 h-full w-64 bg-gray-950 z-40 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col',
+          'font-jakarta fixed left-0 top-0 h-full w-64 bg-gray-950 z-40 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-800/60">
           <Link href="/admin" className="flex items-center gap-3" onClick={() => setIsOpen(false)}>
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 bg-[#e8603c] rounded-xl flex items-center justify-center flex-shrink-0">
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-white text-sm leading-tight">PastCS Admin</h1>
+              <h1 className="font-extrabold text-white text-sm leading-tight">PastCS Admin</h1>
               <p className="text-[11px] text-gray-500 mt-0.5">Management Panel</p>
             </div>
           </Link>
@@ -121,7 +124,7 @@ export function AdminSidebar() {
               )}
               <div className="space-y-0.5">
                 {section.items.map((item) => {
-                  const active = isActive(item.href, (item as any).exact);
+                  const active = isActive(item.href, 'exact' in item && item.exact);
                   return (
                     <Link
                       key={item.href}
@@ -130,19 +133,19 @@ export function AdminSidebar() {
                       className={cn(
                         'group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150',
                         active
-                          ? 'bg-blue-600/15 text-blue-400'
+                          ? 'bg-[#e8603c]/15 text-[#e8603c]'
                           : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
                       )}
                     >
                       <div className={cn(
                         'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors',
-                        active ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 group-hover:text-gray-300'
+                        active ? 'bg-[#e8603c] text-white' : 'bg-gray-800 text-gray-400 group-hover:text-gray-300'
                       )}>
                         <item.icon className="w-4 h-4" />
                       </div>
                       <span className="font-medium text-sm">{item.label}</span>
                       {active && (
-                        <ChevronRight className="w-3.5 h-3.5 ml-auto text-blue-400 opacity-60" />
+                        <ChevronRight className="w-3.5 h-3.5 ml-auto text-[#e8603c] opacity-60" />
                       )}
                     </Link>
                   );
@@ -170,7 +173,7 @@ export function AdminSidebar() {
           <Link
             href="/dashboard"
             onClick={() => setIsOpen(false)}
-            className="flex items-center gap-2.5 px-3 py-2 text-blue-400 hover:bg-blue-900/20 rounded-xl transition-colors w-full"
+            className="flex items-center gap-2.5 px-3 py-2 text-[#e8603c] hover:bg-[#e8603c]/10 rounded-xl transition-colors w-full"
           >
             <GraduationCap className="w-4 h-4 flex-shrink-0" />
             <span className="text-sm font-medium">Student View</span>

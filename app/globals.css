@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
+/* next-themes toggles a `dark` class on <html> (attribute="class") — this
+   tells Tailwind v4 to honor `dark:` variants off that class (and its
+   descendants) instead of only prefers-color-scheme, so the toggle in
+   /profile actually controls the class regardless of OS setting, while
+   ThemeProvider's defaultTheme="system" still follows the OS until a
+   viewer explicitly picks light/dark. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f9fafb;
   --foreground: #111827;
+}
+
+.dark {
+  --background: #16140f;
+  --foreground: #f2ede4;
 }
 
 @theme inline {
