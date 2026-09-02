@@ -1,11 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-
-const PLAN_CREDITS: Record<string, number> = {
-  starter: 30,
-  pack_50: 50,
-  pack_100: 100,
-};
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
@@ -14,8 +8,25 @@ export async function POST(request: Request) {
     if (!authUser) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { reference, plan } = await request.json() as { reference: string; plan: string };
-    if (!reference || !plan || !PLAN_CREDITS[plan]) {
+    if (!reference || !plan) {
       return Response.json({ error: 'reference and plan are required' }, { status: 400 });
+    }
+
+    const admin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Credits (and the price the client was shown) come from the same
+    // admin-editable table TutorPricingModal reads — never trust the
+    // client's own idea of how many credits a plan is worth.
+    const { data: planRow } = await admin
+      .from('tutor_credit_plans')
+      .select('id, credits, amount')
+      .eq('id', plan)
+      .single();
+    if (!planRow) {
+      return Response.json({ error: 'Unknown plan' }, { status: 400 });
     }
 
     // Verify with Paystack
@@ -28,11 +39,12 @@ export async function POST(request: Request) {
     if (!paystackData.status || paystackData.data?.status !== 'success') {
       return Response.json({ error: 'Payment not successful' }, { status: 400 });
     }
-
-    const admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // The amount actually paid must match what this plan currently costs —
+    // stops a stale/tampered client-side price from buying a pack for less
+    // than admin's current price.
+    if (paystackData.data!.amount < planRow.amount) {
+      return Response.json({ error: 'Amount paid does not match the plan price' }, { status: 400 });
+    }
 
     // Idempotency check
     const { data: existing } = await admin
@@ -46,13 +58,13 @@ export async function POST(request: Request) {
       user_id: authUser.id,
       plan,
       amount_paid: paystackData.data!.amount,
-      total_credits: PLAN_CREDITS[plan],
+      total_credits: planRow.credits,
       payment_reference: reference,
     });
 
     if (error) return Response.json({ error: 'Failed to save credits' }, { status: 500 });
 
-    return Response.json({ success: true, credits: PLAN_CREDITS[plan] });
+    return Response.json({ success: true, credits: planRow.credits });
   } catch {
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

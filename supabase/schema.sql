@@ -211,6 +211,27 @@ ON CONFLICT (level) DO NOTHING;
 ALTER TABLE public.subscription_prices ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- TUTOR CREDIT PLANS TABLE
+-- (AI Tutor top-up packs — admin-editable from /admin/pricing,
+-- same idea as subscription_prices but keyed by plan id)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.tutor_credit_plans (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  credits    INTEGER NOT NULL,
+  amount     INTEGER NOT NULL, -- in pesewas (÷ 100 = GHC)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO public.tutor_credit_plans (id, name, credits, amount) VALUES
+  ('starter',  'Starter',  30,  3000),
+  ('pack_50',  'Standard', 50,  5000),
+  ('pack_100', 'Pro',      100, 10000)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.tutor_credit_plans ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- NOTIFICATIONS TABLE
 -- (read/written by lib/hooks/useNotifications.ts — streak-risk,
 -- inactivity, and milestone nudges)
@@ -339,6 +360,7 @@ BEGIN
              AND tablename IN ('users','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
                                'lecture_slides','subscriptions','subscription_prices',
+                               'tutor_credit_plans',
                                'notifications','feature_events','referrals',
                                'chat_messages','ai_usage_log')
   LOOP
@@ -398,6 +420,10 @@ CREATE POLICY "subscriptions_select_own" ON public.subscriptions FOR SELECT USIN
 -- Subscription prices (readable by all authenticated users, editable by admin only)
 CREATE POLICY "prices_select" ON public.subscription_prices FOR SELECT TO authenticated USING (true);
 CREATE POLICY "prices_admin"  ON public.subscription_prices FOR ALL USING (is_admin());
+
+-- Tutor credit plans (same shape as subscription prices, above)
+CREATE POLICY "tutor_plans_select" ON public.tutor_credit_plans FOR SELECT TO authenticated USING (true);
+CREATE POLICY "tutor_plans_admin"  ON public.tutor_credit_plans FOR ALL USING (is_admin());
 
 -- Notifications (a user reads/dismisses their own; the client that
 -- creates them inserts as that same authenticated user)
