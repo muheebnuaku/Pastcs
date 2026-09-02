@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
 import { Loader2, X, Zap, Star, Rocket, CheckCircle } from 'lucide-react';
+import type { TutorCreditPlan } from '@/app/api/tutor-pricing/route';
 
 interface Props {
   usedCredits: number;
@@ -12,50 +13,28 @@ interface Props {
   onSuccess: (newCredits: number) => void;
 }
 
-const PLANS = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    icon: <Zap className="w-5 h-5" />,
-    price: 30,
-    pesewas: 3000,
-    credits: 30,
-    badge: null,
-    color: 'border-gray-200',
-    btnColor: 'bg-gray-900 hover:bg-gray-800',
-    perks: ['30 document lessons', 'AI voice reading', 'Word-level highlights'],
-  },
-  {
-    id: 'pack_50',
-    name: 'Standard',
-    icon: <Star className="w-5 h-5" />,
-    price: 50,
-    pesewas: 5000,
-    credits: 50,
-    badge: 'Popular',
-    color: 'border-blue-500 ring-2 ring-blue-200',
-    btnColor: 'bg-blue-600 hover:bg-blue-700',
-    perks: ['50 document lessons', 'AI voice reading', 'Word-level highlights'],
-  },
-  {
-    id: 'pack_100',
-    name: 'Pro',
-    icon: <Rocket className="w-5 h-5" />,
-    price: 100,
-    pesewas: 10000,
-    credits: 100,
-    badge: 'Best value',
-    color: 'border-purple-400 ring-2 ring-purple-100',
-    btnColor: 'bg-purple-600 hover:bg-purple-700',
-    perks: ['100 document lessons', 'AI voice reading', 'Word-level highlights'],
-  },
-] as const;
+// Presentational-only — icon/color/badge/copy per plan id. The numbers
+// that actually matter (name, credits, price) are admin-editable in
+// /admin/pricing and fetched below, never hardcoded here.
+const PLAN_META: Record<string, { icon: React.ReactNode; badge: string | null; color: string; btnColor: string }> = {
+  starter:  { icon: <Zap className="w-5 h-5" />,    badge: null,          color: 'border-gray-200',                        btnColor: 'bg-gray-900 hover:bg-gray-800' },
+  pack_50:  { icon: <Star className="w-5 h-5" />,   badge: 'Popular',     color: 'border-blue-500 ring-2 ring-blue-200',   btnColor: 'bg-blue-600 hover:bg-blue-700' },
+  pack_100: { icon: <Rocket className="w-5 h-5" />, badge: 'Best value',  color: 'border-purple-400 ring-2 ring-purple-100', btnColor: 'bg-purple-600 hover:bg-purple-700' },
+};
+const PLAN_ORDER = ['starter', 'pack_50', 'pack_100'];
 
-type PlanId = typeof PLANS[number]['id'];
+// Shown for an instant before the real prices load — same numbers this
+// modal always shipped with, just no longer the source of truth.
+const FALLBACK_PLANS: TutorCreditPlan[] = [
+  { id: 'starter', name: 'Starter', credits: 30, amount: 3000 },
+  { id: 'pack_50', name: 'Standard', credits: 50, amount: 5000 },
+  { id: 'pack_100', name: 'Pro', credits: 100, amount: 10000 },
+];
 
 export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSuccess }: Props) {
   const { user } = useAuth();
-  const [payingPlan, setPayingPlan] = useState<PlanId | null>(null);
+  const [plans, setPlans] = useState<TutorCreditPlan[]>(FALLBACK_PLANS);
+  const [payingPlan, setPayingPlan] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
   const [paystackReady, setPaystackReady] = useState(false);
@@ -66,6 +45,17 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
   // containing block for fixed descendants instead of the viewport).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    fetch('/api/tutor-pricing')
+      .then(r => r.json())
+      .then((data: { plans?: TutorCreditPlan[] }) => {
+        if (data.plans?.length) {
+          setPlans([...data.plans].sort((a, b) => PLAN_ORDER.indexOf(a.id) - PLAN_ORDER.indexOf(b.id)));
+        }
+      })
+      .catch(() => {}); // keep the fallback numbers
+  }, []);
 
   const isTopUp = purchasedCredits > 0;
   const remaining = Math.max(0, purchasedCredits - usedCredits);
@@ -84,7 +74,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
     document.head.appendChild(script);
   }, []);
 
-  const handleVerify = (reference: string, plan: typeof PLANS[number]) => {
+  const handleVerify = (reference: string, plan: TutorCreditPlan) => {
     setIsVerifying(true);
     fetch('/api/payments/tutor-credits', {
       method: 'POST',
@@ -106,7 +96,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
       });
   };
 
-  const handlePay = (plan: typeof PLANS[number]) => {
+  const handlePay = (plan: TutorCreditPlan) => {
     if (!user || !paystackReady) return;
     setError('');
     setPayingPlan(plan.id);
@@ -116,7 +106,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: user.email,
-        amount: plan.pesewas,
+        amount: plan.amount,
         currency: 'GHS',
         ref,
         metadata: { userId: user.id, plan: plan.id, product: 'ai_tutor' },
@@ -157,57 +147,61 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
 
         {/* Plans */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 pb-4">
-          {PLANS.map(plan => (
-            <div key={plan.id} className={`relative rounded-2xl border-2 p-4 flex flex-col ${plan.color}`}>
-              {plan.badge && (
-                <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                  plan.id === 'pack_50' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white'
-                }`}>
-                  {plan.badge}
-                </span>
-              )}
-
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-                plan.id === 'starter' ? 'bg-gray-100 text-gray-600'
-                : plan.id === 'pack_50' ? 'bg-blue-100 text-blue-600'
-                : 'bg-purple-100 text-purple-600'
-              }`}>
-                {plan.icon}
-              </div>
-
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{plan.name}</p>
-              <div className="flex items-baseline gap-0.5 mt-1 mb-3">
-                <span className="text-2xl font-bold text-gray-900">GHC {plan.price}</span>
-              </div>
-
-              <p className="text-sm font-bold text-gray-800 mb-3">{plan.credits} uploads</p>
-
-              <ul className="space-y-1.5 mb-4 flex-1">
-                {plan.perks.map(perk => (
-                  <li key={perk} className="flex items-center gap-1.5 text-[11px] text-gray-600">
-                    <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />
-                    {perk}
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                onClick={() => handlePay(plan)}
-                disabled={isVerifying || payingPlan !== null || !paystackReady}
-                className={`w-full py-2 rounded-xl text-white text-xs font-semibold transition-colors disabled:opacity-50 ${plan.btnColor}`}
-              >
-                {payingPlan === plan.id ? (
-                  isVerifying
-                    ? <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Verifying…</span>
-                    : <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Opening…</span>
-                ) : !paystackReady ? (
-                  <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Loading…</span>
-                ) : (
-                  `Get ${plan.credits} uploads`
+          {plans.map(plan => {
+            const meta = PLAN_META[plan.id] ?? PLAN_META.starter;
+            const perks = [`${plan.credits} document lessons`, 'AI voice reading', 'Word-level highlights'];
+            return (
+              <div key={plan.id} className={`relative rounded-2xl border-2 p-4 flex flex-col ${meta.color}`}>
+                {meta.badge && (
+                  <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                    plan.id === 'pack_50' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white'
+                  }`}>
+                    {meta.badge}
+                  </span>
                 )}
-              </button>
-            </div>
-          ))}
+
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
+                  plan.id === 'starter' ? 'bg-gray-100 text-gray-600'
+                  : plan.id === 'pack_50' ? 'bg-blue-100 text-blue-600'
+                  : 'bg-purple-100 text-purple-600'
+                }`}>
+                  {meta.icon}
+                </div>
+
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{plan.name}</p>
+                <div className="flex items-baseline gap-0.5 mt-1 mb-3">
+                  <span className="text-2xl font-bold text-gray-900">GHC {plan.amount / 100}</span>
+                </div>
+
+                <p className="text-sm font-bold text-gray-800 mb-3">{plan.credits} uploads</p>
+
+                <ul className="space-y-1.5 mb-4 flex-1">
+                  {perks.map(perk => (
+                    <li key={perk} className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                      <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />
+                      {perk}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  onClick={() => handlePay(plan)}
+                  disabled={isVerifying || payingPlan !== null || !paystackReady}
+                  className={`w-full py-2 rounded-xl text-white text-xs font-semibold transition-colors disabled:opacity-50 ${meta.btnColor}`}
+                >
+                  {payingPlan === plan.id ? (
+                    isVerifying
+                      ? <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Verifying…</span>
+                      : <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Opening…</span>
+                  ) : !paystackReady ? (
+                    <span className="flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Loading…</span>
+                  ) : (
+                    `Get ${plan.credits} uploads`
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {error && <p className="text-xs text-red-500 text-center px-6 pb-2">{error}</p>}
