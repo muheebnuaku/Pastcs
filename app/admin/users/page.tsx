@@ -45,6 +45,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [freePassOnly, setFreePassOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -90,6 +91,7 @@ export default function AdminUsersPage() {
 
   const filteredUsers = users
     .filter(u => roleFilter === 'all' || u.role === roleFilter)
+    .filter(u => !freePassOnly || (subsMap[u.id] ?? []).some(isFreePass))
     .filter(u =>
       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -152,45 +154,76 @@ export default function AdminUsersPage() {
         <p className="text-gray-600">{stats.total} registered accounts — students and admins</p>
       </div>
 
-      {/* Stat summary */}
+      {/* Stat summary — each is a filter shortcut into the table below */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-            <UsersIcon className="w-5 h-5 text-gray-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900 leading-tight">{stats.total}</p>
-            <p className="text-xs text-gray-500">Total users</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <GraduationCap className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900 leading-tight">{stats.students}</p>
-            <p className="text-xs text-gray-500">Students</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
-            <Shield className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900 leading-tight">{stats.admins}</p>
-            <p className="text-xs text-gray-500">Admins</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
-            <Gift className="w-5 h-5 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900 leading-tight">{stats.freePasses}</p>
-            <p className="text-xs text-gray-500">Active free passes</p>
-          </div>
-        </Card>
+        <button
+          onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly ? 'ring-2 ring-gray-300' : ''}`}
+        >
+          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <UsersIcon className="w-5 h-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{stats.total}</p>
+              <p className="text-xs text-gray-500">Total users</p>
+            </div>
+          </Card>
+        </button>
+        <button
+          onClick={() => { setRoleFilter('student'); setFreePassOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'student' && !freePassOnly ? 'ring-2 ring-blue-300' : ''}`}
+        >
+          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <GraduationCap className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{stats.students}</p>
+              <p className="text-xs text-gray-500">Students</p>
+            </div>
+          </Card>
+        </button>
+        <button
+          onClick={() => { setRoleFilter('admin'); setFreePassOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'admin' && !freePassOnly ? 'ring-2 ring-purple-300' : ''}`}
+        >
+          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{stats.admins}</p>
+              <p className="text-xs text-gray-500">Admins</p>
+            </div>
+          </Card>
+        </button>
+        <button
+          onClick={() => { setFreePassOnly(v => !v); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${freePassOnly ? 'ring-2 ring-green-400' : ''}`}
+          title="Show only users with an active free pass"
+        >
+          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+              <Gift className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{stats.freePasses}</p>
+              <p className="text-xs text-gray-500">{freePassOnly ? 'Showing free passes' : 'Active free passes'}</p>
+            </div>
+          </Card>
+        </button>
       </div>
+
+      {freePassOnly && (
+        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
+          <Gift className="w-4 h-4 flex-shrink-0" />
+          Showing only users with an active free pass.
+          <button onClick={() => setFreePassOnly(false)} className="ml-auto text-green-800 font-medium hover:underline">
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
