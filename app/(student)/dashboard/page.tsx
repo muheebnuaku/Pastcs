@@ -7,7 +7,7 @@ import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
-import { COURSE_ICONS, getStreakMessage, formatPercentage } from '@/lib/utils';
+import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
 import type { Course, Test, WeakTopic, UserAchievement } from '@/types';
@@ -27,6 +27,18 @@ import {
   CalendarClock,
   Pencil,
 } from 'lucide-react';
+
+// Colors the Exam Countdown card's motivation banner by urgency — calm
+// blue far out, escalating to red right before the exam.
+const URGENCY_STYLES: Record<ExamUrgency, string> = {
+  unset:   'bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400',
+  calm:    'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  steady:  'bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  focused: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  urgent:  'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300',
+  today:   'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300',
+  passed:  'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400',
+};
 
 export default function DashboardPage() {
   const { user, refreshUser } = useAuth();
@@ -48,6 +60,7 @@ export default function DashboardPage() {
   const daysUntilExam = user?.exam_date
     ? Math.ceil((new Date(user.exam_date + 'T00:00:00').getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
     : null;
+  const examMotivation = getExamMotivation(daysUntilExam);
 
   const saveExamDate = async () => {
     if (!user?.id || !examDateInput) return;
@@ -102,7 +115,17 @@ export default function DashboardPage() {
       if (achievementsData) setAchievements(achievementsData);
 
       if (statsData) {
-        const typedStats = statsData as { course_id: string; percentage?: number }[];
+        // Scoped to the current level/semester's courses — otherwise a
+        // test taken before switching semester (or in a course outside
+        // the current one) skews "Avg. Score" and "Tests Taken" for
+        // courses the student isn't even practising anymore. Uses the
+        // just-fetched coursesData (already filtered), not the courses
+        // state var, since state hasn't updated within this same call.
+        const currentCourseIds = level && semester
+          ? new Set((coursesData ?? []).map((c: Course) => c.id))
+          : null; // no level/semester selected yet — show everything
+        const typedStats = (statsData as { course_id: string; percentage?: number }[])
+          .filter(t => !currentCourseIds || currentCourseIds.has(t.course_id));
         const uniqueCourses = new Set(typedStats.map(t => t.course_id));
         setStats({
           totalTests: typedStats.length,
@@ -370,6 +393,17 @@ export default function DashboardPage() {
                           : `day${daysUntilExam === 1 ? '' : 's'} to go`}
                     </p>
                   </div>
+
+                  {/* Motivation — escalates in tone as the exam gets closer */}
+                  <div className={`rounded-xl px-3 py-2.5 text-sm leading-relaxed ${URGENCY_STYLES[examMotivation.urgency]}`}>
+                    {examMotivation.text}
+                  </div>
+
+                  {/* Performance — what the countdown's urgency is measured against */}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {getPerformanceNote(stats.avgScore, stats.totalTests)}
+                  </p>
+
                   {weakTopics.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -377,10 +411,18 @@ export default function DashboardPage() {
                       </p>
                       <ul className="space-y-1.5">
                         {weakTopics.slice(0, 3).map(topic => (
-                          <li key={topic.topic_id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
-                            <span className="truncate">{topic.topic_name}</span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{topic.course_code}</span>
+                          <li key={topic.topic_id}>
+                            <Link
+                              href={`/practice/${topic.course_code.toLowerCase()}?topic=${topic.topic_id}`}
+                              className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 hover:text-violet-700 dark:hover:text-violet-300 group"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
+                              <span className="truncate flex-1 group-hover:underline">{topic.topic_name}</span>
+                              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-1.5 py-0.5 rounded-full flex-shrink-0 tabular-nums">
+                                {Math.round(topic.accuracy)}%
+                              </span>
+                              <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{topic.course_code}</span>
+                            </Link>
                           </li>
                         ))}
                       </ul>
@@ -403,15 +445,24 @@ export default function DashboardPage() {
               {weakTopics.length > 0 ? (
                 <div className="space-y-2">
                   {weakTopics.map((topic) => (
-                    <div key={topic.topic_id} className="p-3 bg-yellow-50 dark:bg-yellow-500/10 rounded-xl">
+                    <Link
+                      key={topic.topic_id}
+                      href={`/practice/${topic.course_code.toLowerCase()}?topic=${topic.topic_id}`}
+                      className="block p-3 bg-yellow-50 dark:bg-yellow-500/10 rounded-xl hover:bg-yellow-100 dark:hover:bg-yellow-500/15 transition-colors group"
+                    >
                       <div className="flex items-center justify-between mb-0.5">
-                        <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate pr-2">{topic.topic_name}</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate pr-2 group-hover:underline">{topic.topic_name}</p>
                         <Badge variant="warning" size="sm">
                           {formatPercentage(topic.accuracy)}
                         </Badge>
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{topic.course_code}</p>
-                    </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{topic.course_code}</p>
+                        <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Practice this →
+                        </span>
+                      </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
