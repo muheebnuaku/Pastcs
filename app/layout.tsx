@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider, ServiceWorkerRegister } from "@/components/providers";
@@ -9,8 +9,15 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+// Used for the marketing site's headlines (landing page, nav, footer) —
+// everywhere else in the app keeps the sans body font.
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
+  subsets: ["latin"],
+});
+
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: "#1f4a3a",
 };
 
 export const metadata: Metadata = {
@@ -57,7 +64,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased bg-gray-50`}>
+      <body className={`${inter.variable} ${sourceSerif.variable} font-sans antialiased bg-gray-50`}>
         <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
         <ServiceWorkerRegister />
         <AuthProvider>
