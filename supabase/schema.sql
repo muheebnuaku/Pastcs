@@ -232,6 +232,23 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE public.tutor_credit_plans ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- AI TUTOR CREDITS TABLE
+-- (written by app/api/payments/tutor-credits/route.ts once Paystack
+-- confirms a top-up; read by the AI Tutor page's upload counter)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.ai_tutor_credits (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id           UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  plan              TEXT NOT NULL,
+  amount_paid       INTEGER NOT NULL, -- pesewas, what Paystack actually confirmed
+  total_credits     INTEGER NOT NULL,
+  payment_reference TEXT NOT NULL UNIQUE,
+  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.ai_tutor_credits ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- NOTIFICATIONS TABLE
 -- (read/written by lib/hooks/useNotifications.ts — streak-risk,
 -- inactivity, and milestone nudges)
@@ -360,7 +377,7 @@ BEGIN
              AND tablename IN ('users','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
                                'lecture_slides','subscriptions','subscription_prices',
-                               'tutor_credit_plans',
+                               'tutor_credit_plans','ai_tutor_credits',
                                'notifications','feature_events','referrals',
                                'chat_messages','ai_usage_log')
   LOOP
@@ -425,6 +442,11 @@ CREATE POLICY "prices_admin"  ON public.subscription_prices FOR ALL USING (is_ad
 CREATE POLICY "tutor_plans_select" ON public.tutor_credit_plans FOR SELECT TO authenticated USING (true);
 CREATE POLICY "tutor_plans_admin"  ON public.tutor_credit_plans FOR ALL USING (is_admin());
 
+-- AI Tutor credits (rows are only ever written by the service-role
+-- client in api/payments/tutor-credits/route.ts; a student just needs
+-- to read their own purchased-credit total back)
+CREATE POLICY "ai_tutor_credits_select_own" ON public.ai_tutor_credits FOR SELECT USING (auth.uid() = user_id);
+
 -- Notifications (a user reads/dismisses their own; the client that
 -- creates them inserts as that same authenticated user)
 CREATE POLICY "notifications_select_own" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
@@ -433,9 +455,12 @@ CREATE POLICY "notifications_update_own" ON public.notifications FOR UPDATE USIN
 CREATE POLICY "notifications_delete_own" ON public.notifications FOR DELETE USING (auth.uid() = user_id);
 
 -- Feature events (written only via the service-role client in
--- api/track/route.ts, which bypasses RLS — this just lets admins
--- review the raw event log; no student-facing policy needed)
+-- api/track/route.ts, which bypasses RLS — this lets admins review
+-- the raw event log, AND lets a user read back their own events,
+-- e.g. the AI Tutor page counting a student's own document_upload
+-- events client-side to enforce the free-tier upload limit)
 CREATE POLICY "feature_events_admin_select" ON public.feature_events FOR SELECT USING (is_admin());
+CREATE POLICY "feature_events_select_own"   ON public.feature_events FOR SELECT USING (auth.uid() = user_id);
 
 -- Referrals (a user sees referrals where they're either side; the
 -- reward-granting update happens via the service-role client in
