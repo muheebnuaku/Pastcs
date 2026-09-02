@@ -31,8 +31,8 @@ export function Navbar() {
     <>
       <nav
         className={cn(
-          'fixed top-0 left-0 right-0 z-50 transition-all duration-200',
-          isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-transparent'
+          'sticky top-0 z-50 bg-[#faf7f0]/95 backdrop-blur-md transition-shadow duration-200',
+          isScrolled ? 'border-b border-[#e6e0d4] shadow-sm' : 'border-b border-transparent'
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -40,11 +40,8 @@ export function Navbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3">
-              <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-11 h-11 rounded-full object-contain" />
-              <span className={cn(
-                'font-bold text-xl transition-colors',
-                isScrolled ? 'text-gray-900' : 'text-white'
-              )}>
+              <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-10 h-10 rounded-full object-cover" />
+              <span className="font-serif font-semibold text-xl text-[#1c1a17]">
                 PastCS
               </span>
             </Link>
@@ -57,9 +54,7 @@ export function Navbar() {
                   href={link.href}
                   className={cn(
                     'font-medium transition-colors',
-                    isScrolled
-                      ? pathname === link.href ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'
-                      : pathname === link.href ? 'text-white'   : 'text-white/80 hover:text-white'
+                    pathname === link.href ? 'text-[#1f4a3a]' : 'text-[#57534a] hover:text-[#1c1a17]'
                   )}
                 >
                   {link.label}
@@ -71,15 +66,15 @@ export function Navbar() {
             <div className="hidden md:flex items-center gap-4">
               {user ? (
                 <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>
-                  <Button>Dashboard</Button>
+                  <Button className="bg-[#1f4a3a] hover:bg-[#163a2d] focus:ring-[#1f4a3a]">Dashboard</Button>
                 </Link>
               ) : (
                 <>
                   <Link href="/login">
-                    <Button variant={isScrolled ? 'ghost' : 'outline'}>Sign In</Button>
+                    <Button variant="ghost" className="text-[#1c1a17] hover:bg-[#f0ece0] focus:ring-[#1f4a3a]">Sign In</Button>
                   </Link>
                   <Link href="/register">
-                    <Button>Get Started</Button>
+                    <Button className="bg-[#1f4a3a] hover:bg-[#163a2d] focus:ring-[#1f4a3a]">Get Started</Button>
                   </Link>
                 </>
               )}
@@ -88,10 +83,7 @@ export function Navbar() {
             {/* Mobile hamburger */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className={cn(
-                'md:hidden p-2 rounded-lg transition-colors',
-                isScrolled ? 'text-gray-900' : 'text-white'
-              )}
+              className="md:hidden p-2 rounded-lg text-[#1c1a17] transition-colors"
               aria-label="Open menu"
             >
               <Menu className="w-6 h-6" />
@@ -113,19 +105,19 @@ export function Navbar() {
       {/* Drawer panel */}
       <div
         className={cn(
-          'md:hidden fixed top-0 right-0 h-full w-72 bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col',
+          'md:hidden fixed top-0 right-0 h-full w-72 bg-[#faf7f0] z-50 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col',
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         )}
       >
         {/* Drawer header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="flex items-center justify-between p-5 border-b border-[#e6e0d4]">
           <Link href="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3">
-            <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-10 h-10 rounded-full object-contain" />
-            <span className="font-bold text-gray-900 text-lg">PastCS</span>
+            <Image src="/past.png" alt="PastCS" width={96} height={96} className="w-10 h-10 rounded-full object-cover" />
+            <span className="font-serif font-semibold text-[#1c1a17] text-lg">PastCS</span>
           </Link>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg text-[#57534a] hover:bg-[#f0ece0] transition-colors"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
@@ -142,8 +134,8 @@ export function Navbar() {
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors',
                 pathname === link.href
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-[#eef3ef] text-[#1f4a3a]'
+                  : 'text-[#57534a] hover:bg-[#f0ece0]'
               )}
             >
               <link.icon className="w-5 h-5" />
@@ -153,18 +145,18 @@ export function Navbar() {
         </nav>
 
         {/* Auth buttons */}
-        <div className="p-5 border-t border-gray-100 space-y-3">
+        <div className="p-5 border-t border-[#e6e0d4] space-y-3">
           {user ? (
             <Link href={user.role === 'admin' ? '/admin' : '/dashboard'} onClick={() => setIsMobileMenuOpen(false)}>
-              <Button className="w-full">Go to Dashboard</Button>
+              <Button className="w-full bg-[#1f4a3a] hover:bg-[#163a2d] focus:ring-[#1f4a3a]">Go to Dashboard</Button>
             </Link>
           ) : (
             <>
               <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full">Sign In</Button>
+                <Button variant="outline" className="w-full border-[#d9d2c2] text-[#1c1a17] hover:bg-[#f0ece0] focus:ring-[#1f4a3a]">Sign In</Button>
               </Link>
               <Link href="/register" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button className="w-full">Get Started Free</Button>
+                <Button className="w-full bg-[#1f4a3a] hover:bg-[#163a2d] focus:ring-[#1f4a3a]">Get Started Free</Button>
               </Link>
             </>
           )}
