@@ -59,7 +59,7 @@ function mdToHtml(text: string): string {
 function MessageContent({ content }: { content: string }) {
   return (
     <div
-      className="prose-sm text-sm leading-relaxed text-gray-800 [&_p]:mb-2 [&_p]:leading-relaxed [&_ul]:my-2"
+      className="prose-sm text-sm leading-relaxed text-gray-800 break-words [&_p]:mb-2 [&_p]:leading-relaxed [&_ul]:my-2"
       dangerouslySetInnerHTML={{ __html: '<p class="mb-2 leading-relaxed">' + mdToHtml(content) + '</p>' }}
     />
   );
@@ -118,7 +118,7 @@ function PracticeReviewPanel({ content }: { content: string }) {
   if (pairs.length === 0) {
     // The model didn't follow the Q/A format — fall back to raw rendering
     // rather than showing nothing.
-    return <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
+    return <div className="text-sm text-gray-800 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
   }
 
   return (
@@ -127,12 +127,12 @@ function PracticeReviewPanel({ content }: { content: string }) {
         const isRevealed = revealed.has(i);
         return (
           <div key={i} className="rounded-xl border border-gray-200 p-3">
-            <p className="text-sm font-semibold text-gray-900 mb-2">
+            <p className="text-sm font-semibold text-gray-900 mb-2 break-words">
               <span className="text-blue-600">Q{i + 1}.</span>{' '}
               <span dangerouslySetInnerHTML={{ __html: mdToHtml(pair.question) }} />
             </p>
             {isRevealed ? (
-              <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2"
+              <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 break-words"
                 dangerouslySetInnerHTML={{ __html: mdToHtml(pair.answer) }} />
             ) : (
               <button
@@ -599,7 +599,14 @@ export default function AssistantPage() {
   const isProcessing = docStage === 'uploading' || docStage === 'generating';
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-h-[900px]">
+    // The parent (student) layout wraps every page in pt-16+pb-5 padding
+    // below lg (room for the mobile hamburger button) and pt-0+lg:py-8
+    // at lg and up — this has to match that exactly, or the internal
+    // scroll area below is either too short (dead space) or too tall
+    // (pushes the composer off-screen / creates a second page-level
+    // scrollbar). 100dvh instead of 100vh so mobile Safari/Chrome's
+    // address bar showing or hiding doesn't make the layout jump.
+    <div className="flex flex-col h-[calc(100dvh-5.25rem)] lg:h-[calc(100dvh-2rem)] max-h-[900px]">
 
       {showTutorPricing && (
         <TutorPricingModal
@@ -635,32 +642,32 @@ export default function AssistantPage() {
 
       {/* ── Header ── */}
       <div className="flex-shrink-0 pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <BotMessageSquare className="w-7 h-7 text-blue-600" />
-              AI Study Assistant
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <BotMessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 flex-shrink-0" />
+              <span className="truncate">AI Study Assistant</span>
             </h1>
-            <p className="text-gray-500 text-sm mt-0.5">Ask anything, or upload a document (or paste text) to get a full lesson.</p>
+            <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Ask anything, or upload a document (or paste text) to get a full lesson.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {voiceSupported && (
               <button
                 onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) trackEvent('voice_enabled'); setVoiceEnabled(v => !v); }}
                 title={voiceEnabled ? 'Voice on — click to turn off' : 'Voice off — click to turn on'}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   voiceEnabled ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 {voiceEnabled
                   ? <Volume2 className={`w-4 h-4 ${isSpeaking && !teaching ? 'animate-pulse' : ''}`} />
                   : <VolumeX className="w-4 h-4" />}
-                <span>{voiceEnabled ? 'Voice on' : 'Voice off'}</span>
+                <span className="hidden sm:inline">{voiceEnabled ? 'Voice on' : 'Voice off'}</span>
               </button>
             )}
             {!isEmpty && (
-              <button onClick={clearChat} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                <Trash2 className="w-4 h-4" />Clear
+              <button onClick={clearChat} className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Clear</span>
               </button>
             )}
           </div>
@@ -681,7 +688,7 @@ export default function AssistantPage() {
             {showCourseMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowCourseMenu(false)} />
-                <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-64 overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-64 overflow-y-auto">
                   <button onClick={() => { setSelectedCourse(''); setShowCourseMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100">
                     No specific course
                   </button>
@@ -774,43 +781,48 @@ export default function AssistantPage() {
       {docStage !== 'idle' && (
         <div className="flex-shrink-0 mb-3 rounded-2xl border border-blue-200 bg-white overflow-hidden shadow-sm">
 
-          {/* Panel header */}
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+          {/* Panel header — icon-only status/controls below sm so a long
+              filename doesn't get crushed to a handful of characters when
+              several of these render at once (e.g. ready + fetching images
+              + teach controls, all at the same time). */}
+          <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
             <FileText className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-semibold flex-1 truncate">{lessonFileName}</span>
+            <span className="text-sm font-semibold flex-1 truncate min-w-0">{lessonFileName}</span>
 
             {docStage === 'generating' && (
-              <span className="flex items-center gap-1.5 text-blue-200 text-xs">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />Building your lesson…
+              <span className="flex items-center gap-1.5 text-blue-200 text-xs flex-shrink-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">Building your lesson…</span>
               </span>
             )}
             {docStage === 'ready' && fetchingImages && (
-              <span className="flex items-center gap-1 text-blue-200 text-xs">
-                <Loader2 className="w-3 h-3 animate-spin" />Finding images…
+              <span className="flex items-center gap-1 text-blue-200 text-xs flex-shrink-0">
+                <Loader2 className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">Finding images…</span>
               </span>
             )}
 
             {docStage === 'ready' && voiceSupported && (
               teaching ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
                   <button
                     onClick={() => (isPaused ? resume() : pause())}
-                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors"
+                    title={isPaused ? 'Resume' : 'Pause'}
+                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors"
                   >
-                    {isPaused ? <><Play className="w-3.5 h-3.5" />Resume</> : <><PauseCircle className="w-3.5 h-3.5" />Pause</>}
+                    {isPaused ? <Play className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">{isPaused ? 'Resume' : 'Pause'}</span>
                   </button>
-                  <button onClick={stopTeaching} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors">
-                    <StopCircle className="w-3.5 h-3.5" />Stop
+                  <button onClick={stopTeaching} title="Stop" className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors">
+                    <StopCircle className="w-3.5 h-3.5" /><span className="hidden sm:inline">Stop</span>
                   </button>
                 </div>
               ) : (
-                <button onClick={startTeaching} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors">
-                  <Play className="w-3.5 h-3.5" />Teach Me
+                <button onClick={startTeaching} title="Teach Me" className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors flex-shrink-0">
+                  <Play className="w-3.5 h-3.5" /><span className="hidden sm:inline">Teach Me</span>
                 </button>
               )
             )}
 
-            <button onClick={dismissLesson} className="p-1 hover:bg-white/20 rounded-lg transition-colors ml-1">
+            <button onClick={dismissLesson} className="p-1 hover:bg-white/20 rounded-lg transition-colors ml-1 flex-shrink-0">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -835,12 +847,13 @@ export default function AssistantPage() {
             </div>
           )}
 
-          {/* Section content */}
-          <div className="max-h-64 overflow-y-auto p-4">
+          {/* Section content — more room to read on taller/wider screens
+              instead of a fixed 256px on every size */}
+          <div className="max-h-64 sm:max-h-80 lg:max-h-[28rem] overflow-y-auto p-4">
             {/* Still generating — show streaming text */}
             {docStage === 'generating' && (
               lessonText
-                ? <div className="text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonText) }} />
+                ? <div className="text-sm text-gray-700 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonText) }} />
                 : <p className="text-sm text-blue-500 italic flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating your lesson…</p>
             )}
 
@@ -876,7 +889,7 @@ export default function AssistantPage() {
                         }`}>
                           {isActive && isSpeaking && speakingText
                             ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
-                            : <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
+                            : <div className="text-sm text-gray-800 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
                           }
                         </div>
                       );
@@ -885,7 +898,7 @@ export default function AssistantPage() {
                 ) : lessonSections[teachIdx].title.toLowerCase() === 'practice review' ? (
                   <PracticeReviewPanel content={lessonSections[teachIdx].content} />
                 ) : (
-                  <div className="text-sm text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
+                  <div className="text-sm text-gray-800 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
                 )}
               </>
             )}
@@ -976,7 +989,7 @@ export default function AssistantPage() {
                     : 'bg-white border border-gray-200 rounded-tl-sm shadow-sm'
                 }`}>
                   {msg.role === 'user' ? (
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                    <p className="text-sm leading-relaxed break-words">{msg.content}</p>
                   ) : msg.content === '' ? (
                     <div className="flex items-center gap-2 py-1">
                       <div className="flex gap-1">
