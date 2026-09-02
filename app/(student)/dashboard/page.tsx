@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
+import { useCountdown } from '@/lib/hooks/useCountdown';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, type ExamUrgency } from '@/lib/utils';
@@ -61,6 +62,13 @@ export default function DashboardPage() {
     ? Math.ceil((new Date(user.exam_date + 'T00:00:00').getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
     : null;
   const examMotivation = getExamMotivation(daysUntilExam);
+
+  // Live-ticking down to midnight of the exam date — exam_date has no
+  // time of day, so once "today" arrives there's nothing meaningful left
+  // to count down to; the card falls back to a plain "Exam is today!"
+  // message for that case (see below).
+  const examTargetDate = user?.exam_date ? new Date(user.exam_date + 'T00:00:00') : null;
+  const countdown = useCountdown(examTargetDate);
 
   const saveExamDate = async () => {
     if (!user?.id || !examDateInput) return;
@@ -381,17 +389,37 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-4 py-1">
-                  <div className="text-center p-4 bg-violet-50 dark:bg-violet-500/10 rounded-xl">
-                    <p className="text-3xl font-bold text-violet-900 dark:text-violet-300 tabular-nums">
-                      {daysUntilExam !== null && daysUntilExam >= 0 ? daysUntilExam : 0}
-                    </p>
-                    <p className="text-sm text-violet-600 dark:text-violet-400 font-medium mt-0.5">
-                      {daysUntilExam !== null && daysUntilExam < 0
-                        ? 'Exam date has passed'
-                        : daysUntilExam === 0
-                          ? 'Exam is today!'
-                          : `day${daysUntilExam === 1 ? '' : 's'} to go`}
-                    </p>
+                  <div className="p-4 bg-violet-50 dark:bg-violet-500/10 rounded-xl">
+                    {countdown && daysUntilExam !== null && daysUntilExam > 0 ? (
+                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                        {([
+                          ['Days', countdown.days],
+                          ['Hrs', countdown.hours],
+                          ['Min', countdown.minutes],
+                          ['Sec', countdown.seconds],
+                        ] as const).map(([label, value]) => (
+                          <div key={label} className="text-center">
+                            <p className="text-xl sm:text-3xl font-bold text-violet-900 dark:text-violet-300 tabular-nums">
+                              {String(value).padStart(2, '0')}
+                            </p>
+                            <p className="text-[9px] sm:text-[10px] text-violet-500 dark:text-violet-400 font-semibold uppercase tracking-wide mt-0.5">
+                              {label}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-violet-900 dark:text-violet-300 tabular-nums">
+                          {daysUntilExam !== null && daysUntilExam >= 0 ? daysUntilExam : 0}
+                        </p>
+                        <p className="text-sm text-violet-600 dark:text-violet-400 font-medium mt-0.5">
+                          {daysUntilExam !== null && daysUntilExam < 0
+                            ? 'Exam date has passed'
+                            : 'Exam is today!'}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Motivation — escalates in tone as the exam gets closer */}
