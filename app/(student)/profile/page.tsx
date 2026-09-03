@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Input, Avatar, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
 import { formatPercentage } from '@/lib/utils';
 import { useSpeech, VOICE_PREF_KEY } from '@/lib/hooks/useSpeech';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
+import { AvatarUpload } from './components/AvatarUpload';
 import {
   User,
   Mail,
@@ -287,10 +288,12 @@ export default function ProfilePage() {
             </div>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
-                <Avatar
-                  src={user.avatar_url}
+                <AvatarUpload
+                  supabase={createClient()}
+                  userId={user.id}
+                  avatarUrl={user.avatar_url}
                   name={user.full_name || user.email}
-                  size="xl"
+                  onChange={() => refreshUser()}
                 />
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">

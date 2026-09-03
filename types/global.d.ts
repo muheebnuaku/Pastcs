@@ -55,6 +55,7 @@ declare module '@supabase/ssr' {
     auth: SupabaseAuthClient;
     from(table: string): any;
     rpc(fn: string, params?: any): any;
+    storage: any;
   }
   
   export function createBrowserClient(
