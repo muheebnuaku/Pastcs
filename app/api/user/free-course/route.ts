@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     // Fetch user's current selection and existing free course
     const { data: userData } = await supabase
       .from('user_public')
-      .select('free_course_code, selected_level, selected_semester')
+      .select('free_course_code, selected_level, selected_semester, program_id')
       .eq('id', authUser.id)
       .single();
 
@@ -31,24 +31,28 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Free course already selected' }, { status: 400 });
     }
 
-    if (!userData.selected_level || !userData.selected_semester) {
-      return Response.json({ error: 'Level/semester not set' }, { status: 400 });
+    if (!userData.selected_level || !userData.selected_semester || !userData.program_id) {
+      return Response.json({ error: 'Level/semester/program not set' }, { status: 400 });
     }
 
-    // Verify the course belongs to the user's selected level/semester
+    // Verify the course belongs to the user's selected level/semester AND
+    // their own program — without this a student could otherwise claim
+    // their free pick from a course outside their program at the same
+    // level/semester.
     const { data: course } = await supabase
       .from('courses')
-      .select('course_code')
+      .select('course_code, course_programs!inner(program_id)')
       // Case-insensitive — see app/(student)/courses/[courseCode]/page.tsx
       // for why a course_code saved with any casing needs this.
       .ilike('course_code', courseCode)
       .eq('level', userData.selected_level)
       .eq('semester', userData.selected_semester)
+      .eq('course_programs.program_id', userData.program_id)
       .single();
 
     if (!course) {
       return Response.json(
-        { error: 'Course not found for your level/semester' },
+        { error: 'Course not found for your level/semester/program' },
         { status: 404 }
       );
     }

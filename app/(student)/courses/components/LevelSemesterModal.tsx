@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
 import { usePricing } from '@/lib/hooks/usePricing';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
-import { X, ArrowRight, BookOpen, Loader2 } from 'lucide-react';
+import type { Program } from '@/types';
+import { X, ArrowRight, BookOpen, Loader2, GraduationCap } from 'lucide-react';
 
 const LEVELS = [
   { value: 100, label: 'L100', desc: 'Year 1' },
@@ -22,6 +24,11 @@ interface Props {
 
 export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: Props) {
   const { user, refreshUser } = useAuth();
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(
+    user?.program_id ?? null
+  );
   const [selectedLevel, setSelectedLevel] = useState<number | null>(
     user?.selected_level ?? null
   );
@@ -39,8 +46,23 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('programs').select('*').order('name')
+      .then(({ data }: { data: Program[] | null }) => {
+        setPrograms(data ?? []);
+        setLoadingPrograms(false);
+        // Only one program exists (today's reality) — pick it automatically
+        // so a student isn't stuck on a pointless single-option screen.
+        if (data?.length === 1 && !selectedProgramId) {
+          setSelectedProgramId(data[0].id);
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleGainAccess = async () => {
-    if (!selectedLevel || !selectedSemester) return;
+    if (!selectedProgramId || !selectedLevel || !selectedSemester) return;
     setError('');
     setIsSaving(true);
 
@@ -48,7 +70,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
       const res = await fetch('/api/user/selection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ level: selectedLevel, semester: selectedSemester }),
+        body: JSON.stringify({ level: selectedLevel, semester: selectedSemester, programId: selectedProgramId }),
       });
 
       const data = await res.json();
@@ -77,7 +99,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 dark:border-white/10">
           <div>
             <h2 className="font-bold text-gray-900 text-base dark:text-gray-100">
-              {isChanging ? 'Change Level & Semester' : 'Which level are you in?'}
+              {isChanging ? 'Change Program, Level & Semester' : 'Tell us about your studies'}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">
               {isChanging
@@ -96,6 +118,35 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {/* Program list */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-gray-400">Programme</p>
+            {loadingPrograms ? (
+              <div className="flex items-center justify-center py-4 text-gray-400 dark:text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {programs.map((program) => (
+                  <button
+                    key={program.id}
+                    onClick={() => setSelectedProgramId(program.id)}
+                    className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border-2 text-left transition-all ${
+                      selectedProgramId === program.id
+                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-500/10'
+                        : 'border-gray-200 dark:border-white/10 hover:border-blue-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <GraduationCap className={`w-4 h-4 flex-shrink-0 ${selectedProgramId === program.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                    <span className={`font-medium text-sm ${selectedProgramId === program.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                      {program.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Level Grid — 4 columns */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-gray-400">Level</p>
@@ -155,7 +206,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
           <Button
             className="w-full"
             onClick={handleGainAccess}
-            disabled={!selectedLevel || !selectedSemester || isSaving}
+            disabled={!selectedProgramId || !selectedLevel || !selectedSemester || isSaving}
           >
             {isSaving ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>
