@@ -5,6 +5,20 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ================================================================
+-- PROGRAMS TABLE
+-- ================================================================
+-- Created before USERS/COURSES since both reference it. A course is
+-- visible to a program only if explicitly assigned via course_programs
+-- below (admin-controlled, many-to-many — a course can be shared by
+-- more than one program) — there's no automatic sharing by category.
+CREATE TABLE IF NOT EXISTS public.programs (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name        TEXT NOT NULL UNIQUE,   -- "BSc Information Technology"
+  short_code  TEXT NOT NULL UNIQUE,   -- "IT" — compact label for admin UI
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ================================================================
 -- USERS TABLE
 -- ================================================================
 CREATE TABLE IF NOT EXISTS public.users (
@@ -40,6 +54,8 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referral_code     TEXT UNIQUE;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referred_by       UUID REFERENCES public.users(id) ON DELETE SET NULL;
 -- Powers the dashboard's exam countdown + study plan widget
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS exam_date         DATE;
+-- Which program's courses this student sees — see PROGRAMS section below.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program_id        UUID REFERENCES public.programs(id);
 
 -- View alias used throughout the app
 DROP VIEW IF EXISTS public.user_public;
@@ -64,6 +80,17 @@ CREATE TABLE IF NOT EXISTS public.courses (
 
 ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS level    INTEGER NOT NULL DEFAULT 100 CHECK (level    IN (100,200,300,400));
 ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS semester INTEGER NOT NULL DEFAULT 1   CHECK (semester IN (1,2));
+
+-- ================================================================
+-- COURSE <-> PROGRAM (many-to-many, admin-controlled)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.course_programs (
+  course_id  UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
+  PRIMARY KEY (course_id, program_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_programs_program ON public.course_programs(program_id);
 
 -- ================================================================
 -- TOPICS TABLE
@@ -189,6 +216,11 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   paid_at           TIMESTAMP WITH TIME ZONE,
   created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- A payment unlocks one program's courses at a level+semester, not
+-- every program's (which is what happened by accident before programs
+-- existed, since nothing distinguished them).
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS program_id UUID REFERENCES public.programs(id);
 
 -- ================================================================
 -- SUBSCRIPTION PRICES TABLE
@@ -380,6 +412,8 @@ CREATE INDEX IF NOT EXISTS idx_review_schedule_due     ON public.review_schedule
 -- ROW LEVEL SECURITY
 -- ================================================================
 ALTER TABLE public.users             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.programs          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.course_programs   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.topics            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.questions         ENABLE ROW LEVEL SECURITY;
@@ -395,7 +429,7 @@ DO $$ DECLARE r RECORD;
 BEGIN
   FOR r IN SELECT policyname, tablename FROM pg_policies
            WHERE schemaname = 'public'
-             AND tablename IN ('users','courses','topics','questions','tests',
+             AND tablename IN ('users','programs','course_programs','courses','topics','questions','tests',
                                'test_answers','achievements','user_achievements',
                                'lecture_slides','subscriptions','subscription_prices',
                                'tutor_credit_plans','ai_tutor_credits',
@@ -418,6 +452,14 @@ CREATE POLICY "users_select_own"        ON public.users FOR SELECT USING (auth.u
 CREATE POLICY "users_insert_own"        ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "users_update_own"        ON public.users FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "admins_select_all_users" ON public.users FOR SELECT USING (is_admin());
+
+-- Programs
+CREATE POLICY "programs_select" ON public.programs FOR SELECT TO authenticated USING (true);
+CREATE POLICY "programs_admin"  ON public.programs FOR ALL USING (is_admin());
+
+-- Course <-> Program assignments
+CREATE POLICY "course_programs_select" ON public.course_programs FOR SELECT TO authenticated USING (true);
+CREATE POLICY "course_programs_admin"  ON public.course_programs FOR ALL USING (is_admin());
 
 -- Courses
 CREATE POLICY "courses_select" ON public.courses FOR SELECT TO authenticated USING (true);
@@ -677,6 +719,35 @@ INSERT INTO public.courses (course_code, course_name, description, color, level,
   ('STAT111','Introduction to Statistics and Probability I','Statistical concepts, probability theory, and data analysis fundamentals.','#EF4444',100,1),
   ('UGRC150','Critical Thinking and Practical Reasoning','Develop logical reasoning, critical analysis, and argumentation skills.','#EC4899',100,1)
 ON CONFLICT (course_code) DO NOTHING;
+
+-- Seed the one program that exists today, assign every existing course
+-- to it (today's whole catalog is IT), and backfill already-onboarded
+-- users and already-paid subscriptions into it — nobody should lose
+-- access or get sent back through onboarding just because "program"
+-- now exists as a concept.
+INSERT INTO public.programs (name, short_code)
+VALUES ('BSc Information Technology', 'IT')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO public.course_programs (course_id, program_id)
+SELECT c.id, p.id
+FROM public.courses c
+CROSS JOIN public.programs p
+WHERE p.short_code = 'IT'
+ON CONFLICT DO NOTHING;
+
+UPDATE public.users u
+SET program_id = p.id
+FROM public.programs p
+WHERE p.short_code = 'IT'
+  AND u.program_id IS NULL
+  AND u.selected_level IS NOT NULL;
+
+UPDATE public.subscriptions s
+SET program_id = p.id
+FROM public.programs p
+WHERE p.short_code = 'IT'
+  AND s.program_id IS NULL;
 
 INSERT INTO public.achievements (name, description, icon, criteria) VALUES
   ('First Practice Test','Complete your first practice test','trophy','{"type":"tests_completed","value":1}'),
