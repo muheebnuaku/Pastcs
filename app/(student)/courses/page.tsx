@@ -11,6 +11,7 @@ import { Card, CardContent, Badge } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
 import { LevelSemesterModal } from './components/LevelSemesterModal';
 import { PaywallModal } from './components/PaywallModal';
+import { coursesForProgram } from '@/lib/programs';
 import type { Course } from '@/types';
 import {
   FileQuestion,
@@ -47,14 +48,12 @@ export default function CoursesPage() {
     : 0;
 
   const fetchCourses = async () => {
-    if (!level || !semester) return;
+    if (!level || !semester || !user?.program_id) return;
     setIsLoading(true);
     setError(null);
     try {
       const supabase = createClient();
-      const { data, error: fetchError } = await supabase
-        .from('courses')
-        .select('*')
+      const { data, error: fetchError } = await coursesForProgram(supabase, user.program_id)
         .eq('level', level)
         .eq('semester', semester)
         .order('course_code');
@@ -76,7 +75,7 @@ export default function CoursesPage() {
       fetchCourses();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.selected_level, user?.selected_semester]);
+  }, [user?.selected_level, user?.selected_semester, user?.program_id]);
 
   const handleSelectFreeCourse = async (courseCode: string) => {
     setSettingFreeCourse(courseCode);

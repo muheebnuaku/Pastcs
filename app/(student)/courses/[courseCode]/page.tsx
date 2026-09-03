@@ -10,6 +10,7 @@ import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
+import { courseCountForProgram } from '@/lib/programs';
 import type { Course, Topic } from '@/types';
 import {
   ArrowLeft,
@@ -88,18 +89,16 @@ export default function CourseDetailPage() {
   }, [courseCode]);
 
   useEffect(() => {
-    if (!course?.id || !user?.selected_level || !user?.selected_semester) return;
+    if (!course?.id || !user?.selected_level || !user?.selected_semester || !user?.program_id) return;
     const fetchCount = async () => {
       const supabase = createClient();
-      const { count } = await supabase
-        .from('courses')
-        .select('id', { count: 'exact', head: true })
-        .eq('level', user.selected_level)
-        .eq('semester', user.selected_semester);
+      const { count } = await courseCountForProgram(supabase, user.program_id!)
+        .eq('level', user.selected_level!)
+        .eq('semester', user.selected_semester!);
       setAllLevelCourses(count ?? 0);
     };
     fetchCount();
-  }, [course?.id, user?.selected_level, user?.selected_semester]);
+  }, [course?.id, user?.selected_level, user?.selected_semester, user?.program_id]);
 
   if (!course) {
     return (

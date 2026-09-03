@@ -11,6 +11,7 @@ import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
+import { courseCountForProgram } from '@/lib/programs';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
 import {
@@ -135,10 +136,8 @@ export default function ExamPage() {
         return;
       }
 
-      if (user?.selected_level && user?.selected_semester) {
-        const { count } = await supabase
-          .from('courses')
-          .select('id', { count: 'exact', head: true })
+      if (user?.selected_level && user?.selected_semester && user?.program_id) {
+        const { count } = await courseCountForProgram(supabase, user.program_id)
           .eq('level', user.selected_level)
           .eq('semester', user.selected_semester);
         setAllLevelCourses(count ?? 0);
@@ -158,7 +157,7 @@ export default function ExamPage() {
     };
 
     fetchQuestions();
-  }, [courseCode, router, isPaid, isFree, user?.selected_level, user?.selected_semester]);
+  }, [courseCode, router, isPaid, isFree, user?.selected_level, user?.selected_semester, user?.program_id]);
 
   useEffect(() => {
     if (!examStarted || isSubmitting) return;

@@ -7,6 +7,7 @@ import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { useCountdown } from '@/lib/hooks/useCountdown';
 import { createClient } from '@/lib/supabase/client';
+import { coursesForProgram } from '@/lib/programs';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
@@ -89,7 +90,9 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
       const supabase = createClient();
 
-      let coursesQuery = supabase.from('courses').select('*').order('course_code');
+      let coursesQuery = user?.program_id
+        ? coursesForProgram(supabase, user.program_id).order('course_code')
+        : supabase.from('courses').select('*').order('course_code');
       if (level && semester) {
         coursesQuery = coursesQuery.eq('level', level).eq('semester', semester);
       }

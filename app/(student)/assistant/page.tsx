@@ -9,6 +9,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { TutorPricingModal } from './components/TutorPricingModal';
 import { PasteTextModal } from './components/PasteTextModal';
+import { coursesForProgram } from '@/lib/programs';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
@@ -227,9 +228,11 @@ export default function AssistantPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.from('courses').select('*').order('level')
-      .then(({ data }: { data: Course[] | null }) => { if (data) setCourses(data); });
-  }, []);
+    const query = user?.program_id
+      ? coursesForProgram(supabase, user.program_id).order('level')
+      : supabase.from('courses').select('*').order('level');
+    query.then(({ data }: { data: Course[] | null }) => { if (data) setCourses(data); });
+  }, [user?.program_id]);
 
   // Restore the ongoing conversation — previously lived only in page
   // state, so closing the tab erased everything.
