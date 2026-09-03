@@ -73,6 +73,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           user_id: user!.id,
           level: user!.selected_level!,
           semester: user!.selected_semester!,
+          program_id: user?.program_id ?? null,
           payment_reference: reference,
           amount: priceAmount,
           status: 'active',

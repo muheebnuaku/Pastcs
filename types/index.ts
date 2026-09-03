@@ -24,11 +24,19 @@ export interface User {
   selected_semester: number | null;
   free_course_code: string | null;
   program: string | null;
+  program_id: string | null;
   referral_code: string | null;
   referred_by: string | null;
   exam_date: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Program {
+  id: string;
+  name: string;
+  short_code: string;
+  created_at: string;
 }
 
 export interface Referral {
@@ -55,6 +63,7 @@ export interface Subscription {
   user_id: string;
   level: number;
   semester: number;
+  program_id: string | null;
   payment_reference: string;
   amount: number;
   status: 'pending' | 'active' | 'failed';
