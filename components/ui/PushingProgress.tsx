@@ -15,7 +15,7 @@ export function PushingProgress({ value, max }: Props) {
     <div className="relative h-14 select-none" aria-label={`Question ${value + 1} of ${max}`}>
 
       {/* Track background */}
-      <div className="absolute left-0 right-0 top-[27px] h-3 bg-gray-200 rounded-full overflow-hidden">
+      <div className="absolute left-0 right-0 top-[27px] h-3 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
         {/* Gradient fill */}
         <div
           className="h-full rounded-full transition-all duration-700 ease-out"

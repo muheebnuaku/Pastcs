@@ -39,10 +39,10 @@ export function Progress({
     <div className={cn('w-full', className)}>
       {showLabel && (
         <div className="flex justify-between mb-1">
-          <span className="text-sm font-medium text-gray-700">{Math.round(percentage)}%</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{Math.round(percentage)}%</span>
         </div>
       )}
-      <div className={cn('w-full bg-gray-200 rounded-full overflow-hidden', sizes[size])}>
+      <div className={cn('w-full bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden', sizes[size])}>
         <div
           className={cn('h-full rounded-full transition-all duration-500 ease-out', colors[color])}
           style={{ width: `${percentage}%` }}

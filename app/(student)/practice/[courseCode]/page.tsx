@@ -399,12 +399,12 @@ function PracticeContent() {
     return (
       <div className="max-w-md mx-auto mt-12 animate-fade-in">
         <Card className="p-8 text-center">
-          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <PauseCircle className="w-9 h-9 text-amber-600" />
+          <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/15 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <PauseCircle className="w-9 h-9 text-amber-600 dark:text-amber-400" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Resume Practice?</h2>
-          <p className="text-gray-500 text-sm mb-1">Paused <strong>{ago}</strong></p>
-          <p className="text-gray-500 text-sm mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-2 dark:text-gray-100">Resume Practice?</h2>
+          <p className="text-gray-500 text-sm mb-1 dark:text-gray-400">Paused <strong>{ago}</strong></p>
+          <p className="text-gray-500 text-sm mb-6 dark:text-gray-400">
             Question {(resumeOffer.currentIndex ?? 0) + 1} of {resumeOffer.questionIds.length}
             {' · '}{resumeOffer.checkedQuestions.length} checked
           </p>
@@ -428,24 +428,24 @@ function PracticeContent() {
         {isMistakesMode ? (
           <>
             <CheckCircle className="w-16 h-16 text-green-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No mistakes to review</h2>
-            <p className="text-gray-500 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-gray-100">No mistakes to review</h2>
+            <p className="text-gray-500 mb-4 dark:text-gray-400">
               Either you haven&rsquo;t practiced this course yet, or you&rsquo;ve gotten everything right so far. Nice work!
             </p>
           </>
         ) : isDueMode ? (
           <>
             <CheckCircle className="w-16 h-16 text-green-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Nothing due right now</h2>
-            <p className="text-gray-500 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-gray-100">Nothing due right now</h2>
+            <p className="text-gray-500 mb-4 dark:text-gray-400">
               You&rsquo;re all caught up on this course&rsquo;s review schedule — come back once something&rsquo;s due again.
             </p>
           </>
         ) : (
           <>
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Questions Available</h2>
-            <p className="text-gray-500 mb-4">No questions available for this selection yet.</p>
+            <BookOpen className="w-16 h-16 text-gray-300 dark:text-white/10 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-gray-100">No Questions Available</h2>
+            <p className="text-gray-500 mb-4 dark:text-gray-400">No questions available for this selection yet.</p>
           </>
         )}
         <Button onClick={() => router.back()}>Go Back</Button>
@@ -459,16 +459,16 @@ function PracticeContent() {
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
       {isFree && !isPaid && allLevelCourses > 1 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-blue-800">
-            <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0" />
+        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
+            <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
             <span>
               <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
               Unlock {allLevelCourses - 1} more for just {priceLabel}.
             </span>
           </div>
           <button onClick={() => setShowPaywall(true)}
-            className="flex-shrink-0 text-xs font-medium text-blue-700 border border-blue-300 px-2.5 py-1.5 rounded-lg hover:bg-blue-100">
+            className="flex-shrink-0 text-xs font-medium text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/15">
             Upgrade →
           </button>
         </div>
@@ -480,14 +480,14 @@ function PracticeContent() {
       )}
 
       {isMistakesMode && (
-        <div className="flex items-center gap-1.5 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg px-3 py-2">
           <RotateCcw className="w-3.5 h-3.5" />
           Practicing your mistakes — questions you got wrong before
         </div>
       )}
 
       {isDueMode && (
-        <div className="flex items-center gap-1.5 text-sm text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-1.5 text-sm text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 rounded-lg px-3 py-2">
           <CalendarClock className="w-3.5 h-3.5" />
           Due for review — spaced out so it actually sticks before the exam
         </div>
@@ -495,12 +495,12 @@ function PracticeContent() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={handlePause} className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 text-sm">
+        <button onClick={handlePause} className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 text-sm dark:text-gray-400 dark:hover:text-gray-100">
           <ArrowLeft className="w-4 h-4" /> Exit
         </button>
         <Badge variant="info">Question {currentIndex + 1} of {questions.length}</Badge>
         <button onClick={handlePause}
-          className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-100 transition-colors">
+          className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-500/15 transition-colors">
           <PauseCircle className="w-4 h-4" /> Pause
         </button>
       </div>
@@ -520,17 +520,17 @@ function PracticeContent() {
           </Badge>
           <div className="flex items-center gap-2">
             {currentQuestion.question_type === 'multiple_choice' && (
-              <span className="text-sm text-gray-500">Select all that apply</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Select all that apply</span>
             )}
             {showFeedback && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
                 <Lock className="w-3 h-3" /> Locked
               </span>
             )}
           </div>
         </div>
 
-        <h2 className="text-lg font-medium text-gray-900 mb-6">{currentQuestion.question_text}</h2>
+        <h2 className="text-lg font-medium text-gray-900 mb-6 dark:text-gray-100">{currentQuestion.question_text}</h2>
 
         {/* Options */}
         {currentQuestion.question_type !== 'fill_in_blank' && currentQuestion.options && (
@@ -538,26 +538,26 @@ function PracticeContent() {
             {currentQuestion.options.map((option) => {
               const isSelected = (answers[currentQuestion.id] ?? []).includes(option.id);
               const isCorrectOption = currentQuestion.correct_answers.includes(option.id);
-              let bg = 'bg-gray-50 hover:bg-gray-100';
-              let border = 'border-gray-200';
+              let bg = 'bg-gray-50 dark:bg-white/[0.03] hover:bg-gray-100 dark:hover:bg-white/5';
+              let border = 'border-gray-200 dark:border-white/10';
               if (showFeedback) {
-                if (isCorrectOption) { bg = 'bg-green-50'; border = 'border-green-500'; }
-                else if (isSelected) { bg = 'bg-red-50'; border = 'border-red-400'; }
-              } else if (isSelected) { bg = 'bg-blue-50'; border = 'border-blue-500'; }
+                if (isCorrectOption) { bg = 'bg-green-50 dark:bg-green-500/10'; border = 'border-green-500'; }
+                else if (isSelected) { bg = 'bg-red-50 dark:bg-red-500/10'; border = 'border-red-400'; }
+              } else if (isSelected) { bg = 'bg-blue-50 dark:bg-blue-500/10'; border = 'border-blue-500'; }
 
               return (
                 <button key={option.id} onClick={() => handleSelectAnswer(option.id)}
                   disabled={showFeedback}
                   className={`w-full p-4 border-2 ${border} ${bg} rounded-xl text-left transition-colors flex items-center gap-3 disabled:cursor-not-allowed`}>
                   <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-white/20'}`}>
                     {isSelected && (
                       currentQuestion.question_type === 'single_choice'
                         ? <div className="w-2 h-2 bg-white rounded-full" />
                         : <CheckCircle className="w-4 h-4 text-white" />
                     )}
                   </div>
-                  <span className="text-gray-900 flex-1">{option.text}</span>
+                  <span className="text-gray-900 flex-1 dark:text-gray-100">{option.text}</span>
                   {showFeedback && isCorrectOption && <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />}
                   {showFeedback && isSelected && !isCorrectOption && <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
                 </button>
@@ -579,17 +579,21 @@ function PracticeContent() {
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className={`w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed transition-colors ${
-                showFeedback ? isCorrect ? 'border-green-500 bg-green-50' : 'border-red-400 bg-red-50' : 'border-gray-200'
+              className={`w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed transition-colors dark:bg-white/[0.03] dark:text-gray-100 ${
+                showFeedback
+                  ? isCorrect
+                    ? 'border-green-500 bg-green-50 dark:bg-green-500/10'
+                    : 'border-red-400 bg-red-50 dark:bg-red-500/10'
+                  : 'border-gray-200 dark:border-white/10'
               }`}
             />
             {isFillChecking && (
-              <div className="flex items-center gap-2 text-sm text-blue-600">
+              <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
                 <Loader2 className="w-4 h-4 animate-spin" /> AI is checking your answer…
               </div>
             )}
             {showFeedback && !isCorrect && (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg px-3 py-2">
                 Correct answer: <strong>{currentQuestion.correct_answers[0]}</strong>
               </p>
             )}
@@ -599,29 +603,29 @@ function PracticeContent() {
         {/* Explanation (shown for ALL checked questions) */}
         {showFeedback && (
           <div className={`mt-6 rounded-xl p-4 border ${
-            isCorrect ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
+            isCorrect ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/20' : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20'
           }`}>
             <p className={`font-semibold text-sm mb-2 flex items-center gap-1.5 ${
-              isCorrect ? 'text-green-800' : 'text-amber-800'
+              isCorrect ? 'text-green-800 dark:text-green-400' : 'text-amber-800 dark:text-amber-400'
             }`}>
               {isCorrect
                 ? <><CheckCircle className="w-4 h-4" /> Correct!</>
                 : <><XCircle className="w-4 h-4" /> Incorrect</>}
             </p>
             {isCorrect && confidence[currentQuestion.id] === 'unsure' && (
-              <p className="text-xs text-amber-700 bg-amber-100/70 rounded-lg px-2.5 py-1.5 mb-2 inline-block">
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-500/10 rounded-lg px-2.5 py-1.5 mb-2 inline-block">
                 You got it right, but you weren&rsquo;t sure — worth another look before the exam.
               </p>
             )}
             {currentQuestion.explanation ? (
-              <p className="text-gray-700 text-sm leading-relaxed">
+              <p className="text-gray-700 text-sm leading-relaxed dark:text-gray-300">
                 <span className="font-medium">Why: </span>{currentQuestion.explanation}
               </p>
             ) : (
-              <p className="text-gray-500 text-sm italic">No explanation stored for this question.</p>
+              <p className="text-gray-500 text-sm italic dark:text-gray-400">No explanation stored for this question.</p>
             )}
             {currentQuestion.times_answered >= 5 && (
-              <p className="mt-3 pt-3 border-t border-black/5 text-xs text-gray-500 flex items-center gap-1.5">
+              <p className="mt-3 pt-3 border-t border-black/5 text-xs text-gray-500 flex items-center gap-1.5 dark:text-gray-400">
                 <Users className="w-3.5 h-3.5 flex-shrink-0" />
                 {(() => {
                   const missRate = Math.round(
@@ -638,7 +642,7 @@ function PracticeContent() {
       </Card>
 
       {submitError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{submitError}</div>
+        <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-sm text-red-700 dark:text-red-400">{submitError}</div>
       )}
 
       {/* Navigation */}
@@ -648,7 +652,7 @@ function PracticeContent() {
         </Button>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {!showFeedback && isAnswered && !isFillChecking && (
-            <span className="text-xs text-gray-500 mr-1 hidden md:inline">How sure are you?</span>
+            <span className="text-xs text-gray-500 mr-1 hidden md:inline dark:text-gray-400">How sure are you?</span>
           )}
           {!showFeedback && isAnswered && (
             <>
@@ -687,11 +691,11 @@ function PracticeContent() {
             <button key={q.id} onClick={() => goTo(idx)}
               title={isChecked ? (correct ? 'Correct ✓' : 'Incorrect ✗') : hasAnswer ? 'Answered (not checked)' : 'Not answered'}
               className={`w-8 h-8 rounded-full text-xs font-medium transition-colors relative ${
-                idx === currentIndex ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                idx === currentIndex ? 'bg-blue-600 text-white ring-2 ring-blue-300 dark:ring-blue-500/40'
                 : isChecked && correct ? 'bg-green-500 text-white'
                 : isChecked ? 'bg-red-400 text-white'
-                : hasAnswer ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                : hasAnswer ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30'
+                : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/15'
               }`}>
               {idx + 1}
               {isChecked && <Lock className="w-2 h-2 absolute -top-0.5 -right-0.5 opacity-80" />}

@@ -195,9 +195,9 @@ export default function ExamPage() {
       <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
         {/* Pre-exam upgrade banner */}
         {isFree && !isPaid && allLevelCourses > 1 && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-sm text-blue-800">
-              <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
+              <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
               <span>
                 <span className="font-medium">Free course.</span>{' '}
                 Unlock {allLevelCourses - 1} more for just {priceLabel}.
@@ -205,7 +205,7 @@ export default function ExamPage() {
             </div>
             <button
               onClick={() => setShowPaywall(true)}
-              className="flex-shrink-0 text-xs font-medium text-blue-700 border border-blue-300 px-2.5 py-1.5 rounded-lg hover:bg-blue-100"
+              className="flex-shrink-0 text-xs font-medium text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/15"
             >
               Upgrade →
             </button>
@@ -213,15 +213,15 @@ export default function ExamPage() {
         )}
 
         <Card className="p-8 text-center">
-          <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Clock className="w-10 h-10 text-purple-600" />
+          <div className="w-20 h-20 bg-purple-100 dark:bg-purple-500/15 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-10 h-10 text-purple-600 dark:text-purple-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Exam Simulation</h1>
-          <p className="text-gray-600 mb-6">{course?.course_code} - {course?.course_name}</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-gray-100">Exam Simulation</h1>
+          <p className="text-gray-600 mb-6 dark:text-gray-400">{course?.course_code} - {course?.course_name}</p>
 
-          <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left">
-            <h2 className="font-semibold text-gray-900 mb-4">Exam Rules:</h2>
-            <ul className="space-y-2 text-gray-600">
+          <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left dark:bg-white/[0.03]">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-gray-100">Exam Rules:</h2>
+            <ul className="space-y-2 text-gray-600 dark:text-gray-400">
               <li className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-500" />
                 {questions.length} questions to answer
@@ -266,11 +266,11 @@ export default function ExamPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-gray-50 py-4 -mx-6 px-6">
+      <div className="sticky top-0 z-10 bg-gray-50 py-4 -mx-6 px-6 dark:bg-white/[0.03]">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <Badge variant="info">{course?.course_code}</Badge>
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-semibold ${
-            timeRemaining <= 300 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+            timeRemaining <= 300 ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400' : 'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300'
           }`}>
             <Clock className="w-4 h-4" />
             {formatTime(timeRemaining)}
@@ -296,14 +296,14 @@ export default function ExamPage() {
               {currentQuestion.question_type === 'fill_in_blank' && 'Fill in the Blank'}
             </Badge>
             {lockedQuestions.has(currentQuestion.id) && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
                 <Lock className="w-3 h-3" /> Locked
               </span>
             )}
           </div>
         </div>
 
-        <h2 className="text-lg font-medium text-gray-900 mb-6">{currentQuestion.question_text}</h2>
+        <h2 className="text-lg font-medium text-gray-900 mb-6 dark:text-gray-100">{currentQuestion.question_text}</h2>
 
         {currentQuestion.question_type !== 'fill_in_blank' && currentQuestion.options && (
           <div className="space-y-3">
@@ -316,11 +316,13 @@ export default function ExamPage() {
                   onClick={() => handleSelectAnswer(option.id)}
                   disabled={isLocked}
                   className={`w-full p-4 border-2 rounded-xl text-left transition-colors flex items-center gap-3 disabled:cursor-not-allowed ${
-                    isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+                      : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] hover:bg-gray-100 dark:hover:bg-white/5'
                   } ${isLocked ? 'opacity-80' : ''}`}
                 >
                   <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-white/20'
                   }`}>
                     {isSelected && (
                       currentQuestion.question_type === 'single_choice'
@@ -328,7 +330,7 @@ export default function ExamPage() {
                         : <CheckCircle className="w-4 h-4 text-white" />
                     )}
                   </div>
-                  <span className="text-gray-900">{option.text}</span>
+                  <span className="text-gray-900 dark:text-gray-100">{option.text}</span>
                 </button>
               );
             })}
@@ -346,8 +348,8 @@ export default function ExamPage() {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            className={`w-full p-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-80 ${
-              lockedQuestions.has(currentQuestion.id) ? 'bg-gray-50' : ''
+            className={`w-full p-4 border-2 border-gray-200 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-80 ${
+              lockedQuestions.has(currentQuestion.id) ? 'bg-gray-50 dark:bg-white/5' : ''
             }`}
           />
         )}
@@ -385,7 +387,7 @@ export default function ExamPage() {
 
       {/* Question Navigator */}
       <Card className="p-4">
-        <p className="text-sm text-gray-600 mb-3">Question Navigator:</p>
+        <p className="text-sm text-gray-600 mb-3 dark:text-gray-400">Question Navigator:</p>
         <div className="flex flex-wrap gap-2">
           {questions.map((q, idx) => {
             const hasAnswer = answers[q.id]?.length > 0;
@@ -396,14 +398,14 @@ export default function ExamPage() {
                 onClick={() => setCurrentIndex(idx)}
                 className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors relative ${
                   idx === currentIndex ? 'bg-blue-600 text-white'
-                  : isLocked ? 'bg-green-100 text-green-700 border border-green-300 opacity-75'
-                  : hasAnswer ? 'bg-green-100 text-green-700 border border-green-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : isLocked ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-500/30 opacity-75'
+                  : hasAnswer ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-500/30'
+                  : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/15'
                 }`}
               >
                 {idx + 1}
                 {isLocked && (
-                  <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1 text-gray-500 bg-white rounded-full p-0.5 shadow-sm" />
+                  <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1 text-gray-500 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-full p-0.5 shadow-sm" />
                 )}
               </button>
             );
@@ -413,13 +415,13 @@ export default function ExamPage() {
 
       <Modal isOpen={showSubmitModal} onClose={() => setShowSubmitModal(false)} title="Submit Exam?">
         <div className="space-y-4">
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             You have answered <strong>{answeredCount}</strong> out of <strong>{questions.length}</strong> questions.
           </p>
           {answeredCount < questions.length && (
-            <div className="p-4 bg-yellow-50 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-yellow-800">
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-yellow-800 dark:text-yellow-300">
                 You have {questions.length - answeredCount} unanswered questions. Are you sure you want to submit?
               </p>
             </div>
@@ -436,7 +438,7 @@ export default function ExamPage() {
       </Modal>
 
       <Modal isOpen={showTimeWarning} onClose={() => setShowTimeWarning(false)} title="⚠️ Time Warning">
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 mb-4 dark:text-gray-400">
           You have <strong>5 minutes</strong> remaining! The exam will auto-submit when time runs out.
         </p>
         <Button className="w-full" onClick={() => setShowTimeWarning(false)}>Continue</Button>

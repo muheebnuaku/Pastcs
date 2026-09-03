@@ -104,7 +104,7 @@ export default function CourseDetailPage() {
   if (!course) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">Course not found</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Course not found</h2>
         <Link href="/courses" className="text-blue-600 hover:underline mt-2 inline-block">
           Back to courses
         </Link>
@@ -122,7 +122,7 @@ export default function CourseDetailPage() {
   if (!hasAccess && user?.free_course_code) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900">
+        <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Courses
         </Link>
@@ -144,12 +144,12 @@ export default function CourseDetailPage() {
           </div>
 
           {/* Lock overlay */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 rounded-2xl">
-            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
-              <Lock className="w-7 h-7 text-gray-400" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-[#16140f]/90 rounded-2xl">
+            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-3 dark:bg-white/10">
+              <Lock className="w-7 h-7 text-gray-400 dark:text-gray-500" />
             </div>
-            <p className="font-semibold text-gray-900 mb-1">This course is locked</p>
-            <p className="text-sm text-gray-500 mb-4">Unlock all courses for just {priceLabel} this semester</p>
+            <p className="font-semibold text-gray-900 mb-1 dark:text-gray-100">This course is locked</p>
+            <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">Unlock all courses for just {priceLabel} this semester</p>
             <button
               onClick={() => setShowPaywall(true)}
               className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
@@ -179,21 +179,21 @@ export default function CourseDetailPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Upgrade banner for free-course users */}
       {isFree && !isPaid && allLevelCourses > 1 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-          <p className="text-sm text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
             <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
             Unlock {allLevelCourses - 1} more for just {priceLabel} this semester.
           </p>
           <button
             onClick={() => setShowPaywall(true)}
-            className="flex-shrink-0 text-sm font-medium text-blue-700 border border-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex-shrink-0 text-sm font-medium text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors"
           >
             Unlock All →
           </button>
         </div>
       )}
 
-      <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900">
+      <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Courses
       </Link>
@@ -226,18 +226,18 @@ export default function CourseDetailPage() {
 
       {/* Practice Options */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-2 border-blue-100 bg-blue-50/50">
+        <Card className="border-2 border-blue-100 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-500/5">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Zap className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center">
+                <Zap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">Quick Practice</h2>
-                <p className="text-sm text-gray-600">{QUESTIONS_PER_PRACTICE} random questions</p>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Quick Practice</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{QUESTIONS_PER_PRACTICE} random questions</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
               Practice random questions from all topics. No time limit, instant feedback.
             </p>
             <Link href={`/practice/${course.course_code.toLowerCase()}?mode=quick`}>
@@ -249,18 +249,18 @@ export default function CourseDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-purple-100 bg-purple-50/50">
+        <Card className="border-2 border-purple-100 dark:border-purple-500/20 bg-purple-50/50 dark:bg-purple-500/5">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Clock className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-500/15 rounded-xl flex items-center justify-center">
+                <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">Exam Simulation</h2>
-                <p className="text-sm text-gray-600">{QUESTIONS_PER_EXAM} questions • {EXAM_DURATION_MINUTES} minutes</p>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Exam Simulation</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{QUESTIONS_PER_EXAM} questions • {EXAM_DURATION_MINUTES} minutes</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
               Simulate the real exam experience with timed questions and auto-submit.
             </p>
             <Link href={`/exam/${course.course_code.toLowerCase()}`}>
@@ -272,18 +272,18 @@ export default function CourseDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-amber-100 bg-amber-50/50">
+        <Card className="border-2 border-amber-100 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                <RotateCcw className="w-6 h-6 text-amber-600" />
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/15 rounded-xl flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">Practice My Mistakes</h2>
-                <p className="text-sm text-gray-600">Only what you got wrong</p>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Practice My Mistakes</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Only what you got wrong</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
               Revisit every question you&rsquo;ve answered incorrectly in this course until it sticks.
             </p>
             <Link href={`/practice/${course.course_code.toLowerCase()}?mode=mistakes`}>
@@ -295,18 +295,18 @@ export default function CourseDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-violet-100 bg-violet-50/50">
+        <Card className="border-2 border-violet-100 dark:border-violet-500/20 bg-violet-50/50 dark:bg-violet-500/5">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center">
-                <CalendarClock className="w-6 h-6 text-violet-600" />
+              <div className="w-12 h-12 bg-violet-100 dark:bg-violet-500/15 rounded-xl flex items-center justify-center">
+                <CalendarClock className="w-6 h-6 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">Due for Review</h2>
-                <p className="text-sm text-gray-600">Spaced repetition</p>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Due for Review</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Spaced repetition</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
               Questions resurface on a schedule — sooner if you missed them, later once they stick.
             </p>
             <Link href={`/practice/${course.course_code.toLowerCase()}?mode=due`}>
@@ -321,8 +321,8 @@ export default function CourseDetailPage() {
 
       {/* Topics */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Practice by Topic</h2>
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Practice by Topic</h2>
         </div>
         <CardContent>
           {topics.length > 0 ? (
@@ -331,20 +331,20 @@ export default function CourseDetailPage() {
                 <Link
                   key={topic.id}
                   href={`/practice/${course.course_code.toLowerCase()}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors dark:bg-white/[0.03] dark:hover:bg-white/10"
                 >
                   <div>
-                    <h3 className="font-medium text-gray-900">{topic.topic_name}</h3>
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100">{topic.topic_name}</h3>
                     {topic.description && (
-                      <p className="text-sm text-gray-500 mt-1">{topic.description}</p>
+                      <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">{topic.description}</p>
                     )}
                   </div>
-                  <ArrowLeft className="w-5 h-5 text-gray-400 rotate-180" />
+                  <ArrowLeft className="w-5 h-5 text-gray-400 rotate-180 dark:text-gray-500" />
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">
+            <p className="text-gray-500 text-center py-8 dark:text-gray-400">
               No topics available yet for this course.
             </p>
           )}

@@ -53,8 +53,8 @@ export default function AchievementsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Achievements</h1>
-        <p className="text-gray-600">Complete challenges to earn badges</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Achievements</h1>
+        <p className="text-gray-600 dark:text-gray-400">Complete challenges to earn badges</p>
       </div>
 
       {/* Progress Card */}
@@ -64,19 +64,19 @@ export default function AchievementsPage() {
             <Trophy className="w-8 h-8 text-yellow-600" />
           </div>
           <div>
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {earnedCount}/{achievements.length}
             </p>
-            <p className="text-gray-600">Achievements Earned</p>
+            <p className="text-gray-600 dark:text-gray-400">Achievements Earned</p>
           </div>
           <div className="flex-1">
-            <div className="bg-white rounded-full h-4 overflow-hidden">
+            <div className="bg-white rounded-full h-4 overflow-hidden dark:bg-white/10">
               <div
                 className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all duration-500"
                 style={{ width: `${(earnedCount / achievements.length) * 100}%` }}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 mt-1 dark:text-gray-400">
               {achievements.length - earnedCount} more to unlock
             </p>
           </div>
@@ -95,23 +95,23 @@ export default function AchievementsPage() {
             <Card
               key={achievement.id}
               className={`transition-all duration-300 ${
-                isEarned 
-                  ? 'border-yellow-200 bg-gradient-to-br from-yellow-50 to-orange-50' 
+                isEarned
+                  ? 'border-yellow-200 dark:border-yellow-500/20 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-500/10 dark:to-orange-500/10'
                   : 'opacity-60 grayscale'
               }`}
             >
               <CardContent className="p-6 text-center">
                 <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center text-4xl mb-4 ${
-                  isEarned ? 'bg-yellow-100' : 'bg-gray-100'
+                  isEarned ? 'bg-yellow-100 dark:bg-yellow-500/15' : 'bg-gray-100 dark:bg-white/10'
                 }`}>
                   {isEarned ? (
                     ACHIEVEMENT_ICONS[achievement.icon] || '🏅'
                   ) : (
-                    <Lock className="w-8 h-8 text-gray-400" />
+                    <Lock className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                   )}
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{achievement.name}</h3>
-                <p className="text-sm text-gray-600 mb-4">{achievement.description}</p>
+                <h3 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">{achievement.name}</h3>
+                <p className="text-sm text-gray-600 mb-4 dark:text-gray-400">{achievement.description}</p>
                 {isEarned ? (
                   <div className="flex items-center justify-center gap-2 text-green-600 text-sm">
                     <CheckCircle className="w-4 h-4" />
