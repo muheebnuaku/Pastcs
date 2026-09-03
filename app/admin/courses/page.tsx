@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Modal, Badge } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
-import type { Course, Topic } from '@/types';
+import type { Course, Topic, Program } from '@/types';
 
 type TopicRow = Topic & { allIds: string[] };
+type CourseRow = Course & { topics: TopicRow[]; programIds: string[] };
 import {
   Plus,
   Edit,
@@ -34,7 +35,8 @@ const ICON_PALETTE = [
 
 
 export default function AdminCoursesPage() {
-  const [courses, setCourses] = useState<(Course & { topics: TopicRow[] })[]>([]);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -50,6 +52,7 @@ export default function AdminCoursesPage() {
   const [courseIcon, setCourseIcon] = useState('📚');
   const [courseLevel, setCourseLevel] = useState<100 | 200 | 300 | 400>(100);
   const [courseSemester, setCourseSemester] = useState<1 | 2>(1);
+  const [courseProgramIds, setCourseProgramIds] = useState<string[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -60,12 +63,22 @@ export default function AdminCoursesPage() {
 
   const fetchCourses = async () => {
     const supabase = createClient();
-    const { data: coursesData } = await supabase
-      .from('courses')
-      .select('*, topics(*)')
-      .order('course_code');
+    const [{ data: coursesData }, { data: programsData }, { data: courseProgramsData }] = await Promise.all([
+      supabase.from('courses').select('*, topics(*)').order('course_code'),
+      supabase.from('programs').select('*').order('name'),
+      supabase.from('course_programs').select('course_id, program_id'),
+    ]);
+
+    if (programsData) setPrograms(programsData);
 
     if (coursesData) {
+      const programsByCourse = new Map<string, string[]>();
+      for (const row of (courseProgramsData ?? []) as { course_id: string; program_id: string }[]) {
+        const list = programsByCourse.get(row.course_id) ?? [];
+        list.push(row.program_id);
+        programsByCourse.set(row.course_id, list);
+      }
+
       setCourses((coursesData as (Course & { topics: Topic[] })[]).map(c => {
         const sorted = [...c.topics].sort((a, b) => a.order_index - b.order_index);
         const seen = new Map<string, TopicRow>();
@@ -77,7 +90,7 @@ export default function AdminCoursesPage() {
             seen.get(key)!.allIds.push(t.id);
           }
         }
-        return { ...c, topics: Array.from(seen.values()) };
+        return { ...c, topics: Array.from(seen.values()), programIds: programsByCourse.get(c.id) ?? [] };
       }));
     }
   };
@@ -98,7 +111,7 @@ export default function AdminCoursesPage() {
     });
   };
 
-  const openCourseModal = (course?: Course) => {
+  const openCourseModal = (course?: CourseRow) => {
     if (course) {
       setEditingCourse(course);
       setCourseCode(course.course_code);
@@ -108,6 +121,7 @@ export default function AdminCoursesPage() {
       setCourseIcon(course.icon || COURSE_ICONS[course.course_code] || '📚');
       setCourseLevel(course.level);
       setCourseSemester(course.semester);
+      setCourseProgramIds(course.programIds);
     } else {
       setEditingCourse(null);
       setCourseCode('');
@@ -117,8 +131,15 @@ export default function AdminCoursesPage() {
       setCourseIcon('📚');
       setCourseLevel(100);
       setCourseSemester(1);
+      setCourseProgramIds([]);
     }
     setShowCourseModal(true);
+  };
+
+  const toggleCourseProgram = (programId: string) => {
+    setCourseProgramIds(prev =>
+      prev.includes(programId) ? prev.filter(id => id !== programId) : [...prev, programId]
+    );
   };
 
   const openTopicModal = (courseId: string, topic?: TopicRow) => {
@@ -146,6 +167,7 @@ export default function AdminCoursesPage() {
     const normalizedCode = courseCode.trim().toUpperCase();
 
     let error;
+    let courseId = editingCourse?.id;
     if (editingCourse) {
       ({ error } = await supabase
         .from('courses')
@@ -160,7 +182,7 @@ export default function AdminCoursesPage() {
         })
         .eq('id', editingCourse.id));
     } else {
-      ({ error } = await supabase
+      const { data, error: insertError } = await supabase
         .from('courses')
         .insert({
           course_code: normalizedCode,
@@ -170,7 +192,23 @@ export default function AdminCoursesPage() {
           icon: courseIcon,
           level: courseLevel,
           semester: courseSemester,
-        }));
+        })
+        .select()
+        .single();
+      error = insertError;
+      courseId = data?.id;
+    }
+
+    if (!error && courseId) {
+      // Replace the full set of program assignments — simplest correct
+      // approach for a small join table, avoids diffing add/remove sets.
+      await supabase.from('course_programs').delete().eq('course_id', courseId);
+      if (courseProgramIds.length > 0) {
+        const { error: programError } = await supabase
+          .from('course_programs')
+          .insert(courseProgramIds.map(program_id => ({ course_id: courseId, program_id })));
+        if (programError) error = programError;
+      }
     }
 
     setSaving(false);
@@ -230,9 +268,9 @@ export default function AdminCoursesPage() {
     if (!acc[course.level][course.semester]) acc[course.level][course.semester] = [];
     acc[course.level][course.semester].push(course);
     return acc;
-  }, {} as Record<number, Record<number, (Course & { topics: TopicRow[] })[]>>);
+  }, {} as Record<number, Record<number, CourseRow[]>>);
 
-  const renderCourse = (course: Course & { topics: TopicRow[] }) => (
+  const renderCourse = (course: CourseRow) => (
     <Card key={course.id}>
       <div
         className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 gap-2 dark:hover:bg-white/[0.03]"
@@ -252,6 +290,13 @@ export default function AdminCoursesPage() {
               <h3 className="font-semibold text-gray-900 text-sm sm:text-base dark:text-gray-100">{course.course_code}</h3>
               <Badge variant="info" size="sm">{course.total_questions} q</Badge>
               <Badge variant="default" size="sm">{course.topics.length} topics</Badge>
+              {course.programIds.length === 0 ? (
+                <Badge variant="danger" size="sm">No program</Badge>
+              ) : (
+                programs
+                  .filter(p => course.programIds.includes(p.id))
+                  .map(p => <Badge key={p.id} variant="default" size="sm">{p.short_code}</Badge>)
+              )}
             </div>
             <p className="text-xs sm:text-sm text-gray-600 truncate dark:text-gray-400">{course.course_name}</p>
           </div>
@@ -446,6 +491,39 @@ export default function AdminCoursesPage() {
                 <option value={2}>Semester 2</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-2 dark:text-gray-300">
+              Programs — which students see this course
+            </label>
+            {programs.length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                No programs yet — create one on the Programs page first.
+              </p>
+            ) : (
+              <div className="border border-gray-200 dark:border-white/10 rounded-xl p-2 max-h-36 overflow-y-auto bg-gray-50 dark:bg-white/[0.03] space-y-1">
+                {programs.map(program => (
+                  <label
+                    key={program.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white dark:hover:bg-white/5 cursor-pointer text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={courseProgramIds.includes(program.id)}
+                      onChange={() => toggleCourseProgram(program.id)}
+                      className="rounded"
+                    />
+                    <span className="text-gray-800 dark:text-gray-200">{program.name}</span>
+                    <Badge variant="default" size="sm">{program.short_code}</Badge>
+                  </label>
+                ))}
+              </div>
+            )}
+            {courseProgramIds.length === 0 && programs.length > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                No program selected — no student will see this course.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Color</label>

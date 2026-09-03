@@ -22,6 +22,7 @@ import {
   DollarSign,
   ChevronRight,
   MessageSquareQuote,
+  Layers,
 } from 'lucide-react';
 
 const adminNavSections = [
@@ -33,6 +34,7 @@ const adminNavSections = [
   {
     label: 'Content',
     items: [
+      { href: '/admin/programs', label: 'Programs', icon: Layers },
       { href: '/admin/courses', label: 'Courses', icon: BookOpen },
       { href: '/admin/questions', label: 'Questions', icon: FileQuestion },
       { href: '/admin/generate', label: 'AI Generator', icon: Sparkles },
