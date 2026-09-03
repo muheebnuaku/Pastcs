@@ -11,6 +11,7 @@ import { Card, Button, Badge, Progress } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
+import { courseCountForProgram } from '@/lib/programs';
 import type { Question, Course } from '@/types';
 import {
   ArrowLeft,
@@ -137,9 +138,8 @@ function PracticeContent() {
 
     if (!isPaid && !isFree) { router.push(`/courses/${courseCode.toLowerCase()}`); return; }
 
-    if (user?.selected_level && user?.selected_semester) {
-      const { count } = await supabase.from('courses')
-        .select('id', { count: 'exact', head: true })
+    if (user?.selected_level && user?.selected_semester && user?.program_id) {
+      const { count } = await courseCountForProgram(supabase, user.program_id)
         .eq('level', user.selected_level).eq('semester', user.selected_semester);
       setAllLevelCourses(count ?? 0);
     }
@@ -201,7 +201,7 @@ function PracticeContent() {
       const shuffled = shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE);
       setQuestions(shuffled);
     }
-  }, [courseCode, topicId, router, isPaid, isFree, isMistakesMode, isDueMode, user?.id, user?.selected_level, user?.selected_semester]);
+  }, [courseCode, topicId, router, isPaid, isFree, isMistakesMode, isDueMode, user?.id, user?.selected_level, user?.selected_semester, user?.program_id]);
 
   // ── Initial load: detect saved session ─────────────────────────────────────
   useEffect(() => {
@@ -226,9 +226,8 @@ function PracticeContent() {
       .from('courses').select('*').ilike('course_code', courseCode).single();
       if (courseData) setCourse(courseData);
 
-      if (user?.selected_level && user?.selected_semester) {
-        const { count } = await supabase.from('courses')
-          .select('id', { count: 'exact', head: true })
+      if (user?.selected_level && user?.selected_semester && user?.program_id) {
+        const { count } = await courseCountForProgram(supabase, user.program_id)
           .eq('level', user.selected_level).eq('semester', user.selected_semester);
         setAllLevelCourses(count ?? 0);
       }

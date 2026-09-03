@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
 import { Card, CardContent, Badge, Avatar, Select } from '@/components/ui';
 import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
+import { coursesForProgram } from '@/lib/programs';
 import type { Course, LeaderboardEntry } from '@/types';
 import { Trophy, Medal, Award, Crown, TrendingUp } from 'lucide-react';
 
@@ -18,11 +19,12 @@ export default function LeaderboardPage() {
     const fetchData = async () => {
       const supabase = createClient();
 
-      // Fetch courses
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('*')
-        .order('course_code');
+      // Fetch courses — scoped to the student's own program so the
+      // filter dropdown can't offer a course they don't even take.
+      const coursesQuery = user?.program_id
+        ? coursesForProgram(supabase, user.program_id).order('course_code')
+        : supabase.from('courses').select('*').order('course_code');
+      const { data: coursesData } = await coursesQuery;
 
       if (coursesData) setCourses(coursesData);
 
@@ -35,7 +37,7 @@ export default function LeaderboardPage() {
     };
 
     fetchData();
-  }, [selectedCourse]);
+  }, [selectedCourse, user?.program_id]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
