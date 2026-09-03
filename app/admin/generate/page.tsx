@@ -370,15 +370,15 @@ export default function AdminGeneratePage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">AI Question Generator</h1>
-        <p className="text-gray-600">Generate exam questions from PDF or PPTX slides, or by topic</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">AI Question Generator</h1>
+        <p className="text-gray-600 dark:text-gray-400">Generate exam questions from PDF or PPTX slides, or by topic</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Section */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <FileText className="w-5 h-5" />
               Generation Settings
             </h2>
@@ -435,9 +435,9 @@ export default function AdminGeneratePage() {
                   ))}
                 </Select>
                 {selectedTopic && (
-                  <div className="mt-2 flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-100 rounded-lg">
-                    <BookOpen className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                    <p className="text-xs text-purple-700">
+                  <div className="mt-2 flex items-center gap-2 p-2.5 bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-500/20 rounded-lg">
+                    <BookOpen className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                    <p className="text-xs text-purple-700 dark:text-purple-400">
                       <span className="font-semibold">Topic mode:</span> AI will generate questions
                       specifically for <span className="font-semibold">{selectedTopicObj?.topic_name}</span>.
                     </p>
@@ -449,13 +449,13 @@ export default function AdminGeneratePage() {
             {/* PDF Upload area */}
             {selectedCourse && (
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Upload Slide (PDF, PPTX, DOCX)</p>
+                <p className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Upload Slide (PDF, PPTX, DOCX)</p>
 
                 {!pdfFile ? (
-                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-colors">
-                    <FileUp className="w-7 h-7 text-gray-400 mb-1" />
-                    <span className="text-sm text-gray-500">Click to upload PDF, PPTX, or DOCX</span>
-                    <span className="text-xs text-gray-400">AI will scan and extract topic &amp; content</span>
+                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-colors dark:border-white/15 dark:bg-white/[0.03] dark:hover:bg-blue-500/10 dark:hover:border-blue-500/40">
+                    <FileUp className="w-7 h-7 text-gray-400 mb-1 dark:text-gray-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Click to upload PDF, PPTX, or DOCX</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">AI will scan and extract topic &amp; content</span>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -465,34 +465,34 @@ export default function AdminGeneratePage() {
                     />
                   </label>
                 ) : (
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
                     {isParsing ? (
                       <>
-                        <ScanText className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0" />
+                        <ScanText className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-pulse flex-shrink-0" />
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-blue-800">
+                          <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
                             {parseProgress || 'Processing file…'}
                           </p>
-                          <p className="text-xs text-blue-500">Extracting content and detecting topic</p>
+                          <p className="text-xs text-blue-500 dark:text-blue-400">Extracting content and detecting topic</p>
                         </div>
-                        <RefreshCw className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                        <RefreshCw className="w-4 h-4 text-blue-500 dark:text-blue-400 animate-spin flex-shrink-0" />
                       </>
                     ) : (
                       <>
-                        <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-blue-800 truncate">{pdfFile.name}</p>
+                          <p className="text-sm font-medium text-blue-800 dark:text-blue-300 truncate">{pdfFile.name}</p>
                           {pdfTopic && (
-                            <p className="text-xs text-blue-600">
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
                               Detected topic: <span className="font-semibold">{pdfTopic}</span>
                             </p>
                           )}
                         </div>
                         <button
                           onClick={clearPdf}
-                          className="p-1 hover:bg-blue-200 rounded-full transition-colors flex-shrink-0"
+                          className="p-1 hover:bg-blue-200 dark:hover:bg-blue-500/20 rounded-full transition-colors flex-shrink-0"
                         >
-                          <X className="w-4 h-4 text-blue-700" />
+                          <X className="w-4 h-4 text-blue-700 dark:text-blue-400" />
                         </button>
                       </>
                     )}
@@ -528,9 +528,9 @@ Binary Number System
             )}
 
             {!selectedTopic && !pdfFile && selectedCourse && (
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">Tips for better results:</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
+              <div className="bg-blue-50 dark:bg-blue-500/10 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Tips for better results:</h4>
+                <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
                   <li>• Upload a PDF or PPTX, or paste slide text above</li>
                   <li>• Include key concepts and definitions</li>
                   <li>• More content = more questions generated</li>
@@ -564,13 +564,13 @@ Binary Number System
 
         {/* Generated Questions Section */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <Sparkles className="w-5 h-5" />
               Generated Questions
             </h2>
             {generatedQuestions.length > 0 && (
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 {generatedQuestions.filter(q => q.selected).length} selected
                 {' · '}
                 {generatedQuestions.filter(q => q.is_scenario).length} scenario-based
@@ -579,22 +579,22 @@ Binary Number System
           </div>
           <div className="p-6">
             {error && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-lg mb-4">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-4 rounded-lg mb-4">
                 <AlertCircle className="w-5 h-5" />
                 {error}
               </div>
             )}
 
             {successMessage && (
-              <div className="flex items-center gap-2 text-green-600 bg-green-50 p-4 rounded-lg mb-4">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 p-4 rounded-lg mb-4">
                 <Check className="w-5 h-5" />
                 {successMessage}
               </div>
             )}
 
             {generatedQuestions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <Sparkles className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-white/10" />
                 <p>Generated questions will appear here</p>
               </div>
             ) : (
@@ -604,8 +604,8 @@ Binary Number System
                     key={idx}
                     className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                       question.selected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+                        : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] hover:border-gray-300 dark:hover:border-white/20'
                     }`}
                     onClick={() => toggleQuestionSelection(idx)}
                   >
@@ -619,13 +619,13 @@ Binary Number System
                             {question.question_type.replace('_', ' ')}
                           </Badge>
                           {question.is_scenario && (
-                            <Badge variant="info" size="sm" className="!bg-purple-100 !text-purple-700">
+                            <Badge variant="info" size="sm" className="!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400">
                               <Puzzle className="w-3 h-3 mr-1" />
                               Scenario
                             </Badge>
                           )}
                         </div>
-                        <p className="font-medium text-gray-900 mb-2">{question.question_text}</p>
+                        <p className="font-medium text-gray-900 mb-2 dark:text-gray-100">{question.question_text}</p>
                         {question.options && (
                           <div className="space-y-1 mb-2">
                             {question.options.map((opt, i) => (
@@ -635,8 +635,8 @@ Binary Number System
                                   (Array.isArray(question.correct_answer)
                                     ? question.correct_answer.includes(opt)
                                     : question.correct_answer === opt)
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-600'
+                                    ? 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-400'
+                                    : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400'
                                 }`}
                               >
                                 {String.fromCharCode(65 + i)}. {opt}
@@ -645,12 +645,12 @@ Binary Number System
                           </div>
                         )}
                         {question.question_type === 'fill_in_blank' && (
-                          <p className="text-sm text-green-600">
+                          <p className="text-sm text-green-600 dark:text-green-400">
                             Answer: {question.correct_answer}
                           </p>
                         )}
                         {question.explanation && (
-                          <p className="text-sm text-gray-500 mt-2">
+                          <p className="text-sm text-gray-500 mt-2 dark:text-gray-400">
                             💡 {question.explanation}
                           </p>
                         )}
@@ -658,7 +658,7 @@ Binary Number System
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                         question.selected
                           ? 'bg-blue-500 border-blue-500'
-                          : 'border-gray-300'
+                          : 'border-gray-300 dark:border-white/20'
                       }`}>
                         {question.selected && <Check className="w-4 h-4 text-white" />}
                       </div>
@@ -671,16 +671,16 @@ Binary Number System
             {generatedQuestions.length > 0 && (
               <div className="mt-4 space-y-3">
                 {isSaving && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                  <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-blue-700">
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
                         Saving {saveCount} question{saveCount !== 1 ? 's' : ''} to database...
                       </span>
-                      <span className="text-sm font-semibold text-blue-700">
+                      <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
                         {Math.round(saveProgress)}%
                       </span>
                     </div>
-                    <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-blue-200 dark:bg-blue-500/20 rounded-full h-2 overflow-hidden">
                       <div
                         className="h-2 rounded-full bg-blue-600 transition-all duration-150"
                         style={{ width: `${saveProgress}%` }}

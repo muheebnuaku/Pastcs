@@ -29,18 +29,18 @@ export function AdminHeader() {
   const crumbs = getBreadcrumbs(pathname);
 
   return (
-    <div className="mb-6 pb-5 border-b border-gray-200">
+    <div className="mb-6 pb-5 border-b border-gray-200 dark:border-white/10">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-2">
+      <nav className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 mb-2">
         {crumbs.map((crumb, i) => (
           <span key={crumb.href} className="flex items-center gap-1.5">
-            {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300" />}
+            {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300 dark:text-white/15" />}
             {i < crumbs.length - 1 ? (
-              <Link href={crumb.href} className="hover:text-gray-600 transition-colors">
+              <Link href={crumb.href} className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 {crumb.label}
               </Link>
             ) : (
-              <span className="text-gray-600 font-medium">{crumb.label}</span>
+              <span className="text-gray-600 dark:text-gray-300 font-medium">{crumb.label}</span>
             )}
           </span>
         ))}
@@ -49,9 +49,9 @@ export function AdminHeader() {
       {/* Title */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">{meta.title}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-tight">{meta.title}</h1>
           {meta.description && (
-            <p className="text-sm text-gray-500 mt-0.5">{meta.description}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{meta.description}</p>
           )}
         </div>
       </div>

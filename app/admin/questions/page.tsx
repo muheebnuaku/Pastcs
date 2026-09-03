@@ -280,8 +280,8 @@ export default function AdminQuestionsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Question Bank</h1>
-          <p className="text-gray-600">{filteredQuestions.length} questions total</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Question Bank</h1>
+          <p className="text-gray-600 dark:text-gray-400">{filteredQuestions.length} questions total</p>
         </div>
         <Button onClick={() => openModal()} className="self-start sm:self-auto">
           <Plus className="w-4 h-4 mr-2" />
@@ -313,7 +313,7 @@ export default function AdminQuestionsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
               <Input
                 placeholder="Search questions..."
                 value={searchQuery}
@@ -363,8 +363,8 @@ export default function AdminQuestionsPage() {
                 onClick={() => setFlaggedOnly(v => !v)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                   flaggedOnly
-                    ? 'bg-red-50 border-red-300 text-red-700'
-                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    ? 'bg-red-50 dark:bg-red-500/10 border-red-300 dark:border-red-500/30 text-red-700 dark:text-red-400'
+                    : 'bg-white dark:bg-white/[0.04] border-gray-300 dark:border-white/15 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10'
                 }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
@@ -378,9 +378,9 @@ export default function AdminQuestionsPage() {
       {/* Questions List */}
       {!filterLevel ? (
         <Card>
-          <div className="py-16 text-center text-gray-500">
-            <Filter className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="font-medium text-gray-700 mb-1">Select a Level to view questions</p>
+          <div className="py-16 text-center text-gray-500 dark:text-gray-400">
+            <Filter className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-white/10" />
+            <p className="font-medium text-gray-700 mb-1 dark:text-gray-300">Select a Level to view questions</p>
             <p className="text-sm">Use the Level filter above to load questions for a specific year</p>
           </div>
         </Card>
@@ -399,7 +399,7 @@ export default function AdminQuestionsPage() {
                   onChange={toggleAllFiltered}
                   className="w-4 h-4 rounded text-blue-600"
                 />
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
                   {selectedIds.size > 0
                     ? `${selectedIds.size} of ${filteredQuestions.length} selected`
                     : `Select all ${filteredQuestions.length}`}
@@ -412,7 +412,7 @@ export default function AdminQuestionsPage() {
                   variant="ghost"
                   onClick={handleBulkDelete}
                   disabled={isDeleting}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-auto"
+                  className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 ml-auto"
                 >
                   <Trash2 className="w-4 h-4 mr-1.5" />
                   {isDeleting ? 'Deleting…' : `Delete ${selectedIds.size} selected`}
@@ -422,7 +422,7 @@ export default function AdminQuestionsPage() {
               {totalPages > 1 && selectedIds.size < filteredQuestions.length && (
                 <button
                   onClick={togglePageSelection}
-                  className="text-xs text-blue-600 hover:underline ml-auto"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-auto"
                 >
                   {allOnPageSelected ? 'Deselect this page' : `Select this page (${paginatedQuestions.length})`}
                 </button>
@@ -432,7 +432,7 @@ export default function AdminQuestionsPage() {
 
           {paginatedQuestions.length === 0 && (
             <Card>
-              <div className="py-12 text-center text-gray-500">
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">
                 <p>No questions found for the selected filters</p>
               </div>
             </Card>
@@ -472,7 +472,7 @@ export default function AdminQuestionsPage() {
                               {QUESTION_TYPE_LABELS[question.question_type]}
                             </Badge>
                             {question.is_scenario && (
-                              <Badge variant="info" size="sm" className="!bg-purple-100 !text-purple-700">
+                              <Badge variant="info" size="sm" className="!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400">
                                 <Puzzle className="w-3 h-3 mr-1" />
                                 Scenario
                               </Badge>
@@ -493,7 +493,7 @@ export default function AdminQuestionsPage() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-gray-900 font-medium">{question.question_text}</p>
+                          <p className="text-gray-900 font-medium dark:text-gray-100">{question.question_text}</p>
                           {question.options && (
                             <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {question.options.map((opt, i) => (
@@ -501,8 +501,8 @@ export default function AdminQuestionsPage() {
                                   key={i}
                                   className={`text-sm px-3 py-2 rounded break-words ${
                                     question.correct_answers.includes(opt.text)
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-gray-100 text-gray-600'
+                                      ? 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-400'
+                                      : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400'
                                   }`}
                                 >
                                   {String.fromCharCode(65 + i)}. {opt.text}
@@ -511,7 +511,7 @@ export default function AdminQuestionsPage() {
                             </div>
                           )}
                           {question.question_type === 'fill_in_blank' && (
-                            <p className="mt-2 text-sm text-green-600">
+                            <p className="mt-2 text-sm text-green-600 dark:text-green-400">
                               Answer: {question.correct_answers[0]}
                             </p>
                           )}
@@ -521,7 +521,7 @@ export default function AdminQuestionsPage() {
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => handleDelete(question.id)}>
-                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       </div>
@@ -545,7 +545,7 @@ export default function AdminQuestionsPage() {
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             Page {currentPage} of {totalPages}
           </span>
           <Button
@@ -625,7 +625,7 @@ export default function AdminQuestionsPage() {
 
           {formType !== 'fill_in_blank' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Options</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Options</label>
               <div className="space-y-2">
                 {formOptions.map((opt, idx) => (
                   <div key={idx} className="flex items-center gap-2">
@@ -668,7 +668,7 @@ export default function AdminQuestionsPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
                 {formType === 'single_choice' ? 'Select the correct answer' : 'Check all correct answers'}
               </p>
             </div>

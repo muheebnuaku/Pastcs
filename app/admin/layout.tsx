@@ -22,7 +22,7 @@ export default function AdminLayout({
   }, [user, isLoading, router]);
 
   return (
-    <div className="font-jakarta min-h-screen bg-gray-100">
+    <div className="font-jakarta min-h-screen bg-gray-100 dark:bg-[#16140f]">
       <AdminSidebar />
       <main className="lg:ml-64 min-h-screen">
         <div className="pt-16 lg:pt-0 p-6 lg:p-8">

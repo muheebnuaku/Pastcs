@@ -253,8 +253,8 @@ export default function AdminAnalyticsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600">Performance insights and statistics</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Analytics</h1>
+          <p className="text-gray-600 dark:text-gray-400">Performance insights and statistics</p>
         </div>
         <Select
           value={selectedCourse}
@@ -269,12 +269,12 @@ export default function AdminAnalyticsPage() {
 
       {/* AI Usage — platform-wide, not course-scoped */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2 dark:border-white/10">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
             <Sparkles className="w-4 h-4 text-purple-600" />
             AI Usage — Last 30 Days (All Courses)
           </h2>
-          <div className="flex items-center gap-4 text-sm text-gray-500">
+          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
             <span>{aiUsageTotal.calls.toLocaleString()} calls</span>
             <span className="flex items-center gap-1">
               <Coins className="w-3.5 h-3.5 text-amber-500" />
@@ -294,8 +294,8 @@ export default function AdminAnalyticsPage() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="py-10 text-center text-gray-500 text-sm">
-              No AI usage recorded yet — this table only exists once <code className="bg-gray-100 px-1.5 py-0.5 rounded">005_chat_history_and_ai_usage.sql</code> has been run.
+            <div className="py-10 text-center text-gray-500 text-sm dark:text-gray-400">
+              No AI usage recorded yet — this table only exists once <code className="bg-gray-100 px-1.5 py-0.5 rounded dark:bg-white/10">005_chat_history_and_ai_usage.sql</code> has been run.
             </div>
           )}
         </CardContent>
@@ -305,52 +305,52 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Target className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">{overallStats.totalTests}</p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Total Tests</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none dark:text-gray-100">{overallStats.totalTests}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Total Tests</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 dark:bg-green-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none dark:text-gray-100">
                 {formatPercentage(overallStats.avgScore)}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Avg Score</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Avg Score</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 dark:bg-purple-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">{overallStats.activeStudents}</p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Active Students</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none dark:text-gray-100">{overallStats.activeStudents}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Active Students</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 dark:bg-orange-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none dark:text-gray-100">
                 {formatPercentage(overallStats.passRate)}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Pass Rate</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Pass Rate</p>
             </div>
           </CardContent>
         </Card>
@@ -359,8 +359,8 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Test Trends Chart */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Tests & Scores (Last 7 Days)</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Tests & Scores (Last 7 Days)</h2>
           </div>
           <CardContent>
             {testTrends.some(t => t.tests > 0) ? (
@@ -390,7 +390,7 @@ export default function AdminAnalyticsPage() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-gray-500">
+              <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
                 No test data for the last 7 days
               </div>
             )}
@@ -399,8 +399,8 @@ export default function AdminAnalyticsPage() {
 
         {/* Difficulty Distribution */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Question Difficulty Distribution</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Question Difficulty Distribution</h2>
           </div>
           <CardContent>
             {difficultyData.some(d => d.value > 0) ? (
@@ -424,7 +424,7 @@ export default function AdminAnalyticsPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-gray-500">
+              <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
                 No questions in this course yet
               </div>
             )}
@@ -433,8 +433,8 @@ export default function AdminAnalyticsPage() {
 
         {/* Topic Performance */}
         <Card className="lg:col-span-2">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Performance by Topic</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Performance by Topic</h2>
           </div>
           <CardContent>
             {topicPerformance.length > 0 ? (
@@ -459,7 +459,7 @@ export default function AdminAnalyticsPage() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-gray-500">
+              <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
                 No topic performance data available
               </div>
             )}

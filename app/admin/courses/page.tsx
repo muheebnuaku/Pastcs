@@ -235,25 +235,25 @@ export default function AdminCoursesPage() {
   const renderCourse = (course: Course & { topics: TopicRow[] }) => (
     <Card key={course.id}>
       <div
-        className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 gap-2"
+        className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 gap-2 dark:hover:bg-white/[0.03]"
         onClick={() => toggleCourseExpand(course.id)}
       >
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {expandedCourses.has(course.id) ? (
-            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 dark:text-gray-500" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 dark:text-gray-500" />
           )}
           <span className="text-xl sm:text-3xl flex-shrink-0">
             {course.icon || COURSE_ICONS[course.course_code] || '📚'}
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{course.course_code}</h3>
+              <h3 className="font-semibold text-gray-900 text-sm sm:text-base dark:text-gray-100">{course.course_code}</h3>
               <Badge variant="info" size="sm">{course.total_questions} q</Badge>
               <Badge variant="default" size="sm">{course.topics.length} topics</Badge>
             </div>
-            <p className="text-xs sm:text-sm text-gray-600 truncate">{course.course_name}</p>
+            <p className="text-xs sm:text-sm text-gray-600 truncate dark:text-gray-400">{course.course_name}</p>
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -261,15 +261,15 @@ export default function AdminCoursesPage() {
             <Edit className="w-4 h-4" />
           </Button>
           <Button size="sm" variant="ghost" onClick={() => handleDeleteCourse(course.id)}>
-            <Trash2 className="w-4 h-4 text-red-500" />
+            <Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" />
           </Button>
         </div>
       </div>
 
       {expandedCourses.has(course.id) && (
-        <div className="px-3 sm:px-6 pb-4 border-t border-gray-100 pt-4">
+        <div className="px-3 sm:px-6 pb-4 border-t border-gray-100 pt-4 dark:border-white/10">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium text-gray-700">Topics</h4>
+            <h4 className="font-medium text-gray-700 dark:text-gray-300">Topics</h4>
             <Button size="sm" variant="outline" onClick={() => openTopicModal(course.id)}>
               <Plus className="w-4 h-4 mr-1" />
               Add Topic
@@ -280,14 +280,14 @@ export default function AdminCoursesPage() {
               {course.topics.map((topic, idx) => (
                 <div
                   key={topic.id}
-                  className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg gap-2"
+                  className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg gap-2 dark:bg-white/[0.03]"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-medium text-gray-500 flex-shrink-0">{idx + 1}.</span>
+                    <span className="text-sm font-medium text-gray-500 flex-shrink-0 dark:text-gray-400">{idx + 1}.</span>
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{topic.topic_name}</p>
+                      <p className="font-medium text-gray-900 text-sm truncate dark:text-gray-100">{topic.topic_name}</p>
                       {topic.description && (
-                        <p className="text-xs text-gray-500 truncate">{topic.description}</p>
+                        <p className="text-xs text-gray-500 truncate dark:text-gray-400">{topic.description}</p>
                       )}
                     </div>
                   </div>
@@ -304,14 +304,14 @@ export default function AdminCoursesPage() {
                       variant="ghost"
                       onClick={() => handleDeleteTopic(topic.allIds)}
                     >
-                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" />
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500 text-center py-4">No topics yet</p>
+            <p className="text-sm text-gray-500 text-center py-4 dark:text-gray-400">No topics yet</p>
           )}
         </div>
       )}
@@ -322,8 +322,8 @@ export default function AdminCoursesPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
-          <p className="text-gray-600">Manage courses and topics</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Course Management</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage courses and topics</p>
         </div>
         <Button onClick={() => openCourseModal()}>
           <Plus className="w-4 h-4 mr-2" />
@@ -336,7 +336,7 @@ export default function AdminCoursesPage() {
           if (!grouped[level]) return null;
           return (
             <div key={level}>
-              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 dark:text-gray-200">
                 <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white text-sm font-bold rounded-lg">
                   {level / 100}
                 </span>
@@ -347,7 +347,7 @@ export default function AdminCoursesPage() {
                   if (!grouped[level][sem]) return null;
                   return (
                     <div key={sem}>
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 ml-2 sm:ml-4">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 ml-2 sm:ml-4 dark:text-gray-400">
                         Semester {sem}
                       </h3>
                       <div className="space-y-3 ml-2 sm:ml-4">
@@ -361,7 +361,7 @@ export default function AdminCoursesPage() {
           );
         })}
         {courses.length === 0 && (
-          <p className="text-sm text-gray-500 text-center py-12">No courses yet. Add one to get started.</p>
+          <p className="text-sm text-gray-500 text-center py-12 dark:text-gray-400">No courses yet. Add one to get started.</p>
         )}
       </div>
 
@@ -373,7 +373,7 @@ export default function AdminCoursesPage() {
       >
         <div className="space-y-4">
           {saveError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg text-sm text-red-700 dark:text-red-400">
               {saveError}
             </div>
           )}
@@ -398,19 +398,19 @@ export default function AdminCoursesPage() {
 
           {/* Icon picker */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
               Icon <span className="ml-1 text-xl">{courseIcon}</span>
             </label>
-            <div className="border border-gray-200 rounded-xl p-2 max-h-44 overflow-y-auto bg-gray-50">
+            <div className="border border-gray-200 rounded-xl p-2 max-h-44 overflow-y-auto bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
               <div className="grid grid-cols-6 sm:grid-cols-8 gap-1">
                 {ICON_PALETTE.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => setCourseIcon(emoji)}
-                    className={`text-xl p-1.5 rounded-lg transition-colors hover:bg-white hover:shadow-sm ${
+                    className={`text-xl p-1.5 rounded-lg transition-colors hover:bg-white dark:hover:bg-white/10 hover:shadow-sm ${
                       courseIcon === emoji
-                        ? 'bg-blue-100 ring-2 ring-blue-400 shadow-sm'
+                        ? 'bg-blue-100 dark:bg-blue-500/15 ring-2 ring-blue-400 dark:ring-blue-500/40 shadow-sm'
                         : ''
                     }`}
                     title={emoji}
@@ -424,11 +424,11 @@ export default function AdminCoursesPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Level</label>
               <select
                 value={courseLevel}
                 onChange={(e) => setCourseLevel(Number(e.target.value) as 100 | 200 | 300 | 400)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
               >
                 {[100, 200, 300, 400].map((l) => (
                   <option key={l} value={l}>Level {l}</option>
@@ -436,11 +436,11 @@ export default function AdminCoursesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Semester</label>
               <select
                 value={courseSemester}
                 onChange={(e) => setCourseSemester(Number(e.target.value) as 1 | 2)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
               >
                 <option value={1}>Semester 1</option>
                 <option value={2}>Semester 2</option>
@@ -448,7 +448,7 @@ export default function AdminCoursesPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Color</label>
             <input
               type="color"
               value={courseColor}
