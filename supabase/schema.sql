@@ -601,6 +601,15 @@ END $$;
 -- ================================================================
 -- FUNCTIONS
 -- ================================================================
+-- The only place XP is ever awarded from (lib/gamification.ts, called by
+-- the practice and exam pages right after a test is saved).
+CREATE OR REPLACE FUNCTION public.increment_xp(p_user_id UUID, p_amount INTEGER)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.users SET xp = xp + p_amount WHERE id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION public.update_practice_streak(p_user_id UUID)
 RETURNS void AS $$
 DECLARE
@@ -740,3 +749,35 @@ INSERT INTO public.topics (course_id, topic_name, description, order_index)
 SELECT id,'Critical Analysis','Evaluating sources and evidence',3 FROM public.courses WHERE course_code='UGRC150' ON CONFLICT DO NOTHING;
 INSERT INTO public.topics (course_id, topic_name, description, order_index)
 SELECT id,'Problem Solving','Systematic problem-solving approaches',4 FROM public.courses WHERE course_code='UGRC150' ON CONFLICT DO NOTHING;
+
+-- ================================================================
+-- STORAGE — profile picture upload/edit/remove
+-- ================================================================
+-- Each student's avatar lives at a single fixed path `<user_id>/avatar`
+-- in this bucket (no extension — the image type is carried in the
+-- object's Content-Type, set at upload time), so re-uploading overwrites
+-- the old one instead of accumulating orphaned files.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Avatars are shown to other students too (leaderboard, etc.), so reads
+-- are public; writes are restricted to a user's own folder.
+DROP POLICY IF EXISTS "avatar_public_read" ON storage.objects;
+CREATE POLICY "avatar_public_read" ON storage.objects
+  FOR SELECT USING (bucket_id = 'avatars');
+
+DROP POLICY IF EXISTS "avatar_insert_own" ON storage.objects;
+CREATE POLICY "avatar_insert_own" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "avatar_update_own" ON storage.objects;
+CREATE POLICY "avatar_update_own" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "avatar_delete_own" ON storage.objects;
+CREATE POLICY "avatar_delete_own" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);

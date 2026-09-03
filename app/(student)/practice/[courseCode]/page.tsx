@@ -10,6 +10,7 @@ import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Progress } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
+import { recordTestGamification } from '@/lib/gamification';
 import type { Question, Course } from '@/types';
 import {
   ArrowLeft,
@@ -381,6 +382,14 @@ function PracticeContent() {
       fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
       if (user?.id) {
         updateReviewSchedule(supabase, user.id, questions.map(q => ({ questionId: q.id, correct: getIsCorrect(q) }))).catch(() => {});
+        recordTestGamification(supabase, user.id, {
+          courseId: course!.id,
+          testType: 'practice',
+          score,
+          totalQuestions: questions.length,
+          percentage: Math.round((score / questions.length) * 100 * 100) / 100,
+          timeTaken: null,
+        }).catch(() => {});
       }
 
       localStorage.removeItem(storageKey(courseCode, topicId, mode));
