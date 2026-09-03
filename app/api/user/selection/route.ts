@@ -13,10 +13,10 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { level, semester } = await request.json();
+    const { level, semester, programId } = await request.json();
 
-    if (!level || !semester) {
-      return Response.json({ error: 'level and semester are required' }, { status: 400 });
+    if (!level || !semester || !programId) {
+      return Response.json({ error: 'level, semester, and programId are required' }, { status: 400 });
     }
 
     if (!VALID_LEVELS.includes(level)) {
@@ -27,12 +27,24 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Invalid semester' }, { status: 400 });
     }
 
-    // Changing level/semester resets the free course selection
+    const { data: program } = await supabase
+      .from('programs')
+      .select('id')
+      .eq('id', programId)
+      .single();
+
+    if (!program) {
+      return Response.json({ error: 'Invalid program' }, { status: 400 });
+    }
+
+    // Changing level/semester/program resets the free course selection —
+    // it may not even exist in the new program's catalog.
     const { error } = await supabase
       .from('user_public')
       .update({
         selected_level: level,
         selected_semester: semester,
+        program_id: programId,
         free_course_code: null,
       })
       .eq('id', authUser.id);
