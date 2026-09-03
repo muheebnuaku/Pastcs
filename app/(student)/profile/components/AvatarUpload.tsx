@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui';
+import { ImageCropModal } from './ImageCropModal';
 import { Camera, Loader2, X } from 'lucide-react';
 
 // Referencing the return type of our own client factory (rather than
@@ -31,8 +32,11 @@ export function AvatarUpload({ supabase, userId, avatarUrl, name, onChange }: Av
   const inputRef = useRef<HTMLInputElement>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState('');
+  // Object URL of a freshly picked file, held only while the crop modal
+  // is open — nothing is uploaded until the user confirms the crop.
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
 
-  const handleFile = async (file: File) => {
+  const handleFilePicked = (file: File) => {
     setError('');
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setError('Please choose a JPEG, PNG, WEBP, or GIF image.');
@@ -42,13 +46,24 @@ export function AvatarUpload({ supabase, userId, avatarUrl, name, onChange }: Av
       setError(`Image must be under ${MAX_SIZE_MB}MB.`);
       return;
     }
+    setCropImageUrl(URL.createObjectURL(file));
+  };
 
+  const closeCrop = () => {
+    if (cropImageUrl) URL.revokeObjectURL(cropImageUrl);
+    setCropImageUrl(null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleCropConfirm = async (blob: Blob) => {
+    closeCrop();
     setIsBusy(true);
+    setError('');
     try {
       const path = avatarPath(userId);
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
 
       if (uploadError) throw uploadError;
 
@@ -68,7 +83,6 @@ export function AvatarUpload({ supabase, userId, avatarUrl, name, onChange }: Av
       setError(err instanceof Error ? err.message : 'Failed to upload image.');
     } finally {
       setIsBusy(false);
-      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
@@ -125,11 +139,18 @@ export function AvatarUpload({ supabase, userId, avatarUrl, name, onChange }: Av
           className="hidden"
           onChange={e => {
             const file = e.target.files?.[0];
-            if (file) handleFile(file);
+            if (file) handleFilePicked(file);
           }}
         />
       </div>
       {error && <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 max-w-[160px]">{error}</p>}
+
+      <ImageCropModal
+        isOpen={!!cropImageUrl}
+        imageUrl={cropImageUrl}
+        onCancel={closeCrop}
+        onConfirm={handleCropConfirm}
+      />
     </div>
   );
 }
