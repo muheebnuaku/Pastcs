@@ -145,21 +145,21 @@ export default function AdminPricingPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pricing</h1>
-        <p className="text-gray-600">Everything students pay for, in one place — course access and AI Tutor credits.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Pricing</h1>
+        <p className="text-gray-600 dark:text-gray-400">Everything students pay for, in one place — course access and AI Tutor credits.</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <DollarSign className="w-5 h-5 text-blue-600" />
               Course Access — Price Per Level (GHC)
             </h2>
           </div>
           <CardContent className="space-y-5">
             {isLoading ? (
-              <div className="flex items-center justify-center py-8 text-gray-400">
+              <div className="flex items-center justify-center py-8 text-gray-400 dark:text-gray-500">
                 <RefreshCw className="w-5 h-5 animate-spin mr-2" />
                 Loading prices...
               </div>
@@ -168,11 +168,11 @@ export default function AdminPricingPage() {
                 {LEVELS.map(level => (
                   <div key={level} className="flex items-center gap-4">
                     <div className="w-28 flex-shrink-0">
-                      <span className="font-semibold text-gray-800">Level {level}</span>
-                      <p className="text-xs text-gray-400">Semester 1 &amp; 2</p>
+                      <span className="font-semibold text-gray-800 dark:text-gray-200">Level {level}</span>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">Semester 1 &amp; 2</p>
                     </div>
                     <div className="flex-1 relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-sm">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-sm dark:text-gray-400">
                         GHC
                       </span>
                       <input
@@ -181,21 +181,21 @@ export default function AdminPricingPage() {
                         step="0.01"
                         value={prices[level]}
                         onChange={e => setPrices(prev => ({ ...prev, [level]: e.target.value }))}
-                        className="w-full pl-12 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full pl-12 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
                       />
                     </div>
                   </div>
                 ))}
 
                 {error && (
-                  <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg p-3 text-sm">
+                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg p-3 text-sm">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     {error}
                   </div>
                 )}
 
                 {success && (
-                  <div className="flex items-center gap-2 text-green-600 bg-green-50 rounded-lg p-3 text-sm">
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 rounded-lg p-3 text-sm">
                     <CheckCircle className="w-4 h-4 flex-shrink-0" />
                     {success}
                   </div>
@@ -215,7 +215,7 @@ export default function AdminPricingPage() {
                   )}
                 </Button>
 
-                <p className="text-xs text-gray-400 text-center">
+                <p className="text-xs text-gray-400 text-center dark:text-gray-500">
                   Changes take effect immediately for new payments.
                 </p>
               </>
@@ -224,32 +224,32 @@ export default function AdminPricingPage() {
         </Card>
 
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <Sparkles className="w-5 h-5 text-purple-600" />
               AI Tutor — Credit Pack Pricing
             </h2>
           </div>
           <CardContent className="space-y-5">
             {plansLoading ? (
-              <div className="flex items-center justify-center py-8 text-gray-400">
+              <div className="flex items-center justify-center py-8 text-gray-400 dark:text-gray-500">
                 <RefreshCw className="w-5 h-5 animate-spin mr-2" />
                 Loading prices...
               </div>
             ) : (
               <>
                 {plans.map(plan => (
-                  <div key={plan.id} className="p-3 border border-gray-100 rounded-xl space-y-2.5">
+                  <div key={plan.id} className="p-3 border border-gray-100 rounded-xl space-y-2.5 dark:border-white/10">
                     <input
                       type="text"
                       value={plan.name}
                       onChange={e => updatePlan(plan.id, 'name', e.target.value)}
                       placeholder="Plan name"
-                      className="w-full font-semibold text-gray-800 text-sm border-0 border-b border-transparent hover:border-gray-200 focus:border-purple-400 focus:outline-none pb-1 bg-transparent"
+                      className="w-full font-semibold text-gray-800 text-sm border-0 border-b border-transparent hover:border-gray-200 focus:border-purple-400 focus:outline-none pb-1 bg-transparent dark:text-gray-200 dark:hover:border-white/10"
                     />
                     <div className="flex items-center gap-3">
                       <div className="flex-1 relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-xs">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-xs dark:text-gray-400">
                           GHC
                         </span>
                         <input
@@ -258,7 +258,7 @@ export default function AdminPricingPage() {
                           step="0.01"
                           value={plan.price}
                           onChange={e => updatePlan(plan.id, 'price', e.target.value)}
-                          className="w-full pl-11 pr-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full pl-11 pr-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
                         />
                       </div>
                       <div className="flex-1 relative">
@@ -267,23 +267,23 @@ export default function AdminPricingPage() {
                           min="1"
                           value={plan.credits}
                           onChange={e => updatePlan(plan.id, 'credits', e.target.value)}
-                          className="w-full pl-3 pr-20 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full pl-3 pr-20 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">uploads</span>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs dark:text-gray-500">uploads</span>
                       </div>
                     </div>
                   </div>
                 ))}
 
                 {plansError && (
-                  <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg p-3 text-sm">
+                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg p-3 text-sm">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     {plansError}
                   </div>
                 )}
 
                 {plansSuccess && (
-                  <div className="flex items-center gap-2 text-green-600 bg-green-50 rounded-lg p-3 text-sm">
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 rounded-lg p-3 text-sm">
                     <CheckCircle className="w-4 h-4 flex-shrink-0" />
                     {plansSuccess}
                   </div>
@@ -303,7 +303,7 @@ export default function AdminPricingPage() {
                   )}
                 </Button>
 
-                <p className="text-xs text-gray-400 text-center">
+                <p className="text-xs text-gray-400 text-center dark:text-gray-500">
                   Changes apply to new purchases only — students who already bought a pack keep the credits they paid for.
                 </p>
               </>

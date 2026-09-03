@@ -105,56 +105,56 @@ export default function AdminOverviewPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-600">Overview of the platform statistics</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Admin Dashboard</h1>
+        <p className="text-gray-600 dark:text-gray-400">Overview of the platform statistics</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 sm:w-7 sm:h-7 text-blue-600" />
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 sm:w-7 sm:h-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{stats?.total_students ?? '—'}</p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Total Students</p>
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none dark:text-gray-100">{stats?.total_students ?? '—'}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Total Students</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <FileQuestion className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-green-100 dark:bg-green-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <FileQuestion className="w-5 h-5 sm:w-7 sm:h-7 text-green-600 dark:text-green-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{stats?.total_questions ?? '—'}</p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Total Questions</p>
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none dark:text-gray-100">{stats?.total_questions ?? '—'}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Total Questions</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Target className="w-5 h-5 sm:w-7 sm:h-7 text-purple-600" />
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-purple-100 dark:bg-purple-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target className="w-5 h-5 sm:w-7 sm:h-7 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{stats?.total_tests ?? '—'}</p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Tests Taken</p>
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none dark:text-gray-100">{stats?.total_tests ?? '—'}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Tests Taken</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="flex items-center gap-2 sm:gap-4 p-3 sm:p-6">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <BookOpen className="w-5 h-5 sm:w-7 sm:h-7 text-orange-600" />
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-orange-100 dark:bg-orange-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5 sm:w-7 sm:h-7 text-orange-600 dark:text-orange-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{courseStats.length}</p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Active Courses</p>
+              <p className="text-xl sm:text-3xl font-bold text-gray-900 leading-none dark:text-gray-100">{courseStats.length}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 dark:text-gray-400">Active Courses</p>
             </div>
           </CardContent>
         </Card>
@@ -163,26 +163,26 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Course Statistics */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Course Statistics</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Course Statistics</h2>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-white/10">
             {courseStats.map((course) => (
               <div key={course.course_id} className="px-6 py-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{course.course_icon || COURSE_ICONS[course.course_code] || '📚'}</span>
                     <div>
-                      <p className="font-medium text-gray-900">{course.course_code}</p>
-                      <p className="text-xs text-gray-500">{course.course_name}</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{course.course_code}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{course.course_name}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900">{formatPercentage(course.avg_score)}</p>
-                    <p className="text-xs text-gray-500">avg score</p>
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">{formatPercentage(course.avg_score)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">avg score</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                   <span>{course.total_questions} questions</span>
                   <span>•</span>
                   <span>{course.total_tests} tests taken</span>
@@ -194,30 +194,30 @@ export default function AdminOverviewPage() {
 
         {/* Recent Activity */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Recent Activity</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Recent Activity</h2>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-white/10">
             {recentActivity.length > 0 ? (
               recentActivity.map((activity) => (
                 <div key={activity.id} className="px-6 py-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
                         {activity.user?.full_name || activity.user?.email}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         Completed {activity.course?.course_code} {activity.test_type === 'exam_simulation' ? 'exam' : 'practice'}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className={`font-semibold ${
-                        activity.percentage >= 70 ? 'text-green-600' : 
-                        activity.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
+                        activity.percentage >= 70 ? 'text-green-600 dark:text-green-400' :
+                        activity.percentage >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
                       }`}>
                         {formatPercentage(activity.percentage)}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(activity.created_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -225,7 +225,7 @@ export default function AdminOverviewPage() {
                 </div>
               ))
             ) : (
-              <div className="px-6 py-8 text-center text-gray-500">
+              <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                 No recent activity
               </div>
             )}
