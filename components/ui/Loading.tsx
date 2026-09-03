@@ -19,14 +19,14 @@ export function Loading({ size = 'md', className, text }: LoadingProps) {
   return (
     <div className={cn('flex flex-col items-center justify-center', className)}>
       <Loader2 className={cn('animate-spin text-blue-600', sizes[size])} />
-      {text && <p className="mt-2 text-sm text-gray-600">{text}</p>}
+      {text && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{text}</p>}
     </div>
   );
 }
 
 export function PageLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#16140f]">
       <Loading size="lg" text="Loading..." />
     </div>
   );

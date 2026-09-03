@@ -38,16 +38,16 @@ function mdToHtml(text: string): string {
     text
       .replace(/```(\w*)\n?([\s\S]*?)```/g,
         '<pre class="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-3 font-mono"><code>$2</code></pre>')
-      .replace(/`([^`\n]+)`/g, '<code class="bg-gray-100 text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>')
-      .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 mt-4 mb-1.5">$1</h2>')
-      .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold text-gray-800 mt-3 mb-1">$1</h3>')
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+      .replace(/`([^`\n]+)`/g, '<code class="bg-gray-100 dark:bg-white/10 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>')
+      .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mt-4 mb-1.5">$1</h2>')
+      .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-3 mb-1">$1</h3>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
       .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
       .replace(/\[🎬 ([^\]]+)\]\((https:\/\/www\.youtube\.com\/results[^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors no-underline">▶ $1</a>')
+        '<a href="$2" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-500/15 transition-colors no-underline">▶ $1</a>')
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline decoration-blue-300 font-medium break-words">$1</a>')
-      .replace(/^---$/gm, '<hr class="my-4 border-gray-200" />')
+        '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline decoration-blue-300 dark:decoration-blue-500/40 font-medium break-words">$1</a>')
+      .replace(/^---$/gm, '<hr class="my-4 border-gray-200 dark:border-white/10" />')
       .replace(/^[*-] (.+)$/gm, '<li class="flex gap-2"><span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span><span>$1</span></li>')
       .replace(/^(\d+)\. (.+)$/gm, '<li class="flex gap-2"><span class="font-semibold text-blue-600 flex-shrink-0">$1.</span><span>$2</span></li>')
       .replace(/(<li[\s\S]*?<\/li>\n?)+/g, '<ul class="space-y-1.5 my-2">$&</ul>')
@@ -59,7 +59,7 @@ function mdToHtml(text: string): string {
 function MessageContent({ content }: { content: string }) {
   return (
     <div
-      className="prose-sm text-sm leading-relaxed text-gray-800 break-words [&_p]:mb-2 [&_p]:leading-relaxed [&_ul]:my-2"
+      className="prose-sm text-sm leading-relaxed text-gray-800 break-words [&_p]:mb-2 [&_p]:leading-relaxed [&_ul]:my-2 dark:text-gray-200"
       dangerouslySetInnerHTML={{ __html: '<p class="mb-2 leading-relaxed">' + mdToHtml(content) + '</p>' }}
     />
   );
@@ -118,7 +118,7 @@ function PracticeReviewPanel({ content }: { content: string }) {
   if (pairs.length === 0) {
     // The model didn't follow the Q/A format — fall back to raw rendering
     // rather than showing nothing.
-    return <div className="text-sm text-gray-800 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
+    return <div className="text-sm text-gray-800 leading-relaxed break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
   }
 
   return (
@@ -126,18 +126,18 @@ function PracticeReviewPanel({ content }: { content: string }) {
       {pairs.map((pair, i) => {
         const isRevealed = revealed.has(i);
         return (
-          <div key={i} className="rounded-xl border border-gray-200 p-3">
-            <p className="text-sm font-semibold text-gray-900 mb-2 break-words">
+          <div key={i} className="rounded-xl border border-gray-200 p-3 dark:border-white/10">
+            <p className="text-sm font-semibold text-gray-900 mb-2 break-words dark:text-gray-100">
               <span className="text-blue-600">Q{i + 1}.</span>{' '}
               <span dangerouslySetInnerHTML={{ __html: mdToHtml(pair.question) }} />
             </p>
             {isRevealed ? (
-              <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 break-words"
+              <div className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg px-3 py-2 break-words"
                 dangerouslySetInnerHTML={{ __html: mdToHtml(pair.answer) }} />
             ) : (
               <button
                 onClick={() => setRevealed(prev => new Set([...prev, i]))}
-                className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/15 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Think it through, then show answer
               </button>
@@ -644,11 +644,11 @@ export default function AssistantPage() {
       <div className="flex-shrink-0 pb-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <BotMessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 flex-shrink-0" />
               <span className="truncate">AI Study Assistant</span>
             </h1>
-            <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Ask anything, or upload a document (or paste text) to get a full lesson.</p>
+            <p className="text-gray-500 text-xs sm:text-sm mt-0.5 dark:text-gray-400">Ask anything, or upload a document (or paste text) to get a full lesson.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {voiceSupported && (
@@ -656,7 +656,9 @@ export default function AssistantPage() {
                 onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) trackEvent('voice_enabled'); setVoiceEnabled(v => !v); }}
                 title={voiceEnabled ? 'Voice on — click to turn off' : 'Voice off — click to turn on'}
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  voiceEnabled ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                  voiceEnabled
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/15'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-white/10'
                 }`}
               >
                 {voiceEnabled
@@ -666,7 +668,7 @@ export default function AssistantPage() {
               </button>
             )}
             {!isEmpty && (
-              <button onClick={clearChat} className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+              <button onClick={clearChat} className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors dark:text-gray-400">
                 <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Clear</span>
               </button>
             )}
@@ -679,17 +681,17 @@ export default function AssistantPage() {
           <div className="relative">
             <button
               onClick={() => setShowCourseMenu(v => !v)}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
               <BookOpen className="w-4 h-4 text-blue-500" />
               <span className="max-w-[160px] truncate">{selectedCourseObj ? selectedCourseObj.course_code : 'Select course'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
             </button>
             {showCourseMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowCourseMenu(false)} />
-                <div className="absolute top-full left-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-64 overflow-y-auto">
-                  <button onClick={() => { setSelectedCourse(''); setShowCourseMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100">
+                <div className="absolute top-full left-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-64 overflow-y-auto dark:bg-white/[0.04] dark:border-white/10">
+                  <button onClick={() => { setSelectedCourse(''); setShowCourseMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:border-white/10">
                     No specific course
                   </button>
                   {[100, 200, 300, 400].map(level => {
@@ -697,12 +699,12 @@ export default function AssistantPage() {
                     if (!lc.length) return null;
                     return (
                       <div key={level}>
-                        <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50">Level {level}</p>
+                        <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50 dark:text-gray-500 dark:bg-white/[0.03]">Level {level}</p>
                         {lc.map(c => (
                           <button key={c.id} onClick={() => { setSelectedCourse(c.id); setShowCourseMenu(false); }}
-                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors ${selectedCourse === c.id ? 'text-blue-600 font-medium bg-blue-50' : 'text-gray-700'}`}>
+                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors ${selectedCourse === c.id ? 'text-blue-600 font-medium bg-blue-50 dark:bg-blue-500/10' : 'text-gray-700 dark:text-gray-300'}`}>
                             <span className="font-medium">{c.course_code}</span>
-                            <span className="text-gray-500 ml-1.5 text-xs">{c.course_name}</span>
+                            <span className="text-gray-500 ml-1.5 text-xs dark:text-gray-400">{c.course_name}</span>
                           </button>
                         ))}
                       </div>
@@ -719,14 +721,14 @@ export default function AssistantPage() {
             placeholder="Topic (e.g. Binary Trees, TCP/IP...)"
             value={topic}
             onChange={e => setTopic(e.target.value)}
-            className="flex-1 min-w-[160px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+            className="flex-1 min-w-[160px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
           />
 
           {/* Upload doc button */}
           {limitReached ? (
             <button
               onClick={() => setShowTutorPricing(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 hover:bg-amber-100 transition-colors shadow-sm whitespace-nowrap"
+              className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/15 transition-colors shadow-sm whitespace-nowrap"
               title="Upload limit reached — get more credits"
             >
               <Lock className="w-4 h-4" />
@@ -737,7 +739,7 @@ export default function AssistantPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
               title="Upload PDF, Word, or PowerPoint to get a full AI lesson"
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap"
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
               {isProcessing
                 ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -747,7 +749,7 @@ export default function AssistantPage() {
               </span>
               {uploadChecked && (
                 <span className={`text-xs font-medium tabular-nums ${
-                  uploadRemaining <= 2 ? 'text-amber-500' : 'text-gray-400'
+                  uploadRemaining <= 2 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'
                 }`}>
                   {uploadRemaining} left
                 </span>
@@ -761,7 +763,7 @@ export default function AssistantPage() {
               onClick={() => setShowPasteModal(true)}
               disabled={isProcessing}
               title="Paste text — notes, an excerpt, anything — to get a full AI lesson"
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap"
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
               <ClipboardPaste className="w-4 h-4" />
               <span>Paste Text</span>
@@ -779,7 +781,7 @@ export default function AssistantPage() {
 
       {/* ── Lesson Panel ── */}
       {docStage !== 'idle' && (
-        <div className="flex-shrink-0 mb-3 rounded-2xl border border-blue-200 bg-white overflow-hidden shadow-sm">
+        <div className="flex-shrink-0 mb-3 rounded-2xl border border-blue-200 bg-white overflow-hidden shadow-sm dark:bg-white/[0.04]">
 
           {/* Panel header — icon-only status/controls below sm so a long
               filename doesn't get crushed to a handful of characters when
@@ -829,7 +831,7 @@ export default function AssistantPage() {
 
           {/* Section tabs */}
           {docStage === 'ready' && lessonSections.length > 0 && (
-            <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-gray-100 bg-gray-50">
+            <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
               {lessonSections.map((s, i) => (
                 <button
                   key={i}
@@ -837,7 +839,7 @@ export default function AssistantPage() {
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
                     i === teachIdx
                       ? 'bg-blue-600 text-white font-semibold'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-400'
                   }`}
                 >
                   <span>{sectionIcon(s.title)}</span>
@@ -853,7 +855,7 @@ export default function AssistantPage() {
             {/* Still generating — show streaming text */}
             {docStage === 'generating' && (
               lessonText
-                ? <div className="text-sm text-gray-700 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonText) }} />
+                ? <div className="text-sm text-gray-700 leading-relaxed break-words dark:text-gray-300" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonText) }} />
                 : <p className="text-sm text-blue-500 italic flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating your lesson…</p>
             )}
 
@@ -862,7 +864,7 @@ export default function AssistantPage() {
               <>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-lg">{sectionIcon(lessonSections[teachIdx].title)}</span>
-                  <h3 className="font-semibold text-gray-900">{lessonSections[teachIdx].title}</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">{lessonSections[teachIdx].title}</h3>
                   {teaching && isSpeaking && !isPaused && (
                     <span className="ml-auto flex gap-1">
                       {[0, 1, 2].map(i => (
@@ -871,7 +873,7 @@ export default function AssistantPage() {
                     </span>
                   )}
                   {teaching && isPaused && (
-                    <span className="ml-auto text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                    <span className="ml-auto text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full">
                       Paused
                     </span>
                   )}
@@ -884,12 +886,12 @@ export default function AssistantPage() {
                       const isPast = i < teachParaIdx;
                       return (
                         <div key={i} className={`rounded-xl transition-all duration-300 ${
-                          isActive ? 'ring-2 ring-blue-400 bg-blue-50 px-3 py-2'
+                          isActive ? 'ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-500/10 px-3 py-2'
                             : isPast ? 'opacity-40 px-1' : 'px-1'
                         }`}>
                           {isActive && isSpeaking && speakingText
                             ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
-                            : <div className="text-sm text-gray-800 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
+                            : <div className="text-sm text-gray-800 leading-relaxed break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
                           }
                         </div>
                       );
@@ -898,7 +900,7 @@ export default function AssistantPage() {
                 ) : lessonSections[teachIdx].title.toLowerCase() === 'practice review' ? (
                   <PracticeReviewPanel content={lessonSections[teachIdx].content} />
                 ) : (
-                  <div className="text-sm text-gray-800 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
+                  <div className="text-sm text-gray-800 leading-relaxed break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
                 )}
               </>
             )}
@@ -911,41 +913,41 @@ export default function AssistantPage() {
               <img
                 src={currentImage.url}
                 alt={currentImage.caption}
-                className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 shadow-sm flex-shrink-0"
+                className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 shadow-sm flex-shrink-0 dark:bg-white/[0.04]"
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">{currentImage.keyword}</span>
                   <span className="text-[10px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-medium">visual</span>
                 </div>
-                <p className="text-xs text-gray-500 leading-snug line-clamp-2">{currentImage.caption}</p>
+                <p className="text-xs text-gray-500 leading-snug line-clamp-2 dark:text-gray-400">{currentImage.caption}</p>
               </div>
             </div>
           )}
 
           {/* Progress + navigation */}
           {docStage === 'ready' && lessonSections.length > 0 && (
-            <div className="flex items-center gap-3 px-4 py-2.5 border-t border-gray-100 bg-gray-50">
+            <div className="flex items-center gap-3 px-4 py-2.5 border-t border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
               <button
                 onClick={() => jumpToSection(Math.max(0, teachIdx - 1))}
                 disabled={teachIdx === 0}
-                className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors dark:hover:bg-white/15"
               >
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
+                <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </button>
-              <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+              <div className="flex-1 bg-gray-200 rounded-full h-1.5 dark:bg-white/15">
                 <div
                   className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
                   style={{ width: `${((teachIdx + 1) / lessonSections.length) * 100}%` }}
                 />
               </div>
-              <span className="text-xs text-gray-500 tabular-nums">{teachIdx + 1} / {lessonSections.length}</span>
+              <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">{teachIdx + 1} / {lessonSections.length}</span>
               <button
                 onClick={() => jumpToSection(Math.min(lessonSections.length - 1, teachIdx + 1))}
                 disabled={teachIdx === lessonSections.length - 1}
-                className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors dark:hover:bg-white/15"
               >
-                <ChevronRight className="w-4 h-4 text-gray-600" />
+                <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
           )}
@@ -953,22 +955,22 @@ export default function AssistantPage() {
       )}
 
       {/* ── Chat area ── */}
-      <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 relative">
+      <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 relative dark:border-white/10 dark:bg-white/[0.03]">
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center gap-6">
-            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center">
-              <BotMessageSquare className="w-9 h-9 text-blue-600" />
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/15 rounded-2xl flex items-center justify-center">
+              <BotMessageSquare className="w-9 h-9 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Ready to help you learn</h2>
-              <p className="text-gray-500 text-sm max-w-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">Ready to help you learn</h2>
+              <p className="text-gray-500 text-sm max-w-sm dark:text-gray-400">
                 Ask me anything, or upload a <strong>PDF, Word, or PowerPoint</strong> file — or just paste text — to instantly generate a full beginner lesson with voice reading.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
               {SUGGESTIONS.map(s => (
                 <button key={s} onClick={() => sendMessage(s)}
-                  className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm">
+                  className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-400">
                   {s}
                 </button>
               ))}
@@ -986,7 +988,7 @@ export default function AssistantPage() {
                 <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-tr-sm'
-                    : 'bg-white border border-gray-200 rounded-tl-sm shadow-sm'
+                    : 'bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 rounded-tl-sm shadow-sm'
                 }`}>
                   {msg.role === 'user' ? (
                     <p className="text-sm leading-relaxed break-words">{msg.content}</p>
@@ -997,7 +999,7 @@ export default function AssistantPage() {
                           <span key={n} className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: `${n * 150}ms` }} />
                         ))}
                       </div>
-                      <span className="text-xs text-gray-400">Thinking...</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">Thinking...</span>
                     </div>
                   ) : (
                     isSpeaking && voiceEnabled && i === messages.length - 1 && speakingText
@@ -1006,8 +1008,8 @@ export default function AssistantPage() {
                   )}
                 </div>
                 {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <User className="w-4 h-4 text-gray-600" />
+                  <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5 dark:bg-white/15">
+                    <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   </div>
                 )}
               </div>
@@ -1019,7 +1021,7 @@ export default function AssistantPage() {
 
       {/* ── Input area ── */}
       <div className="flex-shrink-0 pt-3">
-        <div className="flex gap-2 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+        <div className="flex gap-2 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all dark:bg-white/[0.04] dark:border-white/10">
           <textarea
             ref={inputRef}
             rows={1}
@@ -1028,7 +1030,7 @@ export default function AssistantPage() {
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
             placeholder={docStage === 'ready' ? `Ask anything about "${lessonFileName}"…` : 'Ask anything… (Enter to send, Shift+Enter for new line)'}
-            className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent px-2 py-1.5 max-h-32 overflow-y-auto"
+            className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent px-2 py-1.5 max-h-32 overflow-y-auto dark:text-gray-200 dark:placeholder-gray-500"
             style={{ height: 'auto', minHeight: '38px' }}
             onInput={e => {
               const t = e.currentTarget;
@@ -1044,7 +1046,7 @@ export default function AssistantPage() {
             {isStreaming ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
           </button>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-2">
+        <p className="text-center text-xs text-gray-400 mt-2 dark:text-gray-500">
           AI can make mistakes — always verify with your course materials.
         </p>
       </div>

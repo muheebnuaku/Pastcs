@@ -466,8 +466,8 @@ export default function ProfilePage() {
                   </Button>
                 </div>
                 {referralStats.referred > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Share2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Share2 className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                     {referralStats.referred} friend{referralStats.referred !== 1 ? 's' : ''} joined with your code
                     {referralStats.rewarded > 0 && ` · ${referralStats.rewarded} free pass${referralStats.rewarded !== 1 ? 'es' : ''} earned`}
                   </div>

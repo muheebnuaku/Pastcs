@@ -137,58 +137,58 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 py-8 sm:py-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto dark:bg-white/[0.04]">
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-0">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-            <Lock className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center">
+            <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors dark:hover:bg-white/10"
           >
-            <X className="w-4 h-4 text-gray-500" />
+            <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           </button>
         </div>
 
         <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Unlock Full Access</h2>
-          <p className="text-gray-500 text-sm mb-6">
-            You&rsquo;re trying to open <strong className="text-gray-800">{courseCode} — {courseName}</strong>
+          <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Unlock Full Access</h2>
+          <p className="text-gray-500 text-sm mb-6 dark:text-gray-400">
+            You&rsquo;re trying to open <strong className="text-gray-800 dark:text-gray-200">{courseCode} — {courseName}</strong>
           </p>
 
           {/* Comparison table */}
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Free</p>
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 dark:bg-white/[0.03] dark:border-white/10">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 dark:text-gray-400">Free</p>
               <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2 text-gray-700">
+                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                   <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                   1 course
                 </li>
-                <li className="flex items-center gap-2 text-gray-400">
+                <li className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
                   <XCircle className="w-4 h-4 flex-shrink-0" />
                   {lockedCount} more courses
                 </li>
-                <li className="flex items-center gap-2 text-gray-400">
+                <li className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
                   <XCircle className="w-4 h-4 flex-shrink-0" />
                   Exam practice
                 </li>
               </ul>
             </div>
 
-            <div className="bg-blue-50 rounded-2xl p-4 border-2 border-blue-200">
-              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">Full Access</p>
+            <div className="bg-blue-50 dark:bg-blue-500/10 rounded-2xl p-4 border-2 border-blue-200 dark:border-blue-500/30">
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-3">Full Access</p>
               <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2 text-gray-700">
+                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                   <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
                   All {totalCourses} courses
                 </li>
-                <li className="flex items-center gap-2 text-gray-700">
+                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                   <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
                   Exam simulations
                 </li>
-                <li className="flex items-center gap-2 text-gray-700">
+                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                   <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
                   Progress tracking
                 </li>
@@ -205,7 +205,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           </div>
 
           {/* Social proof */}
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-5">
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-5 dark:text-gray-400">
             <Users className="w-4 h-4 text-blue-500" />
             <span>200+ students already unlocked Level {user?.selected_level} access</span>
           </div>
@@ -215,7 +215,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           )}
 
           {paymentClosed && !error && (
-            <p className="text-xs text-gray-400 text-center mb-3">
+            <p className="text-xs text-gray-400 text-center mb-3 dark:text-gray-500">
               You can unlock anytime — your progress in the free course is always saved.
             </p>
           )}
@@ -238,7 +238,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
 
           <button
             onClick={onClose}
-            className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-500 dark:hover:text-gray-400"
           >
             Maybe later
           </button>

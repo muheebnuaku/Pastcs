@@ -27,6 +27,11 @@ export function SpeechHighlight({ text, charIndex, className = '' }: Props) {
               ? 'transform 0.08s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.06s ease'
               : 'transform 0.12s ease-out, background-color 0.08s ease',
             backgroundColor: isActive ? '#fde047' : 'transparent',
+            // The paragraph's own text color follows the theme (light gray
+            // in dark mode) — but the highlight patch itself stays bright
+            // yellow either way, so the active word needs its own color
+            // pinned dark, or light-on-yellow becomes unreadable.
+            color: isActive ? '#1c1917' : 'inherit',
             borderRadius: isActive ? '4px' : '0',
             padding: isActive ? '0 3px' : '0',
             fontWeight: isActive ? 600 : 'inherit',
@@ -42,7 +47,7 @@ export function SpeechHighlight({ text, charIndex, className = '' }: Props) {
   }
 
   return (
-    <p className={`text-sm text-gray-800 leading-relaxed ${className}`}>
+    <p className={`text-sm text-gray-800 dark:text-gray-200 leading-relaxed ${className}`}>
       {parts}
     </p>
   );
