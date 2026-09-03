@@ -10,6 +10,7 @@ import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
+import { recordTestGamification } from '@/lib/gamification';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
 import {
@@ -96,6 +97,14 @@ export default function ExamPage() {
       fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
       if (user?.id) {
         updateReviewSchedule(supabase, user.id, questions.map(q => ({ questionId: q.id, correct: isAnswerCorrect(q) }))).catch(() => {});
+        recordTestGamification(supabase, user.id, {
+          courseId: course!.id,
+          testType: 'exam_simulation',
+          score,
+          totalQuestions: questions.length,
+          percentage: (score / questions.length) * 100,
+          timeTaken,
+        }).catch(() => {});
       }
       router.push(`/results/${testData.id}`);
     }
