@@ -52,7 +52,7 @@ export function StudentSidebar() {
 
   const level = user?.selected_level;
   const semester = user?.selected_semester;
-  const isPaid = hasActiveSub(level, semester);
+  const isPaid = hasActiveSub(level, semester, user?.program_id);
   const showUpgradeNudge = !isPaid && !!user?.free_course_code;
 
   return (

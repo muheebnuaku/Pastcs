@@ -49,7 +49,7 @@ export default function ExamPage() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
+  const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
   const { label: priceLabel } = usePricing(user?.selected_level);
   const isFree = courseCode === user?.free_course_code;
 

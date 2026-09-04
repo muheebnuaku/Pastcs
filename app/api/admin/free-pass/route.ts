@@ -7,19 +7,20 @@ const supabaseAdmin = createClient(
 
 // Grant free pass
 export async function POST(req: Request) {
-  const { userId, level, semester } = await req.json();
+  const { userId, level, semester, programId } = await req.json();
 
-  if (!userId || !level || !semester) {
-    return Response.json({ error: 'userId, level, semester required' }, { status: 400 });
+  if (!userId || !level || !semester || !programId) {
+    return Response.json({ error: 'userId, level, semester, programId required' }, { status: 400 });
   }
 
-  // Check if already has active access for this level/semester
+  // Check if already has active access for this program's level/semester
   const { data: existing } = await supabaseAdmin
     .from('subscriptions')
     .select('id')
     .eq('user_id', userId)
     .eq('level', level)
     .eq('semester', semester)
+    .eq('program_id', programId)
     .eq('status', 'active')
     .maybeSingle();
 
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
       user_id: userId,
       level,
       semester,
+      program_id: programId,
       payment_reference: ref,
       amount: 0,
       status: 'active',
@@ -49,19 +51,25 @@ export async function POST(req: Request) {
 
 // Revoke free pass
 export async function DELETE(req: Request) {
-  const { userId, level, semester } = await req.json();
+  const { userId, level, semester, programId } = await req.json();
 
   if (!userId || !level || !semester) {
     return Response.json({ error: 'userId, level, semester required' }, { status: 400 });
   }
 
-  const { error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('subscriptions')
     .delete()
     .eq('user_id', userId)
     .eq('level', level)
     .eq('semester', semester)
     .like('payment_reference', 'free_pass_%');
+
+  // Older rows (granted before program_id existed) have it null — only
+  // narrow by program when the caller actually knows which one to revoke.
+  if (programId) query = query.eq('program_id', programId);
+
+  const { error } = await query;
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });

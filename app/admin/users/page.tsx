@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Avatar, Modal, Badge } from '@/components/ui';
-import type { User, Subscription, UserRole } from '@/types';
+import type { User, Subscription, UserRole, Program } from '@/types';
 import {
   Search,
   ChevronLeft,
@@ -51,11 +52,27 @@ export default function AdminUsersPage() {
 
   // Manage access modal state
   const [modalUser, setModalUser] = useState<UserRow | null>(null);
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [grantLevel, setGrantLevel] = useState<number>(100);
   const [grantSemester, setGrantSemester] = useState<number>(1);
+  const [grantProgramId, setGrantProgramId] = useState<string>('');
   const [granting, setGranting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null); // subscriptionId being revoked
   const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('programs').select('*').order('name')
+      .then(({ data }: { data: Program[] | null }) => setPrograms(data ?? []));
+  }, []);
+
+  const openManageModal = (user: UserRow) => {
+    setModalUser(user);
+    setActionError('');
+    // Default to the student's own program — that's what "grant access"
+    // means for them almost every time.
+    setGrantProgramId(user.program_id ?? programs[0]?.id ?? '');
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -107,13 +124,13 @@ export default function AdminUsersPage() {
   const modalSubs = modalUser ? (subsMap[modalUser.id] ?? []) : [];
 
   const handleGrantFreePass = async () => {
-    if (!modalUser) return;
+    if (!modalUser || !grantProgramId) return;
     setGranting(true);
     setActionError('');
     const res = await fetch('/api/admin/free-pass', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: modalUser.id, level: grantLevel, semester: grantSemester }),
+      body: JSON.stringify({ userId: modalUser.id, level: grantLevel, semester: grantSemester, programId: grantProgramId }),
     });
     const json = await res.json();
     if (!res.ok) {
@@ -131,7 +148,7 @@ export default function AdminUsersPage() {
     const res = await fetch('/api/admin/free-pass', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: sub.user_id, level: sub.level, semester: sub.semester }),
+      body: JSON.stringify({ userId: sub.user_id, level: sub.level, semester: sub.semester, programId: sub.program_id }),
     });
     const json = await res.json();
     if (!res.ok) {
@@ -357,6 +374,11 @@ export default function AdminUsersPage() {
                             {isFreePass(sub) && <Gift className="w-3 h-3" />}
                             {!isFreePass(sub) && <ShieldCheck className="w-3 h-3" />}
                             {levelLabel(sub.level, sub.semester)}
+                            {sub.program_id && (
+                              <span className="opacity-70">
+                                · {programs.find(p => p.id === sub.program_id)?.short_code ?? '?'}
+                              </span>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -365,7 +387,7 @@ export default function AdminUsersPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => { setModalUser(user); setActionError(''); }}
+                        onClick={() => openManageModal(user)}
                       >
                         <Gift className="w-3.5 h-3.5 mr-1" />
                         Manage
@@ -502,6 +524,20 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">Program</label>
+                <select
+                  value={grantProgramId}
+                  onChange={e => setGrantProgramId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
+                >
+                  <option value="">Select program…</option>
+                  {programs.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
               {actionError && (
                 <p className="text-sm text-red-600 dark:text-red-400 mb-2">{actionError}</p>
               )}
@@ -509,7 +545,7 @@ export default function AdminUsersPage() {
               <Button
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
                 onClick={handleGrantFreePass}
-                disabled={granting}
+                disabled={granting || !grantProgramId}
               >
                 <Gift className="w-4 h-4 mr-2" />
                 {granting ? 'Granting…' : 'Grant Free Pass'}

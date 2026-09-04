@@ -14,7 +14,8 @@ async function grantReferralFreePass(
   supabase: ReturnType<typeof serviceClient>,
   userId: string,
   level: number,
-  semester: number
+  semester: number,
+  programId: string
 ): Promise<boolean> {
   const { data: existing } = await supabase
     .from('subscriptions')
@@ -22,6 +23,7 @@ async function grantReferralFreePass(
     .eq('user_id', userId)
     .eq('level', level)
     .eq('semester', semester)
+    .eq('program_id', programId)
     .eq('status', 'active')
     .maybeSingle();
   if (existing) return true; // already has access one way or another — treat as granted
@@ -31,6 +33,7 @@ async function grantReferralFreePass(
     user_id: userId,
     level,
     semester,
+    program_id: programId,
     payment_reference: ref,
     amount: 0,
     status: 'active',
@@ -75,10 +78,10 @@ export async function rewardReferralOnFirstTest(userId: string): Promise<void> {
   if (!referral) return;
 
   const { data: referredUser } = await supabase
-    .from('users').select('selected_level, selected_semester').eq('id', userId).single();
-  if (!referredUser?.selected_level || !referredUser?.selected_semester) return;
+    .from('users').select('selected_level, selected_semester, program_id').eq('id', userId).single();
+  if (!referredUser?.selected_level || !referredUser?.selected_semester || !referredUser?.program_id) return;
 
-  const referredOk = await grantReferralFreePass(supabase, userId, referredUser.selected_level, referredUser.selected_semester);
+  const referredOk = await grantReferralFreePass(supabase, userId, referredUser.selected_level, referredUser.selected_semester, referredUser.program_id);
   if (!referredOk) return; // don't mark rewarded if the grant itself failed
 
   const updates: { referred_rewarded_at: string; referrer_rewarded_at?: string } = {
@@ -86,9 +89,9 @@ export async function rewardReferralOnFirstTest(userId: string): Promise<void> {
   };
 
   const { data: referrerUser } = await supabase
-    .from('users').select('selected_level, selected_semester').eq('id', referral.referrer_id).single();
-  if (referrerUser?.selected_level && referrerUser?.selected_semester) {
-    const referrerOk = await grantReferralFreePass(supabase, referral.referrer_id, referrerUser.selected_level, referrerUser.selected_semester);
+    .from('users').select('selected_level, selected_semester, program_id').eq('id', referral.referrer_id).single();
+  if (referrerUser?.selected_level && referrerUser?.selected_semester && referrerUser?.program_id) {
+    const referrerOk = await grantReferralFreePass(supabase, referral.referrer_id, referrerUser.selected_level, referrerUser.selected_semester, referrerUser.program_id);
     if (referrerOk) updates.referrer_rewarded_at = new Date().toISOString();
   }
 
@@ -107,7 +110,7 @@ export async function rewardReferralOnFirstTest(userId: string): Promise<void> {
  * reward is still pending — because they hadn't picked a level yet
  * when their friend finished — grant it now.
  */
-export async function maybeRewardPendingReferrer(userId: string, level: number, semester: number): Promise<void> {
+export async function maybeRewardPendingReferrer(userId: string, level: number, semester: number, programId: string): Promise<void> {
   const supabase = serviceClient();
 
   // Not unique per referrer — someone can refer more than one friend —
@@ -120,7 +123,7 @@ export async function maybeRewardPendingReferrer(userId: string, level: number, 
     .is('referrer_rewarded_at', null);
   if (!pending || pending.length === 0) return;
 
-  const ok = await grantReferralFreePass(supabase, userId, level, semester);
+  const ok = await grantReferralFreePass(supabase, userId, level, semester, programId);
   if (!ok) return;
 
   const rewardedAt = new Date().toISOString();

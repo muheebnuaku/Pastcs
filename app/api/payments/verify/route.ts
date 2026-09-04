@@ -19,6 +19,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // A subscription unlocks the student's own program's courses at this
+    // level+semester, not every program's — read their current program
+    // rather than trusting anything the client could send.
+    const { data: userData } = await supabase
+      .from('user_public')
+      .select('program_id')
+      .eq('id', authUser.id)
+      .single();
+
+    if (!userData?.program_id) {
+      return Response.json({ error: 'No program selected' }, { status: 400 });
+    }
+
     // Verify payment with Paystack
     const paystackRes = await fetch(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -56,6 +69,7 @@ export async function POST(request: Request) {
       user_id: authUser.id,
       level,
       semester,
+      program_id: userData.program_id,
       payment_reference: reference,
       amount: paystackData.data.amount,
       status: 'active',

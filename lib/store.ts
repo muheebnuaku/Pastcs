@@ -152,7 +152,13 @@ interface SubscriptionStore {
   subscriptions: Subscription[];
   setSubscriptions: (subs: Subscription[]) => void;
   addSubscription: (sub: Subscription) => void;
-  hasActiveSub: (level: number | null | undefined, semester: number | null | undefined) => boolean;
+  // A subscription unlocks one program's courses at a level+semester, not
+  // every program's — programId is required alongside level/semester.
+  hasActiveSub: (
+    level: number | null | undefined,
+    semester: number | null | undefined,
+    programId: string | null | undefined
+  ) => boolean;
 }
 
 export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
@@ -161,10 +167,10 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
   addSubscription: (sub) => set((state) => ({
     subscriptions: [...state.subscriptions, sub],
   })),
-  hasActiveSub: (level, semester) => {
-    if (!level || !semester) return false;
+  hasActiveSub: (level, semester, programId) => {
+    if (!level || !semester || !programId) return false;
     return get().subscriptions.some(
-      (s) => s.level === level && s.semester === semester && s.status === 'active'
+      (s) => s.level === level && s.semester === semester && s.program_id === programId && s.status === 'active'
     );
   },
 }));

@@ -83,7 +83,7 @@ export default function DashboardPage() {
 
   const level = user?.selected_level;
   const semester = user?.selected_semester;
-  const isPaid = hasActiveSub(level, semester);
+  const isPaid = hasActiveSub(level, semester, user?.program_id);
   const { label: priceLabel } = usePricing(level);
 
   useEffect(() => {
