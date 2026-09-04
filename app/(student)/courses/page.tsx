@@ -41,7 +41,7 @@ export default function CoursesPage() {
   const level = user?.selected_level;
   const semester = user?.selected_semester;
   const freeCourseCode = user?.free_course_code;
-  const isPaid = hasActiveSub(level, semester);
+  const isPaid = hasActiveSub(level, semester, user?.program_id);
   const { label: priceLabel } = usePricing(level);
   const lockedCount = !isPaid && freeCourseCode
     ? courses.filter(c => c.course_code !== freeCourseCode).length

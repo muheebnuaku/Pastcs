@@ -173,7 +173,7 @@ function parseSections(markdown: string): LessonSection[] {
 export default function AssistantPage() {
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
-  const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester);
+  const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
 
   // Chat state
   const [courses, setCourses] = useState<Course[]>([]);
