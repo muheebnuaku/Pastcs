@@ -59,6 +59,13 @@ export async function POST(request: Request) {
     return Response.json({ success: true });
   } catch (error) {
     console.error('Error updating selection:', error);
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
+    // Surface the real cause instead of a generic message — this endpoint
+    // was silently swallowing genuine DB errors (e.g. a missing column or
+    // FK violation) behind "Internal server error", making reports of it
+    // impossible to diagnose without direct server-log access.
+    const message = error instanceof Error ? error.message
+      : (error && typeof error === 'object' && 'message' in error) ? String((error as { message: unknown }).message)
+      : 'Internal server error';
+    return Response.json({ error: message }, { status: 500 });
   }
 }
