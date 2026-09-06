@@ -187,6 +187,7 @@ export default function AssistantPage() {
 
   // Document lesson state
   const [docStage, setDocStage] = useState<'idle' | 'uploading' | 'generating' | 'ready'>('idle');
+  const [docProgress, setDocProgress] = useState('');
   const [docError, setDocError] = useState('');
   const [lessonFileName, setLessonFileName] = useState('');
   const [lessonText, setLessonText] = useState('');
@@ -437,9 +438,17 @@ export default function AssistantPage() {
       setShowTutorPricing(true);
       return;
     }
+
+    const name = file.name.toLowerCase();
+    const isOldPpt = file.type === 'application/vnd.ms-powerpoint' || (name.endsWith('.ppt') && !name.endsWith('.pptx'));
+    const isOldDoc = file.type === 'application/msword' || (name.endsWith('.doc') && !name.endsWith('.docx'));
+    if (isOldPpt) { setDocError('Old .ppt format isn’t supported — open it in PowerPoint and use Save As → .pptx, then upload that instead. Slides that are mostly images convert fine and will still be read correctly.'); return; }
+    if (isOldDoc) { setDocError('Old .doc format is not supported. Please save as .docx in Word and try again.'); return; }
+
     trackEvent('document_upload', { fileName: file.name, fileType: file.type });
     setUploadCount(prev => prev + 1);
     setDocStage('uploading');
+    setDocProgress('');
     setDocError('');
     setLessonFileName(file.name);
     setLessonText('');
@@ -447,9 +456,63 @@ export default function AssistantPage() {
     setTeachIdx(0);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const parseRes = await fetch('/api/parse-pdf', { method: 'POST', body: formData });
+      // Extraction happens entirely in the browser — sending the raw file
+      // straight to the server (the old approach here) blows past a
+      // serverless request-body limit for anything but a tiny deck,
+      // which is exactly what shows up client-side as a bare "Failed to
+      // fetch" with no useful error from the server at all. See
+      // admin/generate/page.tsx's handlePdfParse for the same pipeline.
+      const { extractFileText } = await import('@/lib/extractPdfText');
+      const { text, pageCount } = await extractFileText(file, (page, total) => {
+        setDocProgress(`Extracting page ${page} of ${total}…`);
+      });
+
+      const isPptx = file.type.includes('presentationml') || name.endsWith('.pptx');
+      const isDocx = file.type.includes('wordprocessingml') || name.endsWith('.docx');
+      const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
+
+      // A page/slide whose content was flattened into a picture has
+      // essentially no extractable text — not a parsing failure, there's
+      // genuinely none there. Caught by a low whole-file average rather
+      // than "is it empty", since a repeated footer or slide number
+      // alone can make text technically non-empty.
+      const avgCharsPerUnit = pageCount > 0 ? text.length / pageCount : text.length;
+      const looksImageOnly = avgCharsPerUnit < 80;
+
+      let finalText = text;
+
+      if (looksImageOnly && (isPptx || isDocx || isPdf)) {
+        setDocProgress('Slides look like images — reading them with AI vision…');
+        const { extractPptxImages, extractDocxImages, extractPdfPageImages, visionOcrImages } =
+          await import('@/lib/extractPdfText');
+
+        const images = isPptx ? await extractPptxImages(file)
+          : isDocx ? await extractDocxImages(file)
+          : await extractPdfPageImages(file, (page, total) => {
+              setDocProgress(`Rendering page ${page} of ${total}…`);
+            });
+
+        if (images.length === 0) {
+          if (!text.trim()) throw new Error('Could not extract text and found no embedded images to read visually either.');
+        } else {
+          const visionText = await visionOcrImages(images, (done, total) => {
+            setDocProgress(`Reading slide images with AI vision (${done}/${total})…`);
+          });
+          if (!visionText.trim() && !text.trim()) {
+            throw new Error('AI vision could not read any content from these slide images.');
+          }
+          finalText = text.trim() ? `${text}\n\n${visionText}` : visionText;
+        }
+      }
+
+      if (!finalText.trim()) throw new Error('Could not extract text. If this is a scanned PDF, it must be text-based.');
+
+      setDocProgress('Detecting topic…');
+      const parseRes = await fetch('/api/parse-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: finalText, pageCount }),
+      });
       const parseData = await parseRes.json() as { text?: string; detectedTopic?: string; error?: string };
       if (!parseRes.ok || !parseData.text) throw new Error(parseData.error || 'Could not read the document');
 
@@ -459,6 +522,8 @@ export default function AssistantPage() {
       if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
       setDocStage('idle');
+    } finally {
+      setDocProgress('');
     }
   };
 
@@ -776,7 +841,7 @@ export default function AssistantPage() {
 
         {/* Upload error */}
         {docError && (
-          <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
             <X className="w-3 h-3" />{docError}
           </p>
         )}
@@ -794,6 +859,11 @@ export default function AssistantPage() {
             <FileText className="w-4 h-4 flex-shrink-0" />
             <span className="text-sm font-semibold flex-1 truncate min-w-0">{lessonFileName}</span>
 
+            {docStage === 'uploading' && (
+              <span className="flex items-center gap-1.5 text-blue-200 text-xs flex-shrink-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">{docProgress || 'Reading…'}</span>
+              </span>
+            )}
             {docStage === 'generating' && (
               <span className="flex items-center gap-1.5 text-blue-200 text-xs flex-shrink-0">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">Building your lesson…</span>
@@ -916,12 +986,12 @@ export default function AssistantPage() {
               <img
                 src={currentImage.url}
                 alt={currentImage.caption}
-                className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 shadow-sm flex-shrink-0 dark:bg-white/[0.04]"
+                className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 dark:border-indigo-500/20 shadow-sm flex-shrink-0 dark:bg-white/[0.04]"
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">{currentImage.keyword}</span>
-                  <span className="text-[10px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-medium">visual</span>
+                  <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">{currentImage.keyword}</span>
+                  <span className="text-[10px] bg-indigo-100 dark:bg-indigo-500/15 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded-full font-medium">visual</span>
                 </div>
                 <p className="text-xs text-gray-500 leading-snug line-clamp-2 dark:text-gray-400">{currentImage.caption}</p>
               </div>
