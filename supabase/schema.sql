@@ -57,9 +57,15 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS exam_date         DATE;
 -- Which program's courses this student sees — see PROGRAMS section below.
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program_id        UUID REFERENCES public.programs(id);
 
--- View alias used throughout the app
+-- View alias used throughout the app. IMPORTANT: `SELECT *` freezes the
+-- view's column list at CREATE time — adding a column to `users` later
+-- via a standalone ALTER TABLE does NOT retroactively add it here. Any
+-- migration that adds a users column must also recreate this view (see
+-- migration 017, which had to fix this after program_id silently
+-- missed it for exactly that reason).
 DROP VIEW IF EXISTS public.user_public;
 CREATE VIEW public.user_public AS SELECT * FROM public.users;
+NOTIFY pgrst, 'reload schema';
 
 -- ================================================================
 -- COURSES TABLE
