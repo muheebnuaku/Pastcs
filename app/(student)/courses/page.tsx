@@ -241,7 +241,7 @@ export default function CoursesPage() {
       {/* Error */}
       {!isLoading && error && (
         <div className="text-center py-12">
-          <p className="text-red-500 mb-4">{error}</p>
+          <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>
           <button
             onClick={fetchCourses}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

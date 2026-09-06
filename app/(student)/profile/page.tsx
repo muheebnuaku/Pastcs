@@ -281,7 +281,7 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                   {saveError && (
-                    <p className="text-xs text-red-500">{saveError}</p>
+                    <p className="text-xs text-red-500 dark:text-red-400">{saveError}</p>
                   )}
                 </div>
               )}

@@ -212,7 +212,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
           </div>
 
           {error && (
-            <p className="text-sm text-red-500 mb-4 text-center">{error}</p>
+            <p className="text-sm text-red-500 dark:text-red-400 mb-4 text-center">{error}</p>
           )}
 
           {paymentClosed && !error && (
