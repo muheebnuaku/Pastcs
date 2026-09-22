@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/adminAuth';
+import { logAudit } from '@/lib/auditLog';
 
 // GET /api/pricing?programId=... — returns per-level prices for one
 // program. programId is required — pricing is program-scoped, so
@@ -61,6 +62,8 @@ export async function PUT(request: Request) {
       .upsert(updates, { onConflict: 'level,program_id' });
 
     if (error) throw error;
+
+    logAudit(adminSupabase, 'pricing.update', `program ${programId}`, { programId, prices }, auth.userId).catch(() => {});
 
     return Response.json({ success: true });
   } catch (err) {

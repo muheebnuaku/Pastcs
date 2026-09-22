@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Modal, Badge } from '@/components/ui';
 import type { Program } from '@/types';
+import { logAudit } from '@/lib/auditLog';
 import { Plus, Edit, Trash2, Layers, BookOpen } from 'lucide-react';
 
 export default function AdminProgramsPage() {
@@ -93,6 +94,7 @@ export default function AdminProgramsPage() {
       alert(`Couldn't delete: ${error.message}`);
       return;
     }
+    logAudit(supabase, 'program.delete', `${program.name} (${program.short_code})`, { programId: program.id });
     fetchPrograms();
   };
 

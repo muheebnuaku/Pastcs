@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Modal, Badge, Select } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
+import { logAudit } from '@/lib/auditLog';
 import type { Course, Topic, Program } from '@/types';
 
 type TopicRow = Topic & { allIds: string[] };
@@ -225,9 +226,11 @@ export default function AdminCoursesPage() {
 
   const handleDeleteCourse = async (courseId: string) => {
     if (!confirm('Are you sure? This will delete all topics and questions.')) return;
-    
+
+    const course = courses.find(c => c.id === courseId);
     const supabase = createClient();
     await supabase.from('courses').delete().eq('id', courseId);
+    if (course) logAudit(supabase, 'course.delete', `${course.course_code} — ${course.course_name}`);
     fetchCourses();
   };
 
