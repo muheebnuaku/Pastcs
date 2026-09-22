@@ -223,3 +223,21 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
 export function isAdminRole(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'super_admin';
 }
+
+// A question this unreliable is more likely broken (ambiguous wording,
+// wrong answer key) than genuinely hard — flag it for a human look
+// instead of quietly eroding trust in results. Shared by admin/questions
+// (the flagged-only filter) and admin's Overview (the "Needs Attention"
+// count) so the two never disagree on what counts as flagged.
+export const REVIEW_MIN_ATTEMPTS = 20;
+export const REVIEW_MAX_ACCURACY = 25;
+
+export function questionAccuracy(q: { times_answered: number | null; times_correct: number | null }): number | null {
+  if (!q.times_answered) return null;
+  return ((q.times_correct ?? 0) / q.times_answered) * 100;
+}
+
+export function needsQuestionReview(q: { times_answered: number | null; times_correct: number | null }): boolean {
+  const acc = questionAccuracy(q);
+  return acc !== null && (q.times_answered ?? 0) >= REVIEW_MIN_ATTEMPTS && acc < REVIEW_MAX_ACCURACY;
+}

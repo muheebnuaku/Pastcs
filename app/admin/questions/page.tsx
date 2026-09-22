@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Select, Modal, Badge, Textarea } from '@/components/ui';
-import { QUESTION_TYPE_LABELS } from '@/lib/utils';
+import { QUESTION_TYPE_LABELS, questionAccuracy as accuracyOf, needsQuestionReview as needsReview } from '@/lib/utils';
 import type { Question, Course, Topic } from '@/types';
 import {
   Plus,
@@ -16,22 +16,6 @@ import {
   AlertTriangle,
   Puzzle,
 } from 'lucide-react';
-
-// A question this unreliable is more likely broken (ambiguous wording,
-// wrong answer key) than genuinely hard — flag it for a human look
-// instead of quietly eroding trust in results.
-const REVIEW_MIN_ATTEMPTS = 20;
-const REVIEW_MAX_ACCURACY = 25;
-
-function accuracyOf(q: Question): number | null {
-  if (!q.times_answered) return null;
-  return (q.times_correct / q.times_answered) * 100;
-}
-
-function needsReview(q: Question): boolean {
-  const acc = accuracyOf(q);
-  return acc !== null && q.times_answered >= REVIEW_MIN_ATTEMPTS && acc < REVIEW_MAX_ACCURACY;
-}
 
 export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
