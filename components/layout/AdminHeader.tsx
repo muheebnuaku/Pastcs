@@ -13,6 +13,7 @@ const routeMeta: Record<string, { title: string; description: string }> = {
   '/admin/analytics': { title: 'Analytics', description: 'Performance and engagement metrics' },
   '/admin/pricing': { title: 'Pricing', description: 'Set subscription prices per level' },
   '/admin/tracker': { title: 'Tracker', description: 'Payments and revenue across the platform' },
+  '/admin/audit-log': { title: 'Audit Log', description: 'Who changed what, and when' },
 };
 
 function getBreadcrumbs(pathname: string) {

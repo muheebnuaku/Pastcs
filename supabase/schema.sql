@@ -371,6 +371,26 @@ CREATE TABLE IF NOT EXISTS public.ai_usage_log (
 ALTER TABLE public.ai_usage_log ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- ADMIN AUDIT LOG TABLE
+-- A modest "who changed X and when" record for the highest-value admin
+-- actions (course/question delete, price change, free-pass grant/
+-- revoke, program delete) — not a full audit framework. Viewable by
+-- super admins only, matching the sensitivity class of Tracker.
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.admin_audit_log (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  actor_id   UUID REFERENCES public.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
+  action     TEXT NOT NULL,
+  target     TEXT NOT NULL,
+  metadata   JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON public.admin_audit_log(created_at DESC);
+
+ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- REVIEW SCHEDULE TABLE
 -- Light SM-2-style spaced repetition. One row per (user, question)
 -- ever answered. On a wrong answer the interval resets to 1 day; on a
@@ -554,6 +574,12 @@ CREATE POLICY "chat_messages_delete_own" ON public.chat_messages FOR DELETE USIN
 -- AI usage log (written only via the service-role client from each AI
 -- route; admins can review spend)
 CREATE POLICY "ai_usage_log_admin_select" ON public.ai_usage_log FOR SELECT USING (is_admin());
+
+-- Admin audit log (any admin/super_admin can write a row for their own
+-- action — client-side deletes rely on this; service-role server routes
+-- bypass RLS and pass actor_id explicitly. Only super admins can read it.)
+CREATE POLICY "admin_audit_log_admin_insert" ON public.admin_audit_log FOR INSERT WITH CHECK (is_admin());
+CREATE POLICY "admin_audit_log_super_admin_select" ON public.admin_audit_log FOR SELECT USING (is_super_admin());
 
 -- Review schedule (fully owned by the student — no reward/abuse risk
 -- like the referral free-passes, so the regular authenticated client

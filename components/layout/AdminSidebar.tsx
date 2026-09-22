@@ -24,6 +24,7 @@ import {
   MessageSquareQuote,
   Layers,
   Radar,
+  ScrollText,
 } from 'lucide-react';
 
 const adminNavSections = [
@@ -64,6 +65,7 @@ const superAdminNavSection = {
   label: 'Super Admin',
   items: [
     { href: '/admin/tracker', label: 'Tracker', icon: Radar },
+    { href: '/admin/audit-log', label: 'Audit Log', icon: ScrollText },
   ],
 };
 

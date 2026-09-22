@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Select, Modal, Badge, Textarea } from '@/components/ui';
 import { QUESTION_TYPE_LABELS, questionAccuracy as accuracyOf, needsQuestionReview as needsReview } from '@/lib/utils';
+import { logAudit } from '@/lib/auditLog';
 import type { Question, Course, Topic } from '@/types';
 import {
   Plus,
@@ -195,9 +196,11 @@ export default function AdminQuestionsPage() {
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} question${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    const ids = [...selectedIds];
     setIsDeleting(true);
     const supabase = createClient();
-    await supabase.from('questions').delete().in('id', [...selectedIds]);
+    await supabase.from('questions').delete().in('id', ids);
+    logAudit(supabase, 'question.bulk_delete', `${ids.length} questions`, { questionIds: ids });
     setIsDeleting(false);
     setSelectedIds(new Set());
     fetchQuestions();
@@ -271,8 +274,10 @@ export default function AdminQuestionsPage() {
 
   const handleDelete = async (questionId: string) => {
     if (!confirm('Delete this question?')) return;
+    const question = questions.find(q => q.id === questionId);
     const supabase = createClient();
     await supabase.from('questions').delete().eq('id', questionId);
+    logAudit(supabase, 'question.delete', question ? question.question_text.slice(0, 80) : questionId, { questionId });
     fetchQuestions();
   };
 

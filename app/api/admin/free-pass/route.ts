@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/adminAuth';
+import { logAudit } from '@/lib/auditLog';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,6 +51,8 @@ export async function POST(req: Request) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
+  logAudit(supabaseAdmin, 'free_pass.grant', `user ${userId} — Level ${level} Semester ${semester}`, { userId, level, semester, programId }, auth.userId).catch(() => {});
+
   return Response.json({ success: true });
 }
 
@@ -81,6 +84,8 @@ export async function DELETE(req: Request) {
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
+
+  logAudit(supabaseAdmin, 'free_pass.revoke', `user ${userId} — Level ${level} Semester ${semester}`, { userId, level, semester, programId }, auth.userId).catch(() => {});
 
   return Response.json({ success: true });
 }
