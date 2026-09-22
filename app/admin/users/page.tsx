@@ -18,6 +18,8 @@ import {
   Shield,
   Users as UsersIcon,
   GraduationCap,
+  Download,
+  Clock,
 } from 'lucide-react';
 
 interface UserRow extends User {
@@ -35,6 +37,26 @@ function isFreePass(sub: Subscription) {
   return sub.payment_reference?.startsWith('free_pass_');
 }
 
+function timeAgo(iso: string | undefined) {
+  if (!iso) return 'Never';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+function csvEscape(value: string) {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
 const roleTabs: { key: RoleFilter; label: string; icon: typeof UsersIcon }[] = [
   { key: 'all', label: 'All', icon: UsersIcon },
   { key: 'student', label: 'Students', icon: GraduationCap },
@@ -44,6 +66,7 @@ const roleTabs: { key: RoleFilter; label: string; icon: typeof UsersIcon }[] = [
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [subsMap, setSubsMap] = useState<Record<string, Subscription[]>>({});
+  const [lastActiveMap, setLastActiveMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
@@ -79,7 +102,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     const res = await fetch('/api/admin/users');
     if (res.ok) {
-      const { users: rawUsers, subscriptions } = await res.json();
+      const { users: rawUsers, subscriptions, lastActive } = await res.json();
 
       // Build subscriptions map
       const map: Record<string, Subscription[]> = {};
@@ -88,6 +111,7 @@ export default function AdminUsersPage() {
         map[sub.user_id].push(sub);
       }
       setSubsMap(map);
+      setLastActiveMap(lastActive ?? {});
 
       setUsers(rawUsers.map((u: User) => ({
         ...u,
@@ -165,11 +189,40 @@ export default function AdminUsersPage() {
     setRevoking(null);
   };
 
+  const handleExportCsv = () => {
+    const headers = ['Name', 'Email', 'Student ID', 'Role', 'Programme', 'Tests Taken', 'Streak', 'XP', 'Last Active'];
+    const rows = filteredUsers.map(u => [
+      u.full_name || '',
+      u.email,
+      u.student_id || '',
+      u.role === 'super_admin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'Student',
+      u.program || '',
+      String(u.total_tests_taken ?? 0),
+      String(u.practice_streak),
+      String(u.xp),
+      lastActiveMap[u.id] ? new Date(lastActiveMap[u.id]).toISOString() : 'Never',
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pastcs-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Users</h1>
-        <p className="text-gray-600 dark:text-gray-400">{stats.total} registered accounts — students and admins</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Users</h1>
+          <p className="text-gray-600 dark:text-gray-400">{stats.total} registered accounts — students and admins</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredUsers.length === 0}>
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV ({filteredUsers.length})
+        </Button>
       </div>
 
       {/* Stat summary — each is a filter shortcut into the table below */}
@@ -290,6 +343,7 @@ export default function AdminUsersPage() {
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Tests</th>
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Streak</th>
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">XP</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Last Active</th>
                 <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Access</th>
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Actions</th>
               </tr>
@@ -297,7 +351,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-white/10">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm dark:text-gray-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 text-sm dark:text-gray-500">
                     Loading users…
                   </td>
                 </tr>
@@ -362,6 +416,12 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="font-medium text-purple-600 dark:text-purple-400">{user.xp}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                        {timeAgo(lastActiveMap[user.id])}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
