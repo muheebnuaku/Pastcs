@@ -154,7 +154,10 @@ export async function extractPdfPageImages(
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-  const pageCount = Math.min(pdf.numPages, 40); // sanity cap on a scanned deck
+  // Sanity cap on a scanned deck, not a real-world one — raised from 40
+  // after a 100+ page upload showed this needs to scale with genuinely
+  // long documents, not just a typical single lecture's worth of slides.
+  const pageCount = Math.min(pdf.numPages, 80);
   const images: ExtractedImage[] = [];
 
   for (let i = 1; i <= pageCount; i++) {
