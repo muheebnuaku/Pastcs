@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Select, Textarea, Badge } from '@/components/ui';
+import { chunkContent } from '@/lib/utils';
 import type { Course, Topic } from '@/types';
 import {
   Sparkles,
@@ -18,6 +19,9 @@ import {
   Puzzle,
   History,
   Clock,
+  Layers,
+  OctagonPause,
+  RotateCcw,
 } from 'lucide-react';
 
 interface GeneratedQuestion {
@@ -33,12 +37,32 @@ interface GeneratedQuestion {
 
 const LEVELS = [100, 200, 300, 400] as const;
 
+// A merged, whole-course upload (hundreds of pages) is split into batches
+// this large instead of being sent as one request — keeps each batch's
+// GPT-4o call well within a normal response time, and sequential (never
+// parallel) requests are what actually keeps this off any per-minute AI
+// usage/rate limit, not the size of any single call.
+const BATCH_TARGET_CHARS = 45000;
+// A deliberate pause between batches on top of the per-call retry/backoff
+// already in withOpenAIRetry — extra headroom against bursting a
+// requests-per-minute limit across many sequential batches.
+const BATCH_DELAY_MS = 1200;
+
+type BatchStatus = 'pending' | 'running' | 'done' | 'error';
+
 interface GenerationHistoryRow {
   id: string;
   created_at: string;
   total_tokens: number;
-  metadata: { courseId?: string; topicName?: string | null; questionCount?: number } | null;
+  metadata: {
+    courseId?: string;
+    topicName?: string | null;
+    questionCount?: number;
+    batch?: { index: number; total: number };
+  } | null;
 }
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function AdminGeneratePage() {
   const [allCourses, setAllCourses] = useState<Course[]>([]);
@@ -49,6 +73,17 @@ export default function AdminGeneratePage() {
   const [saveCount, setSaveCount] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Batched generation — a large upload is split into sequential chunks
+  // (see chunkContent) so the whole document gets covered instead of a
+  // single lossy 3-slice sample. chunksRef/batchStatusesRef are the source
+  // of truth read/mutated inside the run loop; batchStatuses state mirrors
+  // them for rendering.
+  const chunksRef = useRef<string[]>([]);
+  const batchStatusesRef = useRef<BatchStatus[]>([]);
+  const batchErrorsRef = useRef<Record<number, string>>({});
+  const cancelBatchRef = useRef(false);
+  const [batchStatuses, setBatchStatuses] = useState<BatchStatus[]>([]);
 
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -237,39 +272,102 @@ export default function AdminGeneratePage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Runs (or re-runs) a set of batch indices sequentially against
+  // chunksRef.current — shared by the initial full run and by "Retry
+  // failed batches" so a partial failure doesn't force redoing the whole
+  // document. Never runs batches in parallel: one request in flight at a
+  // time, with a pause between, is what actually avoids bursting a
+  // per-minute AI usage/rate limit — the per-call retry in
+  // withOpenAIRetry only covers a single request's own transient errors.
+  const runBatchIndices = async (indices: number[]) => {
+    cancelBatchRef.current = false;
+    setIsGenerating(true);
+    setError('');
+
+    for (const i of indices) {
+      if (cancelBatchRef.current) break;
+
+      batchStatusesRef.current[i] = 'running';
+      setBatchStatuses([...batchStatusesRef.current]);
+
+      try {
+        const response = await fetch('/api/generate-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slideContent: chunksRef.current[i] || null,
+            courseId: selectedCourse,
+            topicId: selectedTopic || null,
+            topicName: selectedTopicObj?.topic_name || pdfTopic || null,
+            batchIndex: i,
+            batchTotal: chunksRef.current.length,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to generate questions');
+
+        const newQuestions = (data.questions as GeneratedQuestion[]).map(q => ({ ...q, selected: true }));
+        setGeneratedQuestions(prev => [...prev, ...newQuestions]);
+        batchStatusesRef.current[i] = 'done';
+        delete batchErrorsRef.current[i];
+      } catch (err) {
+        batchStatusesRef.current[i] = 'error';
+        batchErrorsRef.current[i] = err instanceof Error ? err.message : 'Failed to generate questions';
+      }
+      setBatchStatuses([...batchStatusesRef.current]);
+
+      const isLastInRun = i === indices[indices.length - 1];
+      if (!isLastInRun && !cancelBatchRef.current) await sleep(BATCH_DELAY_MS);
+    }
+
+    setIsGenerating(false);
+    loadHistory();
+
+    const total = batchStatusesRef.current.length;
+    if (total > 1) {
+      const doneCount = batchStatusesRef.current.filter(s => s === 'done').length;
+      const errorCount = batchStatusesRef.current.filter(s => s === 'error').length;
+      if (cancelBatchRef.current && errorCount === 0 && doneCount < total) {
+        setSuccessMessage(`Stopped after ${doneCount} of ${total} batches — resume anytime by generating again, or review what's been produced so far below.`);
+      } else if (errorCount === 0) {
+        setSuccessMessage(`Generated questions from all ${total} batches (~50 pages each) — review and save below.`);
+      } else {
+        const sampleReason = Object.values(batchErrorsRef.current)[0];
+        setError(`${errorCount} of ${total} batches failed${sampleReason ? ` (${sampleReason})` : ''} — the rest succeeded and are ready to review below. Retry the failed ones with the button above the questions.`);
+      }
+    }
+  };
+
   const handleGenerate = async () => {
     if (!canGenerate) {
       setError('Please select a course and either upload a PDF/PPTX, paste slide content, or choose a topic');
       return;
     }
 
-    setIsGenerating(true);
     setError('');
     setSuccessMessage('');
     setGeneratedQuestions([]);
 
-    try {
-      const response = await fetch('/api/generate-questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slideContent: slideContent.trim() || null,
-          courseId: selectedCourse,
-          topicId: selectedTopic || null,
-          topicName: selectedTopicObj?.topic_name || pdfTopic || null,
-        }),
-      });
+    const content = slideContent.trim();
+    const chunks = content ? chunkContent(content, BATCH_TARGET_CHARS) : [''];
+    chunksRef.current = chunks;
+    batchStatusesRef.current = chunks.map(() => 'pending');
+    batchErrorsRef.current = {};
+    setBatchStatuses([...batchStatusesRef.current]);
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to generate questions');
+    await runBatchIndices(chunks.map((_, i) => i));
+  };
 
-      setGeneratedQuestions(data.questions.map((q: GeneratedQuestion) => ({ ...q, selected: true })));
-      loadHistory();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate questions');
-    } finally {
-      setIsGenerating(false);
-    }
+  const handleRetryFailedBatches = () => {
+    const failed = batchStatusesRef.current
+      .map((s, i) => (s === 'error' ? i : -1))
+      .filter(i => i !== -1);
+    if (failed.length > 0) runBatchIndices(failed);
+  };
+
+  const handleStopBatches = () => {
+    cancelBatchRef.current = true;
   };
 
   const toggleQuestionSelection = (index: number) => {
@@ -369,6 +467,10 @@ export default function AdminGeneratePage() {
       setGeneratedQuestions([]);
       setSlideContent('');
       clearPdf();
+      chunksRef.current = [];
+      batchStatusesRef.current = [];
+      batchErrorsRef.current = {};
+      setBatchStatuses([]);
 
       // Refresh topics list so the newly created topic appears in the dropdown
       const supabase = createClient();
@@ -444,7 +546,7 @@ export default function AdminGeneratePage() {
             <Select
               label="Course"
               value={selectedCourse}
-              onChange={(e) => { setSelectedCourse(e.target.value); setGeneratedQuestions([]); }}
+              onChange={(e) => { setSelectedCourse(e.target.value); setGeneratedQuestions([]); setBatchStatuses([]); chunksRef.current = []; batchStatusesRef.current = []; batchErrorsRef.current = {}; }}
             >
               <option value="">Select Course</option>
               {filteredCourses.map(c => (
@@ -592,6 +694,16 @@ Binary Number System
                 </>
               )}
             </Button>
+
+            {(() => {
+              const preview = slideContent.trim() ? chunkContent(slideContent.trim(), BATCH_TARGET_CHARS) : [];
+              return preview.length > 1 ? (
+                <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <Layers className="w-3.5 h-3.5 flex-shrink-0" />
+                  Large document — will process in {preview.length} sequential batches (~50 pages each) to stay within AI usage limits.
+                </p>
+              ) : null;
+            })()}
           </CardContent>
         </Card>
 
@@ -611,6 +723,50 @@ Binary Number System
             )}
           </div>
           <div className="p-6">
+            {batchStatuses.length > 1 && (
+              <div className="mb-4 p-3 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10">
+                <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 flex-shrink-0" />
+                    Batch {batchStatuses.filter(s => s !== 'pending').length} of {batchStatuses.length}
+                  </p>
+                  {isGenerating ? (
+                    <button
+                      onClick={handleStopBatches}
+                      className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline"
+                    >
+                      <OctagonPause className="w-3.5 h-3.5" />
+                      Stop after current batch
+                    </button>
+                  ) : batchStatuses.some(s => s === 'error') && (
+                    <button
+                      onClick={handleRetryFailedBatches}
+                      className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Retry failed batches
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {batchStatuses.map((s, i) => (
+                    <span
+                      key={i}
+                      title={s === 'error' && batchErrorsRef.current[i] ? `Batch ${i + 1}: ${batchErrorsRef.current[i]}` : `Batch ${i + 1}: ${s}`}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-semibold flex-shrink-0 ${
+                        s === 'done' ? 'bg-green-500 text-white'
+                        : s === 'error' ? 'bg-red-500 text-white'
+                        : s === 'running' ? 'bg-blue-500 text-white animate-pulse'
+                        : 'bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      {i + 1}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-4 rounded-lg mb-4">
                 <AlertCircle className="w-5 h-5" />
@@ -779,6 +935,11 @@ Binary Number System
                       <Badge variant="default" size="sm">
                         {row.metadata?.questionCount ?? '?'} questions
                       </Badge>
+                      {row.metadata?.batch && (
+                        <Badge variant="info" size="sm">
+                          Batch {row.metadata.batch.index}/{row.metadata.batch.total}
+                        </Badge>
+                      )}
                       <span className="text-xs text-gray-400 dark:text-gray-500">{row.total_tokens.toLocaleString()} tokens</span>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
