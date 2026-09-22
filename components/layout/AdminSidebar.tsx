@@ -13,7 +13,6 @@ import {
   FileQuestion,
   Users,
   BarChart3,
-  Activity,
   Sparkles,
   LogOut,
   Menu,
@@ -22,11 +21,14 @@ import {
   DollarSign,
   ChevronRight,
   MessageSquareQuote,
-  Layers,
   Radar,
-  ScrollText,
 } from 'lucide-react';
 
+// Programs (merged into Courses as a tab), Activity (merged into
+// Analytics as a tab), and Audit Log (merged into Tracker as a tab) each
+// used to have their own nav entry here — folded in since none of the
+// three earned a standalone top-level destination on its own. Old URLs
+// redirect to the merged page's tab (see next.config.ts).
 const adminNavSections = [
   {
     items: [
@@ -36,7 +38,6 @@ const adminNavSections = [
   {
     label: 'Content',
     items: [
-      { href: '/admin/programs', label: 'Programs', icon: Layers },
       { href: '/admin/courses', label: 'Courses', icon: BookOpen },
       { href: '/admin/questions', label: 'Questions', icon: FileQuestion },
       { href: '/admin/generate', label: 'AI Generator', icon: Sparkles },
@@ -53,7 +54,6 @@ const adminNavSections = [
     label: 'Insights',
     items: [
       { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/admin/activity', label: 'Activity', icon: Activity },
       { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },
     ],
   },
@@ -65,7 +65,6 @@ const superAdminNavSection = {
   label: 'Super Admin',
   items: [
     { href: '/admin/tracker', label: 'Tracker', icon: Radar },
-    { href: '/admin/audit-log', label: 'Audit Log', icon: ScrollText },
   ],
 };
 

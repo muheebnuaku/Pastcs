@@ -61,9 +61,12 @@ function timeAgo(iso: string): string {
   return `${Math.round(diff / 86400)}d ago`;
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-
-export default function AdminActivityPage() {
+// Platform-wide engagement — trends, feature usage, live feed. Split out
+// of the former standalone Activity page (see AnalyticsTabs) so it lives
+// alongside Performance (former Analytics page) as a tab instead of a
+// separate nav item that answered an overlapping "how are tests going"
+// question.
+export function EngagementTab() {
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [totalUsers, setTotalUsers]   = useState(0);
@@ -228,21 +231,12 @@ export default function AdminActivityPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">
-            <Activity className="w-6 h-6 text-blue-600" />
-            Activity Monitor
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5 dark:text-gray-400">Live feature usage — last 30 days</p>
-        </div>
+    <div className="space-y-6">
+      <div className="flex justify-end">
         <button
           onClick={refresh}
           disabled={refreshing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors self-start sm:self-auto dark:text-gray-400 dark:border-white/10 dark:hover:bg-white/[0.03]"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors dark:text-gray-400 dark:border-white/10 dark:hover:bg-white/[0.03]"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh

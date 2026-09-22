@@ -9,3 +9,5 @@ export { Textarea } from './Textarea';
 export { Modal } from './Modal';
 export { Loading, PageLoading } from './Loading';
 export { PushingProgress } from './PushingProgress';
+export { Tabs } from './Tabs';
+export type { TabItem } from './Tabs';
