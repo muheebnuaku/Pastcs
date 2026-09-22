@@ -16,6 +16,7 @@ import {
   MessageSquareQuote,
   ArrowRight,
   UserPlus,
+  Clock,
 } from 'lucide-react';
 
 interface ProgramSummary {
@@ -32,6 +33,7 @@ export default function AdminOverviewPage() {
   const [courseStats, setCourseStats] = useState<CourseStats[]>([]);
   const [programSummaries, setProgramSummaries] = useState<ProgramSummary[]>([]);
   const [flaggedCount, setFlaggedCount] = useState(0);
+  const [pendingQuestions, setPendingQuestions] = useState(0);
   const [pendingTestimonials, setPendingTestimonials] = useState(0);
   const [recentActivity, setRecentActivity] = useState<{
     id: string;
@@ -66,12 +68,13 @@ export default function AdminOverviewPage() {
         supabase.from('tests').select('*', { count: 'exact', head: true }),
         supabase.from('course_programs').select('course_id, program_id'),
         supabase.from('programs').select('*').order('name'),
-        supabase.from('questions').select('times_answered, times_correct'),
+        supabase.from('questions').select('times_answered, times_correct, is_approved'),
         supabase.from('testimonials').select('*', { count: 'exact', head: true }).eq('is_approved', false),
       ]);
 
       setNewStudentsThisWeek(newStudentsCount || 0);
       setFlaggedCount((questionRows ?? []).filter(needsQuestionReview).length);
+      setPendingQuestions((questionRows ?? []).filter((q: { is_approved: boolean }) => !q.is_approved).length);
       setPendingTestimonials(pendingTestimonialsCount || 0);
 
       // "Active" = actually assigned to at least one program — a course
@@ -231,8 +234,24 @@ export default function AdminOverviewPage() {
       </div>
 
       {/* Needs Attention */}
-      {(flaggedCount > 0 || pendingTestimonials > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {(pendingQuestions > 0 || flaggedCount > 0 || pendingTestimonials > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {pendingQuestions > 0 && (
+            <Link href="/admin/questions" className="block">
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-100 dark:bg-amber-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">{pendingQuestions} question{pendingQuestions !== 1 ? 's' : ''} pending review</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Not visible to students until approved</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                </CardContent>
+              </Card>
+            </Link>
+          )}
           {flaggedCount > 0 && (
             <Link href="/admin/questions" className="block">
               <Card className="hover:shadow-md transition-shadow">

@@ -312,7 +312,10 @@ export default function AdminGeneratePage() {
           correct_answers,
           explanation: q.explanation,
           difficulty: q.difficulty,
-          is_approved: true,
+          // Not live to students until reviewed on the Question Bank
+          // page — nothing checked this before, so every AI-generated
+          // question shipped straight to students with no human look.
+          is_approved: false,
           is_scenario: !!q.is_scenario,
         };
       });
@@ -331,7 +334,7 @@ export default function AdminGeneratePage() {
         : effectiveTopicId && pdfTopic
           ? ` Saved under topic "${pdfTopic}".`
           : '';
-      setSuccessMessage(`Successfully saved ${result.saved} questions!${topicNote}`);
+      setSuccessMessage(`Saved ${result.saved} questions — pending review before they go live to students.${topicNote}`);
       setSaveProgress(100);
       setGeneratedQuestions([]);
       setSlideContent('');
