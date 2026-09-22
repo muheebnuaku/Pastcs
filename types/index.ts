@@ -4,7 +4,7 @@
 // DATABASE TYPES
 // ================================================
 
-export type UserRole = 'student' | 'admin';
+export type UserRole = 'student' | 'admin' | 'super_admin';
 export type QuestionType = 'single_choice' | 'multiple_choice' | 'fill_in_blank';
 export type TestType = 'practice' | 'exam_simulation';
 export type Difficulty = 'easy' | 'medium' | 'hard';

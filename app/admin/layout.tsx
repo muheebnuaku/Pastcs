@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers';
 import { AdminSidebar, AdminHeader } from '@/components/layout';
+import { isAdminRole } from '@/lib/utils';
 
 export default function AdminLayout({
   children,
@@ -16,7 +17,7 @@ export default function AdminLayout({
   useEffect(() => {
     if (!isLoading && !user) {
       router.replace('/login');
-    } else if (!isLoading && user && user.role !== 'admin') {
+    } else if (!isLoading && user && !isAdminRole(user.role)) {
       router.replace('/dashboard');
     }
   }, [user, isLoading, router]);

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Avatar, Modal, Badge } from '@/components/ui';
+import { isAdminRole } from '@/lib/utils';
 import type { User, Subscription, UserRole, Program } from '@/types';
 import {
   Search,
@@ -102,12 +103,12 @@ export default function AdminUsersPage() {
   const stats = useMemo(() => ({
     total: users.length,
     students: users.filter(u => u.role === 'student').length,
-    admins: users.filter(u => u.role === 'admin').length,
+    admins: users.filter(u => isAdminRole(u.role)).length,
     freePasses: Object.values(subsMap).flat().filter(isFreePass).length,
   }), [users, subsMap]);
 
   const filteredUsers = users
-    .filter(u => roleFilter === 'all' || u.role === roleFilter)
+    .filter(u => roleFilter === 'all' || (roleFilter === 'admin' ? isAdminRole(u.role) : u.role === roleFilter))
     .filter(u => !freePassOnly || (subsMap[u.id] ?? []).some(isFreePass))
     .filter(u =>
       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -302,7 +303,8 @@ export default function AdminUsersPage() {
                 </tr>
               ) : paginatedUsers.map((user) => {
                 const subs = subsMap[user.id] ?? [];
-                const isAdmin = user.role === 'admin';
+                const isAdmin = isAdminRole(user.role);
+                const isSuperAdmin = user.role === 'super_admin';
                 return (
                   <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.03]">
                     <td className="px-6 py-4">
@@ -314,7 +316,7 @@ export default function AdminUsersPage() {
                             size="md"
                           />
                           {isAdmin && (
-                            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-purple-600 border-2 border-white flex items-center justify-center">
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${isSuperAdmin ? 'bg-amber-500' : 'bg-purple-600'}`}>
                               <Shield className="w-2 h-2 text-white" />
                             </span>
                           )}
@@ -326,9 +328,12 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <Badge variant={isAdmin ? 'info' : 'default'} className={isAdmin ? '!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400' : ''}>
+                      <Badge
+                        variant={isAdmin ? 'info' : 'default'}
+                        className={isSuperAdmin ? '!bg-amber-100 dark:!bg-amber-500/15 !text-amber-700 dark:!text-amber-400' : isAdmin ? '!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400' : ''}
+                      >
                         {isAdmin ? <Shield className="w-3 h-3 mr-1" /> : <GraduationCap className="w-3 h-3 mr-1" />}
-                        {isAdmin ? 'Admin' : 'Student'}
+                        {isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Student'}
                       </Badge>
                     </td>
                     <td className="px-6 py-4">
@@ -434,17 +439,20 @@ export default function AdminUsersPage() {
                   <p className="font-semibold text-gray-900 truncate dark:text-gray-100">{modalUser.full_name || 'No Name'}</p>
                   <Badge
                     size="sm"
-                    variant={modalUser.role === 'admin' ? 'info' : 'default'}
-                    className={modalUser.role === 'admin' ? '!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400' : ''}
+                    variant={isAdminRole(modalUser.role) ? 'info' : 'default'}
+                    className={
+                      modalUser.role === 'super_admin' ? '!bg-amber-100 dark:!bg-amber-500/15 !text-amber-700 dark:!text-amber-400'
+                        : modalUser.role === 'admin' ? '!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400' : ''
+                    }
                   >
-                    {modalUser.role === 'admin' ? 'Admin' : 'Student'}
+                    {modalUser.role === 'super_admin' ? 'Super Admin' : modalUser.role === 'admin' ? 'Admin' : 'Student'}
                   </Badge>
                 </div>
                 <p className="text-sm text-gray-500 truncate dark:text-gray-400">{modalUser.email}</p>
               </div>
             </div>
 
-            {modalUser.role === 'admin' && (
+            {isAdminRole(modalUser.role) && (
               <div className="flex items-start gap-2 p-3 bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-500/20 rounded-xl text-xs text-purple-700 dark:text-purple-400">
                 <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <span>This is an admin account. You can still grant it a free pass to test or preview student-side course access.</span>

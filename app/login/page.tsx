@@ -8,6 +8,7 @@ import { useAuthStore } from '@/lib/store';
 import { Button, Input } from '@/components/ui';
 import { Home } from 'lucide-react';
 import { WatchingCharacter } from '@/components/auth/WatchingCharacter';
+import { isAdminRole } from '@/lib/utils';
 
 // This email belongs to an admin account but should always land on the
 // student dashboard rather than the admin panel.
@@ -15,7 +16,7 @@ const STUDENT_REDIRECT_EMAILS = ['kwabenacrys@gmail.com'];
 
 function shouldGoToAdmin(email: string | undefined, role: string | undefined) {
   if (!email || !role) return false;
-  return role === 'admin' && !STUDENT_REDIRECT_EMAILS.includes(email.toLowerCase());
+  return isAdminRole(role) && !STUDENT_REDIRECT_EMAILS.includes(email.toLowerCase());
 }
 
 export default function LoginPage() {

@@ -301,7 +301,7 @@ export default function ProfilePage() {
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400">{user.email}</p>
                   <Badge variant="info" className="mt-2">
-                    {user.role === 'admin' ? 'Administrator' : 'Student'}
+                    {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Administrator' : 'Student'}
                   </Badge>
                 </div>
               </div>
