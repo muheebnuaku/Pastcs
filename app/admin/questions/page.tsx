@@ -15,6 +15,8 @@ import {
   ChevronRight,
   AlertTriangle,
   Puzzle,
+  Clock,
+  Check,
 } from 'lucide-react';
 
 export default function AdminQuestionsPage() {
@@ -41,11 +43,13 @@ export default function AdminQuestionsPage() {
   const [filterTopic, setFilterTopic] = useState('');
   const [filterType, setFilterType] = useState('');
   const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'accuracy'>('newest');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+  const [isApproving, setIsApproving] = useState(false);
 
   // Form state
   const [formCourseId, setFormCourseId] = useState('');
@@ -133,10 +137,12 @@ export default function AdminQuestionsPage() {
   });
 
   const flaggedCount = questions.filter(needsReview).length;
+  const pendingCount = questions.filter(q => !q.is_approved).length;
 
   const filteredQuestions = questions
     .filter(q => q.question_text.toLowerCase().includes(searchQuery.toLowerCase()))
     .filter(q => !flaggedOnly || needsReview(q))
+    .filter(q => !pendingOnly || !q.is_approved)
     .sort((a, b) => {
       if (sortBy !== 'accuracy') return 0; // already ordered by created_at from the query
       const accA = accuracyOf(a) ?? 101; // unanswered questions sort last, not first
@@ -197,6 +203,23 @@ export default function AdminQuestionsPage() {
     fetchQuestions();
   };
 
+  const handleApprove = async (questionId: string) => {
+    const supabase = createClient();
+    await supabase.from('questions').update({ is_approved: true }).eq('id', questionId);
+    setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, is_approved: true } : q));
+  };
+
+  const handleBulkApprove = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setIsApproving(true);
+    const supabase = createClient();
+    await supabase.from('questions').update({ is_approved: true }).in('id', ids);
+    setIsApproving(false);
+    setSelectedIds(new Set());
+    fetchQuestions();
+  };
+
   const openModal = (question?: Question) => {
     if (question) {
       setEditingQuestion(question);
@@ -238,7 +261,9 @@ export default function AdminQuestionsPage() {
     if (editingQuestion) {
       await supabase.from('questions').update(questionData).eq('id', editingQuestion.id);
     } else {
-      await supabase.from('questions').insert(questionData);
+      // Same review gate as AI-generated questions — not live to
+      // students until approved below.
+      await supabase.from('questions').insert({ ...questionData, is_approved: false });
     }
     setShowModal(false);
     fetchQuestions();
@@ -354,6 +379,17 @@ export default function AdminQuestionsPage() {
                 <AlertTriangle className="w-3.5 h-3.5" />
                 {flaggedOnly ? 'Showing needs-review only' : `Needs review (${flaggedCount})`}
               </button>
+              <button
+                onClick={() => setPendingOnly(v => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  pendingOnly
+                    ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-400'
+                    : 'bg-white dark:bg-white/[0.04] border-gray-300 dark:border-white/15 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                {pendingOnly ? 'Showing pending only' : `Pending review (${pendingCount})`}
+              </button>
             </div>
           )}
         </div>
@@ -391,16 +427,28 @@ export default function AdminQuestionsPage() {
               </label>
 
               {selectedIds.size > 0 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleBulkDelete}
-                  disabled={isDeleting}
-                  className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 ml-auto"
-                >
-                  <Trash2 className="w-4 h-4 mr-1.5" />
-                  {isDeleting ? 'Deleting…' : `Delete ${selectedIds.size} selected`}
-                </Button>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleBulkApprove}
+                    disabled={isApproving}
+                    className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-500/10"
+                  >
+                    <Check className="w-4 h-4 mr-1.5" />
+                    {isApproving ? 'Approving…' : `Approve ${selectedIds.size} selected`}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleBulkDelete}
+                    disabled={isDeleting}
+                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    {isDeleting ? 'Deleting…' : `Delete ${selectedIds.size} selected`}
+                  </Button>
+                </div>
               )}
 
               {totalPages > 1 && selectedIds.size < filteredQuestions.length && (
@@ -429,7 +477,7 @@ export default function AdminQuestionsPage() {
             return (
               <Card
                 key={question.id}
-                className={isSelected ? 'ring-2 ring-blue-400' : flagged ? 'ring-2 ring-red-300' : ''}
+                className={isSelected ? 'ring-2 ring-blue-400' : !question.is_approved ? 'ring-2 ring-amber-300 dark:ring-amber-500/40' : flagged ? 'ring-2 ring-red-300' : ''}
               >
                 <div className="p-4">
                   <div className="flex items-start gap-3">
@@ -476,6 +524,12 @@ export default function AdminQuestionsPage() {
                                 Needs review
                               </Badge>
                             )}
+                            {!question.is_approved && (
+                              <Badge variant="warning" size="sm">
+                                <Clock className="w-3 h-3 mr-1" />
+                                Pending — not visible to students
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-gray-900 font-medium dark:text-gray-100">{question.question_text}</p>
                           {question.options && (
@@ -501,6 +555,17 @@ export default function AdminQuestionsPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
+                          {!question.is_approved && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleApprove(question.id)}
+                              className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-500/10"
+                              title="Approve — makes this visible to students"
+                            >
+                              <Check className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" onClick={() => openModal(question)}>
                             <Edit className="w-4 h-4" />
                           </Button>
