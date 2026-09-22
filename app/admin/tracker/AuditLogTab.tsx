@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Badge } from '@/components/ui';
 import { ScrollText, Loader2, RefreshCw } from 'lucide-react';
@@ -26,22 +24,13 @@ function actionVariant(action: string): 'danger' | 'warning' | 'info' | 'default
   return 'default';
 }
 
-export default function AdminAuditLogPage() {
-  const { user, isLoading: authLoading } = useAuth();
-  const router = useRouter();
-
+// Who changed what, and when — split out of the former standalone Audit
+// Log page (see the PaymentsTab sibling for the other half of the merged
+// super-admin "oversight" page).
+export function AuditLogTab() {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Same independent guard pattern as Tracker — the nav link is already
-  // hidden from regular admins, but a direct URL visit must still be
-  // turned away before any audit data loads.
-  useEffect(() => {
-    if (!authLoading && user && user.role !== 'super_admin') {
-      router.replace('/admin');
-    }
-  }, [user, authLoading, router]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,28 +65,15 @@ export default function AdminAuditLogPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (user?.role === 'super_admin') load();
-  }, [user?.role, load]);
-
-  if (user && user.role !== 'super_admin') return null;
+  useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">
-            <ScrollText className="w-6 h-6 text-amber-500" />
-            Audit Log
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5 dark:text-gray-400">
-            Super admin only — the highest-value admin actions, most recent first.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div className="flex justify-end">
         <button
           onClick={load}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors self-start sm:self-auto dark:text-gray-400 dark:border-white/10 dark:hover:bg-white/[0.03]"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors dark:text-gray-400 dark:border-white/10 dark:hover:bg-white/[0.03]"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh

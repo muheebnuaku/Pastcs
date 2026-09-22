@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Modal, Badge } from '@/components/ui';
-import type { Program } from '@/types';
 import { logAudit } from '@/lib/auditLog';
+import type { Program } from '@/types';
 import { Plus, Edit, Trash2, Layers, BookOpen } from 'lucide-react';
 
-export default function AdminProgramsPage() {
+export function ProgramsTab() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [courseCounts, setCourseCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -99,14 +99,11 @@ export default function AdminProgramsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Programs</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Which programme a student picks decides which courses they see — assign courses to a program from the Courses page.
-          </p>
-        </div>
+        <p className="text-gray-600 dark:text-gray-400 text-sm">
+          Which programme a student picks decides which courses they see — assign courses to a program from the Courses tab.
+        </p>
         <Button onClick={() => openModal()}>
           <Plus className="w-4 h-4 mr-2" />
           Add Program

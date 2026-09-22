@@ -6,14 +6,13 @@ import { ChevronRight } from 'lucide-react';
 
 const routeMeta: Record<string, { title: string; description: string }> = {
   '/admin': { title: 'Overview', description: 'Platform at a glance' },
-  '/admin/courses': { title: 'Courses', description: 'Manage courses and topics' },
+  '/admin/courses': { title: 'Courses', description: 'Manage courses, topics, and academic programs' },
   '/admin/questions': { title: 'Question Bank', description: 'Browse, filter, and edit questions' },
   '/admin/generate': { title: 'AI Generator', description: 'Generate questions from slides or topics' },
   '/admin/users': { title: 'Users', description: 'View students and admins, and manage access' },
   '/admin/analytics': { title: 'Analytics', description: 'Performance and engagement metrics' },
   '/admin/pricing': { title: 'Pricing', description: 'Set subscription prices per level' },
-  '/admin/tracker': { title: 'Tracker', description: 'Payments and revenue across the platform' },
-  '/admin/audit-log': { title: 'Audit Log', description: 'Who changed what, and when' },
+  '/admin/tracker': { title: 'Tracker', description: 'Payments, revenue, and the admin audit log' },
 };
 
 function getBreadcrumbs(pathname: string) {

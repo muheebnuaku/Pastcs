@@ -325,8 +325,11 @@ export default function AdminOverviewPage() {
 
         {/* Recent Activity */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Recent Activity</h2>
+            <Link href="/admin/analytics?tab=engagement" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-white/10">
             {recentActivity.length > 0 ? (
@@ -371,7 +374,7 @@ export default function AdminOverviewPage() {
             <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             Programs
           </h2>
-          <Link href="/admin/programs" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+          <Link href="/admin/courses?tab=programs" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
             Manage <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
