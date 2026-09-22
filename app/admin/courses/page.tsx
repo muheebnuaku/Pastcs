@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Modal, Badge } from '@/components/ui';
+import { Card, Button, Input, Modal, Badge, Select } from '@/components/ui';
 import { COURSE_ICONS } from '@/lib/utils';
 import type { Course, Topic, Program } from '@/types';
 
@@ -14,6 +14,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Search,
 } from 'lucide-react';
 
 const ICON_PALETTE = [
@@ -43,6 +44,8 @@ export default function AdminCoursesPage() {
   const [editingTopic, setEditingTopic] = useState<TopicRow | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [programFilter, setProgramFilter] = useState('all');
 
   // Course form
   const [courseCode, setCourseCode] = useState('');
@@ -262,8 +265,17 @@ export default function AdminCoursesPage() {
     fetchCourses();
   };
 
+  const filteredCourses = courses.filter(course => {
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q
+      || course.course_code.toLowerCase().includes(q)
+      || course.course_name.toLowerCase().includes(q);
+    const matchesProgram = programFilter === 'all' || course.programIds.includes(programFilter);
+    return matchesSearch && matchesProgram;
+  });
+
   // Group courses: level → semester → courses[]
-  const grouped = courses.reduce((acc, course) => {
+  const grouped = filteredCourses.reduce((acc, course) => {
     if (!acc[course.level]) acc[course.level] = {};
     if (!acc[course.level][course.semester]) acc[course.level][course.semester] = [];
     acc[course.level][course.semester].push(course);
@@ -376,6 +388,31 @@ export default function AdminCoursesPage() {
         </Button>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search by course code or name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
+          />
+        </div>
+        {programs.length > 1 && (
+          <Select
+            value={programFilter}
+            onChange={(e) => setProgramFilter(e.target.value)}
+            className="sm:w-56"
+          >
+            <option value="all">All Programs</option>
+            {programs.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
+        )}
+      </div>
+
       <div className="space-y-8">
         {[100, 200, 300, 400].map((level) => {
           if (!grouped[level]) return null;
@@ -407,6 +444,9 @@ export default function AdminCoursesPage() {
         })}
         {courses.length === 0 && (
           <p className="text-sm text-gray-500 text-center py-12 dark:text-gray-400">No courses yet. Add one to get started.</p>
+        )}
+        {courses.length > 0 && filteredCourses.length === 0 && (
+          <p className="text-sm text-gray-500 text-center py-12 dark:text-gray-400">No courses match your search or filter.</p>
         )}
       </div>
 
