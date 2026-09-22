@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdmin();
+    if (auth instanceof Response) return auth;
+
     const { questions, courseId } = await request.json();
 
     if (!questions?.length || !courseId) {
@@ -34,10 +38,10 @@ export async function POST(request: Request) {
       .eq('id', courseId);
 
     return Response.json({ saved: questions.length });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error saving questions:', error);
     return Response.json(
-      { error: error.message || 'Failed to save questions' },
+      { error: error instanceof Error ? error.message : 'Failed to save questions' },
       { status: 500 }
     );
   }
