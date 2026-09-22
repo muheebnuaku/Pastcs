@@ -108,8 +108,17 @@ Rules:
 - multiple_choice: correct_answer is an array of strings matching correct options exactly
 - fill_in_blank: options is null, correct_answer is the fill-in text`;
     } else {
-      // Slide-content mode (topic is optional extra context)
-      const topicContext = topicName ? `\nFocus specifically on the topic: "${topicName}"\n` : '';
+      // Slide-content mode (topic is optional extra context). A large
+      // document arrives here as one of several sequential batches (see
+      // chunkContent in lib/utils.ts) — each batch typically covers a
+      // different section/chapter, so the topic is identified fresh from
+      // THIS batch's own content rather than reused from whatever the
+      // very first sample of the whole document looked like. When an
+      // admin has already picked a fixed topic, that still wins — the
+      // model is told to confirm it rather than invent a new one.
+      const topicContext = topicName
+        ? `\nFocus specifically on the topic: "${topicName}". Use exactly this topic name in the "topic" field below — do not rename it.\n`
+        : '';
       prompt = `You are an expert exam question generator for university courses. Analyse the lecture content below and generate exactly ${questionTarget} exam-style questions that comprehensively cover the material.
 ${topicContext}
 Mix answer formats naturally:
@@ -134,6 +143,7 @@ ${sampledContent}
 
 Respond with a JSON object in this exact format:
 {
+  "topic": "The single, specific subject this content is primarily about — e.g. \\"Binary Number Systems\\" or \\"BCG Growth-Share Matrix\\", not a generic chapter/course title, and not a summary of every question",
   "questions": [
     {
       "question_text": "The question text here",
@@ -184,17 +194,25 @@ Rules:
       is_scenario: !!q.is_scenario,
     }));
 
+    // Only meaningful in slide-content mode — this is what lets a batched,
+    // multi-topic document end up with each batch's questions under their
+    // own topic instead of every batch sharing whatever topic the very
+    // first sample of the document guessed.
+    const detectedTopic = typeof parsedResponse.topic === 'string' && parsedResponse.topic.trim()
+      ? parsedResponse.topic.trim()
+      : null;
+
     logAiUsage('generate_questions', 'gpt-4o', completion.usage, auth.userId, {
       courseId,
       topicId,
-      topicName: topicName || null,
+      topicName: topicName || detectedTopic,
       questionCount: validatedQuestions.length,
       ...(typeof batchTotal === 'number' && batchTotal > 1
         ? { batch: { index: (batchIndex ?? 0) + 1, total: batchTotal } }
         : {}),
     }).catch(() => {});
 
-    return Response.json({ questions: validatedQuestions });
+    return Response.json({ questions: validatedQuestions, detectedTopic });
   } catch (error: unknown) {
     console.error('Error generating questions:', error);
 
