@@ -10,6 +10,7 @@ import { useSubscriptionStore } from '@/lib/store';
 import { TutorPricingModal } from './components/TutorPricingModal';
 import { PasteTextModal } from './components/PasteTextModal';
 import { coursesForProgram } from '@/lib/programs';
+import { chunkContent } from '@/lib/utils';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
@@ -19,6 +20,19 @@ import {
 
 const FREE_UPLOAD_LIMIT = 5;
 const PAID_UPLOAD_LIMIT = 100;
+
+// A document longer than this is split into sequential batches (see
+// runLessonPipeline) instead of one single generate-lesson call — same
+// page/slide-boundary chunking the AI Question Generator uses, just
+// applied to a lesson's narrative structure instead of a flat question
+// list. Smaller than generate-lesson's own 250k-char safety ceiling on
+// purpose: a single big call can technically see everything up to that
+// ceiling, but asking it to independently enumerate "every concept" in
+// one enormous excerpt is a harder, more compressible task than asking
+// several smaller, fully-attended calls to each do the same for their
+// own slice — batching gets more thorough coverage out of a large
+// document than raising the single-call ceiling alone did.
+const LESSON_BATCH_TARGET_CHARS = 60000;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -166,6 +180,31 @@ function parseSections(markdown: string): LessonSection[] {
   }
   if (currentTitle) sections.push({ title: currentTitle, content: currentLines.join('\n').trim() });
   return sections;
+}
+
+// Reads a fetch Response's body stream to completion, calling onChunk
+// with the growing text after every chunk (for live-typing UI) and
+// resolving with the final full text. Shared by every generate-lesson
+// call in runLessonPipeline — single-shot, and each batch of a
+// multi-part lesson.
+async function streamToText(body: ReadableStream<Uint8Array>, onChunk: (partial: string) => void): Promise<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let full = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    full += decoder.decode(value, { stream: true });
+    onChunk(full);
+  }
+  return full;
+}
+
+// Pulls out "## Title" headers from a lesson markdown fragment — used to
+// tell each later batch in a multi-part lesson what's already been
+// covered, so it doesn't repeat a concept from an earlier part.
+function extractSectionTitles(markdown: string): string[] {
+  return [...markdown.matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
@@ -387,33 +426,82 @@ export default function AssistantPage() {
   const runLessonPipeline = async (text: string, detectedTopic: string, imageLookupLabel: string) => {
     try {
       setDocStage('generating');
-
+      setDocProgress('');
       lessonAbortRef.current = new AbortController();
-      const lessonRes = await fetch('/api/generate-lesson', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, context: getContext() }),
-        signal: lessonAbortRef.current.signal,
-      });
 
-      if (!lessonRes.ok || !lessonRes.body) {
-        const e = await lessonRes.json().catch(() => ({ error: 'Failed to create lesson' })) as { error?: string };
-        throw new Error(e.error);
-      }
-
-      const reader = lessonRes.body.getReader();
-      const decoder = new TextDecoder();
+      const chunks = chunkContent(text, LESSON_BATCH_TARGET_CHARS);
       let full = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        full += decoder.decode(value, { stream: true });
-        setLessonText(full);
+
+      if (chunks.length <= 1) {
+        // Small enough for one call — unchanged from before.
+        const lessonRes = await fetch('/api/generate-lesson', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, context: getContext() }),
+          signal: lessonAbortRef.current.signal,
+        });
+
+        if (!lessonRes.ok || !lessonRes.body) {
+          const e = await lessonRes.json().catch(() => ({ error: 'Failed to create lesson' })) as { error?: string };
+          throw new Error(e.error);
+        }
+
+        full = await streamToText(lessonRes.body, setLessonText);
+      } else {
+        // Long document — write it as sequential batches (Intro + concepts
+        // per batch, no Practice Review/Summary yet), then one final call
+        // to add Practice Review + Summary once everything's been covered.
+        const priorTitles: string[] = [];
+
+        for (let i = 0; i < chunks.length; i++) {
+          setDocProgress(`Writing lesson — part ${i + 1} of ${chunks.length}…`);
+          const res = await fetch('/api/generate-lesson', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: chunks[i],
+              context: getContext(),
+              mode: i === 0 ? 'first' : 'continue',
+              batchIndex: i,
+              batchTotal: chunks.length,
+              priorConceptTitles: priorTitles,
+            }),
+            signal: lessonAbortRef.current.signal,
+          });
+
+          if (!res.ok || !res.body) {
+            const e = await res.json().catch(() => ({ error: 'Failed to create lesson' })) as { error?: string };
+            throw new Error(e.error);
+          }
+
+          const base = full;
+          const batchText = await streamToText(res.body, (partial) => setLessonText(base ? `${base}\n\n${partial}` : partial));
+          full = full ? `${full}\n\n${batchText}` : batchText;
+          priorTitles.push(...extractSectionTitles(batchText));
+        }
+
+        setDocProgress('Adding practice questions and a summary…');
+        const synthRes = await fetch('/api/generate-lesson', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'synthesize', conceptSections: full, context: getContext() }),
+          signal: lessonAbortRef.current.signal,
+        });
+
+        if (!synthRes.ok || !synthRes.body) {
+          const e = await synthRes.json().catch(() => ({ error: 'Failed to finish lesson' })) as { error?: string };
+          throw new Error(e.error);
+        }
+
+        const base = full;
+        const synthText = await streamToText(synthRes.body, (partial) => setLessonText(`${base}\n\n${partial}`));
+        full = `${full}\n\n${synthText}`;
       }
 
       const sections = parseSections(full);
       setLessonSections(sections);
       setDocStage('ready');
+      setDocProgress('');
 
       // Fetch keyword images for the whole lesson in the background
       setFetchingImages(true);
@@ -866,7 +954,7 @@ export default function AssistantPage() {
             )}
             {docStage === 'generating' && (
               <span className="flex items-center gap-1.5 text-blue-200 text-xs flex-shrink-0">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">Building your lesson…</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">{docProgress || 'Building your lesson…'}</span>
               </span>
             )}
             {docStage === 'ready' && fetchingImages && (
