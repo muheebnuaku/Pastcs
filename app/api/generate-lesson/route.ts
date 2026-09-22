@@ -2,25 +2,25 @@ import OpenAI from 'openai';
 import { sampleContent } from '@/lib/utils';
 import { logAiUsage } from '@/lib/aiUsage';
 
-// Raised from 120 alongside removing the old section-count cap below —
-// a genuinely long, uncapped lesson takes proportionally longer to
-// stream out, and this function's execution time (not just time-to-
-// first-byte) is what the platform's duration limit actually measures.
-export const maxDuration = 180;
+// Raised from 120 -> 180 -> 240: an uncapped lesson takes proportionally
+// longer to stream out, and a much larger prompt (see MAX_CONTENT_CHARS)
+// adds real prefill time before the first output token even starts —
+// both count against this, not just time-to-first-byte.
+export const maxDuration = 240;
 
-// Lecture slides text is almost always well within gpt-4o's 128k-token
-// context window — the old 8,000-character cap was silently dropping
-// everything past roughly the first few slides, with no indication to
-// the student that the lesson only covered part of what they uploaded.
-// Raised from 60,000: a document that size was already getting cut into
-// a lossy 3-slice sample far more often than it needed to, which is a
-// big part of why a lesson from a substantial upload could come out
-// reading like a summary — whole sections of the source material were
-// simply never shown to the model. 100,000 chars (~25k tokens) still
-// leaves comfortable room in the context budget for the prompt itself
-// and a full-length response. This only samples (start + middle + end)
-// for genuinely oversized documents now.
-const MAX_CONTENT_CHARS = 100000;
+// Raised again after a concrete 100+ page report still got sampled: a
+// dense slide deck (or one with vision-OCR'd pages, which read out more
+// verbose than native text extraction) can run well past 100,000 chars
+// long before it's actually an unusual upload. Sized against gpt-4o's
+// real 128,000-token context budget rather than picked arbitrarily:
+// 128k total - 16k reserved for the completion (max_tokens below) -
+// ~1.5k for the prompt template itself leaves ~110k tokens for content.
+// At a conservative 2.5 chars/token (denser than plain English prose,
+// to leave margin for tables, code, or non-English text in the source)
+// that's a safe ceiling around 275,000 characters — 250,000 keeps a
+// real buffer under that. This only samples (start + middle + end) for
+// documents that still exceed even this.
+const MAX_CONTENT_CHARS = 250000;
 
 const SYSTEM_PROMPT = `You are an expert teacher — the kind students remember — equally capable of introducing a first-year student to a brand-new topic and engaging a graduate student critically with a research paper. You never apply one register by default; you read what you've been given and match it.
 
