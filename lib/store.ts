@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, Course, Question, Test, ExamState, Subscription } from '@/types';
+import type { User, Course, Question, Test, ExamState, Subscription, SemesterEndDate } from '@/types';
+import { isSubscriptionCurrentlyActive } from '@/lib/subscriptionAccess';
 
 // Auth Store
 interface AuthState {
@@ -152,6 +153,11 @@ interface SubscriptionStore {
   subscriptions: Subscription[];
   setSubscriptions: (subs: Subscription[]) => void;
   addSubscription: (sub: Subscription) => void;
+  // Admin-configured semester access windows (see lib/subscriptionAccess.ts) —
+  // fetched alongside subscriptions so hasActiveSub can apply the same
+  // "expires N days after the semester ends" rule the server enforces.
+  semesterEndDates: SemesterEndDate[];
+  setSemesterEndDates: (terms: SemesterEndDate[]) => void;
   // A subscription unlocks one program's courses at a level+semester, not
   // every program's — programId is required alongside level/semester.
   hasActiveSub: (
@@ -167,10 +173,17 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
   addSubscription: (sub) => set((state) => ({
     subscriptions: [...state.subscriptions, sub],
   })),
+  semesterEndDates: [],
+  setSemesterEndDates: (semesterEndDates) => set({ semesterEndDates }),
   hasActiveSub: (level, semester, programId) => {
     if (!level || !semester || !programId) return false;
-    return get().subscriptions.some(
-      (s) => s.level === level && s.semester === semester && s.program_id === programId && s.status === 'active'
+    const { subscriptions, semesterEndDates } = get();
+    return subscriptions.some(
+      (s) =>
+        s.level === level &&
+        s.semester === semester &&
+        s.program_id === programId &&
+        isSubscriptionCurrentlyActive(s, semesterEndDates)
     );
   },
 }));

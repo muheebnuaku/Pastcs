@@ -71,6 +71,19 @@ export interface Subscription {
   created_at: string;
 }
 
+// Admin-set, per program+semester — course access for that program's
+// semester stops counting as active grace_days after end_date. No row
+// for a given program+semester means no expiry is enforced for it yet.
+export interface SemesterEndDate {
+  id: string;
+  program_id: string;
+  semester: number;
+  start_date: string | null;
+  end_date: string;
+  grace_days: number;
+  updated_at: string;
+}
+
 export interface Course {
   id: string;
   course_code: string;

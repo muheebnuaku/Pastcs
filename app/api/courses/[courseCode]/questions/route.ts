@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isSubscriptionCurrentlyActive } from '@/lib/subscriptionAccess';
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +23,7 @@ export async function GET(
     // Fetch user's subscription status and free course
     const { data: userData } = await supabase
       .from('user_public')
-      .select('selected_level, selected_semester, free_course_code')
+      .select('selected_level, selected_semester, free_course_code, program_id')
       .eq('id', authUser.id)
       .single();
 
@@ -43,17 +44,28 @@ export async function GET(
     if (userData) {
       const isFree = userData.free_course_code === course.course_code;
       if (!isFree) {
+        // Was missing program_id entirely before — a subscription for
+        // one program's Level X Semester Y incorrectly unlocked every
+        // other program's courses at that same level+semester too.
         const { data: activeSub } = await supabase
           .from('subscriptions')
-          .select('id')
+          .select('status, paid_at, program_id, semester')
           .eq('user_id', authUser.id)
           .eq('level', userData.selected_level)
           .eq('semester', userData.selected_semester)
+          .eq('program_id', userData.program_id)
           .eq('status', 'active')
           .limit(1)
           .single();
 
-        if (!activeSub) {
+        const { data: terms } = activeSub
+          ? await supabase
+              .from('semester_end_dates')
+              .select('program_id, semester, start_date, end_date, grace_days')
+              .eq('program_id', userData.program_id)
+          : { data: null };
+
+        if (!activeSub || !isSubscriptionCurrentlyActive(activeSub, terms ?? [])) {
           return Response.json(
             { error: 'subscription_required' },
             { status: 403 }

@@ -50,15 +50,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [supabase]
   );
 
-  /** Fetch active subscriptions and sync into Zustand store */
+  /** Fetch active subscriptions + semester access windows and sync into Zustand store */
   const fetchSubscriptions = useCallback(
     async (userId: string) => {
-      const { data } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('status', 'active');
-      useSubscriptionStore.getState().setSubscriptions(data ?? []);
+      const [{ data: subs }, { data: terms }] = await Promise.all([
+        supabase.from('subscriptions').select('*').eq('user_id', userId).eq('status', 'active'),
+        // Small, platform-wide table (a couple of rows per program) —
+        // fetching all of it is simpler than scoping to just this
+        // student's program, and hasActiveSub already filters by
+        // program_id when it looks a term up.
+        supabase.from('semester_end_dates').select('*'),
+      ]);
+      useSubscriptionStore.getState().setSubscriptions(subs ?? []);
+      useSubscriptionStore.getState().setSemesterEndDates(terms ?? []);
     },
     [supabase]
   );

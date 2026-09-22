@@ -11,7 +11,7 @@ const routeMeta: Record<string, { title: string; description: string }> = {
   '/admin/generate': { title: 'AI Generator', description: 'Generate questions from slides or topics' },
   '/admin/users': { title: 'Users', description: 'View students and admins, and manage access' },
   '/admin/analytics': { title: 'Analytics', description: 'Performance and engagement metrics' },
-  '/admin/pricing': { title: 'Pricing', description: 'Set subscription prices per level' },
+  '/admin/pricing': { title: 'Pricing', description: 'Set subscription prices and when semester access ends' },
   '/admin/tracker': { title: 'Tracker', description: 'Payments, revenue, and the admin audit log' },
 };
 

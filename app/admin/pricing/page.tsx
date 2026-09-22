@@ -6,7 +6,7 @@ import { Card, CardContent, Button, Select } from '@/components/ui';
 import { invalidatePricingCache } from '@/lib/hooks/usePricing';
 import type { TutorCreditPlan } from '@/app/api/tutor-pricing/route';
 import type { Program } from '@/types';
-import { DollarSign, Save, RefreshCw, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { DollarSign, Save, RefreshCw, CheckCircle, AlertCircle, Sparkles, CalendarClock } from 'lucide-react';
 
 const LEVELS = [100, 200, 300, 400] as const;
 const PLAN_ORDER = ['starter', 'pack_50', 'pack_100'];
@@ -33,6 +33,19 @@ export default function AdminPricingPage() {
   const [isSavingPlans, setIsSavingPlans] = useState(false);
   const [plansSuccess, setPlansSuccess] = useState('');
   const [plansError, setPlansError] = useState('');
+
+  // Semester access windows — when each semester ends (per program) and
+  // how many extra days of access after that before it's cut off. Kept
+  // as strings while typing, same pattern as the sections above.
+  const emptyTerms = { start_date: '', end_date: '', grace_days: '3' };
+  const [terms, setTerms] = useState<Record<1 | 2, { start_date: string; end_date: string; grace_days: string }>>({
+    1: { ...emptyTerms },
+    2: { ...emptyTerms },
+  });
+  const [termsLoading, setTermsLoading] = useState(true);
+  const [isSavingTerms, setIsSavingTerms] = useState(false);
+  const [termsSuccess, setTermsSuccess] = useState('');
+  const [termsError, setTermsError] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -75,6 +88,34 @@ export default function AdminPricingPage() {
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
+  }, [selectedProgram]);
+
+  // Semester access windows are program-scoped too — same refetch
+  // pattern as course-access prices above.
+  useEffect(() => {
+    if (!selectedProgram) return;
+    setTermsLoading(true);
+    setTermsSuccess('');
+    setTermsError('');
+    fetch(`/api/semester-dates?programId=${encodeURIComponent(selectedProgram)}`)
+      .then(r => r.json())
+      .then(data => {
+        const next: Record<1 | 2, { start_date: string; end_date: string; grace_days: string }> = {
+          1: { ...emptyTerms },
+          2: { ...emptyTerms },
+        };
+        for (const t of (data.terms ?? []) as { semester: 1 | 2; start_date: string | null; end_date: string; grace_days: number }[]) {
+          next[t.semester] = {
+            start_date: t.start_date ?? '',
+            end_date: t.end_date,
+            grace_days: String(t.grace_days),
+          };
+        }
+        setTerms(next);
+      })
+      .catch(() => {})
+      .finally(() => setTermsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProgram]);
 
   const handleSave = async () => {
@@ -159,6 +200,55 @@ export default function AdminPricingPage() {
 
   const updatePlan = (id: string, field: 'name' | 'credits' | 'price', value: string) => {
     setPlans(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const updateTerm = (sem: 1 | 2, field: 'start_date' | 'end_date' | 'grace_days', value: string) => {
+    setTerms(prev => ({ ...prev, [sem]: { ...prev[sem], [field]: value } }));
+  };
+
+  const handleSaveTerms = async () => {
+    setIsSavingTerms(true);
+    setTermsError('');
+    setTermsSuccess('');
+
+    // A semester with no end date is simply left unconfigured (no expiry
+    // enforced for it) — only semesters where an end date was actually
+    // entered get sent.
+    const payloadTerms: { semester: 1 | 2; start_date: string | null; end_date: string; grace_days: number }[] = [];
+    for (const sem of [1, 2] as const) {
+      const t = terms[sem];
+      if (!t.end_date) continue;
+      const grace = parseInt(t.grace_days, 10);
+      if (isNaN(grace) || grace < 0) {
+        setTermsError(`Invalid grace period for Semester ${sem}`);
+        setIsSavingTerms(false);
+        return;
+      }
+      payloadTerms.push({ semester: sem, start_date: t.start_date || null, end_date: t.end_date, grace_days: grace });
+    }
+
+    if (payloadTerms.length === 0) {
+      setTermsError("Set at least one semester's end date before saving.");
+      setIsSavingTerms(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/semester-dates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId: selectedProgram, terms: payloadTerms }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+
+      setTermsSuccess('Access window updated successfully!');
+    } catch (err: unknown) {
+      setTermsError(err instanceof Error ? err.message : 'Failed to save access window');
+    } finally {
+      setIsSavingTerms(false);
+    }
   };
 
   return (
@@ -341,6 +431,102 @@ export default function AdminPricingPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
+            <CalendarClock className="w-5 h-5 text-amber-600" />
+            Course Access — When Each Semester Ends
+            {programs.length > 1 && (
+              <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+                — {programs.find(p => p.id === selectedProgram)?.name}
+              </span>
+            )}
+          </h2>
+          <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">
+            Access to a paid course expires this many days after the semester it was bought for ends. Leave a semester&apos;s end date blank to leave its access open-ended.
+          </p>
+        </div>
+        <CardContent className="space-y-5">
+          {termsLoading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400 dark:text-gray-500">
+              <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+              Loading...
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                {([1, 2] as const).map(sem => (
+                  <div key={sem} className="p-4 border border-gray-100 dark:border-white/10 rounded-xl space-y-3">
+                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm">Semester {sem}</p>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ends on</label>
+                      <input
+                        type="date"
+                        value={terms[sem].end_date}
+                        onChange={e => updateTerm(sem, 'end_date', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Grace period (days)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={terms[sem].grace_days}
+                        onChange={e => updateTerm(sem, 'grace_days', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-500 mb-1">
+                        Started on <span className="font-normal">(optional)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={terms[sem].start_date}
+                        onChange={e => updateTerm(sem, 'start_date', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
+                      />
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                        Only needed if you&apos;re reusing these same dates for a new term — protects students who paid for the previous one from being cut off early.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {termsError && (
+                <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg p-3 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {termsError}
+                </div>
+              )}
+
+              {termsSuccess && (
+                <div className="flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 rounded-lg p-3 text-sm">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  {termsSuccess}
+                </div>
+              )}
+
+              <Button onClick={handleSaveTerms} disabled={isSavingTerms} className="w-full bg-amber-600 hover:bg-amber-700">
+                {isSavingTerms ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Access Window
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
