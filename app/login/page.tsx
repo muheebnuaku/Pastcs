@@ -107,10 +107,10 @@ export default function LoginPage() {
       </div>
 
       {/* ── Form panel ── */}
-      <div className="flex-1 flex items-center justify-center px-4 py-20">
+      <div className="flex-1 flex items-center justify-center px-4 py-16 sm:py-20">
         <div className="w-full max-w-md">
-          <div className="animate-fade-in-up text-center mb-8">
-            <Link href="/" className="inline-flex items-center gap-2 mb-6">
+          <div className="animate-fade-in-up text-center mb-6 sm:mb-8">
+            <Link href="/" className="inline-flex items-center gap-2 mb-5 sm:mb-6">
               <Image src="/past.png" alt="PastCS" width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
               <span className="font-extrabold text-[#2b2420] text-xl">PastCS</span>
             </Link>
@@ -118,7 +118,7 @@ export default function LoginPage() {
             <p className="text-[#8a7f6f] mt-1">Sign in to your PastCS account</p>
           </div>
 
-          <div className="animate-fade-in-up delay-100 bg-[#fffdf9] rounded-[28px] shadow-xl border border-[#efe2d0] p-8">
+          <div className="animate-fade-in-up delay-100 bg-[#fffdf9] rounded-[28px] shadow-xl border border-[#efe2d0] p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-[#2b2420] mb-1.5">Email address</label>
@@ -158,7 +158,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(v => !v)}
                     tabIndex={-1}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#a89a86] hover:text-[#2b2420] transition-colors"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-[#a89a86] hover:text-[#2b2420] hover:bg-[#f7ede1] transition-colors"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
