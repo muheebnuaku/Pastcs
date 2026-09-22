@@ -34,6 +34,10 @@ interface GeneratedQuestion {
   difficulty: 'easy' | 'medium' | 'hard';
   is_scenario?: boolean;
   selected?: boolean;
+  // Topic this question's batch was actually detected to be about — set
+  // per-batch by the server, not reused from one global guess. Only
+  // meaningful when no topic was manually selected (see handleSaveSelected).
+  batchTopic?: string | null;
 }
 
 const LEVELS = [100, 200, 300, 400] as const;
@@ -326,16 +330,23 @@ export default function AdminGeneratePage() {
             slideContent: chunksRef.current[i] || null,
             courseId: selectedCourse,
             topicId: selectedTopic || null,
-            topicName: selectedTopicObj?.topic_name || pdfTopic || null,
+            // Deliberately NOT falling back to the single whole-document
+            // pdfTopic guess here — each batch detects its own topic from
+            // its own content server-side (data.detectedTopic below) when
+            // no topic was manually chosen, so a multi-topic document
+            // batched into several requests doesn't get every batch's
+            // questions forced under one topic.
+            topicName: selectedTopicObj?.topic_name || null,
             batchIndex: i,
             batchTotal: chunksRef.current.length,
           }),
         });
 
-        const data = await response.json();
+        const data = await response.json() as { questions: GeneratedQuestion[]; detectedTopic?: string | null; error?: string };
         if (!response.ok) throw new Error(data.error || 'Failed to generate questions');
 
-        const newQuestions = (data.questions as GeneratedQuestion[]).map(q => ({ ...q, selected: true }));
+        const batchTopic = selectedTopicObj?.topic_name || data.detectedTopic || pdfTopic || null;
+        const newQuestions = data.questions.map(q => ({ ...q, selected: true, batchTopic }));
         setGeneratedQuestions(prev => [...prev, ...newQuestions]);
         batchStatusesRef.current[i] = 'done';
         delete batchErrorsRef.current[i];
@@ -424,25 +435,41 @@ export default function AdminGeneratePage() {
     }, 150);
 
     try {
-      // Resolve topic: if a slide topic was detected and no topic is manually selected,
-      // find-or-create the topic in the DB so questions are linked to it.
-      let effectiveTopicId: string | null = selectedTopic || null;
-      let topicWasCreated = false;
+      // Resolve topics: when an admin manually picked one, every question
+      // uses it (unchanged). Otherwise each question carries its own
+      // batch-detected topic (see runBatchIndices) — a merged, multi-topic
+      // document batched into several requests can produce several
+      // distinct topics here instead of one global guess forced onto
+      // everything. find-or-create is called once per distinct name
+      // (case-insensitive match in /api/topics/ensure keeps re-runs from
+      // creating near-duplicate topics).
+      const topicIdCache = new Map<string, string>();
+      let topicsCreated = 0;
+      const distinctTopicNames = new Set<string>();
 
-      if (!effectiveTopicId && pdfTopic.trim()) {
+      const resolveTopicId = async (name: string): Promise<string | null> => {
+        const trimmed = name.trim();
+        if (!trimmed) return null;
+        const cached = topicIdCache.get(trimmed.toLowerCase());
+        if (cached) return cached;
+
         const topicRes = await fetch('/api/topics/ensure', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ courseId: selectedCourse, topicName: pdfTopic.trim() }),
+          body: JSON.stringify({ courseId: selectedCourse, topicName: trimmed }),
         });
-        if (topicRes.ok) {
-          const topicData = await topicRes.json();
-          effectiveTopicId = topicData.topicId;
-          topicWasCreated = topicData.created;
-        }
-      }
+        if (!topicRes.ok) return null;
+        const topicData = await topicRes.json();
+        topicIdCache.set(trimmed.toLowerCase(), topicData.topicId);
+        if (topicData.created) topicsCreated += 1;
+        distinctTopicNames.add(trimmed);
+        return topicData.topicId;
+      };
 
-      const questionsToInsert = selectedQuestions.map(q => {
+      const fixedTopicId = selectedTopic || null;
+
+      const questionsToInsert = [];
+      for (const q of selectedQuestions) {
         const options = q.options
           ? q.options.map((text, i) => ({ id: `opt_${i}`, text }))
           : null;
@@ -459,9 +486,11 @@ export default function AdminGeneratePage() {
           correct_answers = Array.isArray(q.correct_answer) ? q.correct_answer : [q.correct_answer];
         }
 
-        return {
+        const topicId = fixedTopicId ?? (q.batchTopic ? await resolveTopicId(q.batchTopic) : null);
+
+        questionsToInsert.push({
           course_id: selectedCourse,
-          topic_id: effectiveTopicId,
+          topic_id: topicId,
           question_type: q.question_type,
           question_text: q.question_text,
           options,
@@ -473,8 +502,8 @@ export default function AdminGeneratePage() {
           // question shipped straight to students with no human look.
           is_approved: false,
           is_scenario: !!q.is_scenario,
-        };
-      });
+        });
+      }
 
       const response = await fetch('/api/save-questions', {
         method: 'POST',
@@ -485,11 +514,13 @@ export default function AdminGeneratePage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to save questions');
 
-      const topicNote = topicWasCreated
-        ? ` Topic "${pdfTopic}" added to the course.`
-        : effectiveTopicId && pdfTopic
-          ? ` Saved under topic "${pdfTopic}".`
-          : '';
+      const topicNote = fixedTopicId
+        ? ''
+        : distinctTopicNames.size === 0
+          ? ''
+          : distinctTopicNames.size === 1
+            ? ` Saved under topic "${[...distinctTopicNames][0]}".`
+            : ` Grouped into ${distinctTopicNames.size} topics (${topicsCreated} new).`;
       setSuccessMessage(`Saved ${result.saved} questions — pending review before they go live to students.${topicNote}`);
       setSaveProgress(100);
       setGeneratedQuestions([]);
@@ -714,36 +745,43 @@ Binary Number System
               </div>
             )}
 
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || !canGenerate || isParsing}
-              className="w-full"
-            >
-              {isGenerating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Generating Questions...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {selectedTopic && !slideContent.trim()
-                    ? `Generate from "${selectedTopicObj?.topic_name}"`
-                    : pdfTopic && !selectedTopic
-                      ? `Generate from "${pdfTopic}"`
-                      : 'Generate Questions with AI'}
-                </>
-              )}
-            </Button>
-
             {(() => {
               const preview = slideContent.trim() ? chunkContent(slideContent.trim(), BATCH_TARGET_CHARS) : [];
-              return preview.length > 1 ? (
-                <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  <Layers className="w-3.5 h-3.5 flex-shrink-0" />
-                  Large document — will process in {preview.length} sequential batches (~50 pages each) to stay within AI usage limits.
-                </p>
-              ) : null;
+              const willBatch = preview.length > 1;
+              return (
+                <>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !canGenerate || isParsing}
+                    className="w-full"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Generating Questions...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {selectedTopic && !slideContent.trim()
+                          ? `Generate from "${selectedTopicObj?.topic_name}"`
+                          : pdfTopic && !selectedTopic && !willBatch
+                            ? `Generate from "${pdfTopic}"`
+                            : 'Generate Questions with AI'}
+                      </>
+                    )}
+                  </Button>
+
+                  {willBatch && (
+                    <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <Layers className="w-3.5 h-3.5 flex-shrink-0" />
+                      {selectedTopic
+                        ? `Large document — will process in ${preview.length} sequential batches (~50 pages each), all under "${selectedTopicObj?.topic_name}".`
+                        : `Large document — will process in ${preview.length} sequential batches (~50 pages each), each grouped under its own detected topic.`}
+                    </p>
+                  )}
+                </>
+              );
             })()}
           </CardContent>
         </Card>
@@ -852,6 +890,12 @@ Binary Number System
                             <Badge variant="info" size="sm" className="!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400">
                               <Puzzle className="w-3 h-3 mr-1" />
                               Scenario
+                            </Badge>
+                          )}
+                          {!selectedTopic && question.batchTopic && (
+                            <Badge variant="default" size="sm" className="!bg-blue-50 dark:!bg-blue-500/10 !text-blue-700 dark:!text-blue-400">
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              {question.batchTopic}
                             </Badge>
                           )}
                         </div>
