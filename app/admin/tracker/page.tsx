@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import {
   Radar, DollarSign, BotMessageSquare, GraduationCap, Gift, Sparkles,
-  Loader2, RefreshCw, TrendingUp, TrendingDown,
+  Loader2, RefreshCw, TrendingUp, TrendingDown, Download,
 } from 'lucide-react';
 
 interface Totals {
@@ -44,6 +44,15 @@ interface TrackerData {
 
 const formatGHC = (pesewas: number) => `GHC ${(pesewas / 100).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function toDateInput(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function csvEscape(value: string) {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
 export default function TrackerPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -51,6 +60,11 @@ export default function TrackerPage() {
   const [data, setData] = useState<TrackerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Custom date range — defaults to the trailing 30 days, same as the
+  // server's own default when no range is passed.
+  const [fromDate, setFromDate] = useState(() => toDateInput(new Date(Date.now() - 29 * 86400000)));
+  const [toDate, setToDate] = useState(() => toDateInput(new Date()));
 
   const [insight, setInsight] = useState('');
   const [insightLoading, setInsightLoading] = useState(false);
@@ -70,7 +84,7 @@ export default function TrackerPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/tracker');
+      const res = await fetch(`/api/admin/tracker?from=${fromDate}&to=${toDate}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load tracker data');
       setData(json);
@@ -83,7 +97,29 @@ export default function TrackerPage() {
 
   useEffect(() => {
     if (user?.role === 'super_admin') fetchData();
-  }, [user?.role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role, fromDate, toDate]);
+
+  const handleExportCsv = () => {
+    if (!data) return;
+    const headers = ['Date', 'Type', 'User', 'Email', 'Amount (GHC)', 'Description'];
+    const rows = data.recentPayments.map(p => [
+      new Date(p.createdAt).toISOString(),
+      p.type === 'course' ? 'Course' : 'AI Tutor',
+      p.userName || '',
+      p.userEmail,
+      (p.amount / 100).toFixed(2),
+      p.description,
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pastcs-payments-${fromDate}-to-${toDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const generateInsight = async () => {
     if (!data) return;
@@ -134,14 +170,32 @@ export default function TrackerPage() {
             Super admin only — every processed payment across the platform, in one place.
           </p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors self-start sm:self-auto dark:text-gray-400 dark:border-white/10 dark:hover:bg-white/[0.03]"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-700 dark:text-gray-300 dark:border-white/10 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+          <span className="text-sm text-gray-400 dark:text-gray-500">to</span>
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate}
+            max={toDateInput(new Date())}
+            onChange={(e) => setToDate(e.target.value)}
+            className="px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-700 dark:text-gray-300 dark:border-white/10 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors dark:text-gray-400 dark:border-white/10 dark:hover:bg-white/[0.03]"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -236,7 +290,7 @@ export default function TrackerPage() {
           {/* Revenue chart */}
           <Card>
             <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between flex-wrap gap-2">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Revenue — Last 30 Days</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Revenue — {fromDate} to {toDate}</h2>
               {trendPct !== null && (
                 <span className={`flex items-center gap-1 text-xs font-medium ${trendPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {trendPct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -332,8 +386,12 @@ export default function TrackerPage() {
 
           {/* Recent payments */}
           <Card>
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-gray-900 dark:text-gray-100">Recent Payments</h2>
+              <Button size="sm" variant="outline" onClick={handleExportCsv} disabled={data.recentPayments.length === 0}>
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Export CSV
+              </Button>
             </div>
             <div className="divide-y divide-gray-50 dark:divide-white/5 max-h-[480px] overflow-y-auto">
               {data.recentPayments.length === 0 ? (
