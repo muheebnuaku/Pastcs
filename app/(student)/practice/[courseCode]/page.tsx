@@ -101,7 +101,7 @@ function PracticeContent() {
   const [isLoadingResume, setIsLoadingResume] = useState(false);
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
-  const { label: priceLabel } = usePricing(user?.selected_level);
+  const { label: priceLabel } = usePricing(user?.selected_level, user?.program_id);
   const isFree = courseCode === user?.free_course_code;
 
   // Keep a ref so the auto-save effect always has fresh values

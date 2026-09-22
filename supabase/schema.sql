@@ -231,20 +231,19 @@ ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS program_id UUID REFERE
 -- ================================================================
 -- SUBSCRIPTION PRICES TABLE
 -- ================================================================
+-- Price is per (level, program) — a program with no rows yet falls back
+-- to the hardcoded GHC 50 default already built into usePricing() and
+-- admin's pricing page, so a newly created program needs no seeding.
+-- Default prices for BSc IT are seeded further down, after the
+-- programs table itself has its seed row (see PROGRAMS SEED below).
 CREATE TABLE IF NOT EXISTS public.subscription_prices (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  level      INTEGER NOT NULL UNIQUE CHECK (level IN (100, 200, 300, 400)),
+  level      INTEGER NOT NULL CHECK (level IN (100, 200, 300, 400)),
+  program_id UUID NOT NULL REFERENCES public.programs(id),
   amount     INTEGER NOT NULL DEFAULT 5000, -- in pesewas (÷ 100 = GHC)
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE (level, program_id)
 );
-
--- Default prices (GHC 50 per level)
-INSERT INTO public.subscription_prices (level, amount) VALUES
-  (100, 5000),
-  (200, 5000),
-  (300, 5000),
-  (400, 5000)
-ON CONFLICT (level) DO NOTHING;
 
 ALTER TABLE public.subscription_prices ENABLE ROW LEVEL SECURITY;
 
@@ -764,6 +763,15 @@ SET program_id = p.id
 FROM public.programs p
 WHERE p.short_code = 'IT'
   AND s.program_id IS NULL;
+
+-- Default prices (GHC 50 per level) for BSc IT — must come after the
+-- programs seed above, since program_id is NOT NULL.
+INSERT INTO public.subscription_prices (level, program_id, amount)
+SELECT lvl, p.id, 5000
+FROM public.programs p
+CROSS JOIN (VALUES (100), (200), (300), (400)) AS levels(lvl)
+WHERE p.short_code = 'IT'
+ON CONFLICT (level, program_id) DO NOTHING;
 
 INSERT INTO public.achievements (name, description, icon, criteria) VALUES
   ('First Practice Test','Complete your first practice test','trophy','{"type":"tests_completed","value":1}'),
