@@ -41,9 +41,21 @@ function dayKey(iso: string) {
 // grants (amount = 0, payment_reference starting "free_pass") from
 // revenue sums, but counts them separately since "how many free passes
 // did we hand out" is its own useful number.
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireSuperAdmin();
   if (auth instanceof Response) return auth;
+
+  // Optional custom date range (YYYY-MM-DD, inclusive) — defaults to the
+  // trailing 30 days used everywhere else on the page when not given.
+  const { searchParams } = new URL(request.url);
+  const fromParam = searchParams.get('from');
+  const toParam = searchParams.get('to');
+  const rangeEnd = toParam ? new Date(`${toParam}T23:59:59.999Z`) : new Date();
+  let rangeStart = fromParam ? new Date(`${fromParam}T00:00:00.000Z`) : new Date(rangeEnd.getTime() - 29 * 86400000);
+  // Cap the chart span at one year so a mistyped or very wide range
+  // doesn't build an enormous day-by-day map.
+  const oneYearBeforeEnd = new Date(rangeEnd.getTime() - 365 * 86400000);
+  if (rangeStart < oneYearBeforeEnd) rangeStart = oneYearBeforeEnd;
 
   try {
     const [{ data: subsData }, { data: creditsData }, { data: usersData }, { data: plansData }] = await Promise.all([
@@ -58,12 +70,19 @@ export async function GET() {
     const userMap = new Map((usersData ?? []).map((u: { id: string; email: string; full_name: string | null }) => [u.id, u]));
     const planNameMap = new Map((plansData ?? []).map((p: { id: string; name: string }) => [p.id, p.name]));
 
-    // Only count money that actually moved — active subs, real (non-free-pass)
-    const paidSubs = subs.filter(s => s.status === 'active' && !isFreePass(s.payment_reference));
-    const freePasses = subs.filter(s => s.status === 'active' && isFreePass(s.payment_reference));
+    const inRange = (iso: string) => {
+      const t = new Date(iso).getTime();
+      return t >= rangeStart.getTime() && t <= rangeEnd.getTime();
+    };
+
+    // Only count money that actually moved — active subs, real (non-free-pass),
+    // within the requested date range.
+    const paidSubs = subs.filter(s => s.status === 'active' && !isFreePass(s.payment_reference) && inRange(s.paid_at || s.created_at));
+    const freePasses = subs.filter(s => s.status === 'active' && isFreePass(s.payment_reference) && inRange(s.paid_at || s.created_at));
+    const rangedCredits = credits.filter(c => inRange(c.created_at));
 
     const courseRevenue = paidSubs.reduce((sum, s) => sum + s.amount, 0);
-    const tutorRevenue = credits.reduce((sum, c) => sum + c.amount_paid, 0);
+    const tutorRevenue = rangedCredits.reduce((sum, c) => sum + c.amount_paid, 0);
 
     // Revenue by level (course access)
     const byLevel = new Map<number, { revenue: number; count: number }>();
@@ -76,29 +95,31 @@ export async function GET() {
 
     // Revenue by AI Tutor plan
     const byPlan = new Map<string, { revenue: number; count: number }>();
-    for (const c of credits) {
+    for (const c of rangedCredits) {
       const cur = byPlan.get(c.plan) ?? { revenue: 0, count: 0 };
       cur.revenue += c.amount_paid;
       cur.count += 1;
       byPlan.set(c.plan, cur);
     }
 
-    // Daily revenue for the last 30 days, split by source, for a chart
+    // Daily revenue across the requested range, split by source, for a chart
     const days = new Map<string, { course: number; tutor: number }>();
-    const now = Date.now();
-    for (let i = 29; i >= 0; i--) {
-      days.set(dayKey(new Date(now - i * 86400000).toISOString()), { course: 0, tutor: 0 });
+    const dayCount = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / 86400000) + 1);
+    for (let i = 0; i < dayCount; i++) {
+      days.set(dayKey(new Date(rangeStart.getTime() + i * 86400000).toISOString()), { course: 0, tutor: 0 });
     }
     for (const s of paidSubs) {
       const key = dayKey(s.paid_at || s.created_at);
       if (days.has(key)) days.get(key)!.course += s.amount;
     }
-    for (const c of credits) {
+    for (const c of rangedCredits) {
       const key = dayKey(c.created_at);
       if (days.has(key)) days.get(key)!.tutor += c.amount_paid;
     }
 
-    // Merged, most-recent-first feed
+    // Merged, most-recent-first feed — capped generously above what the
+    // page displays so a CSV export of a wide date range still has
+    // something meaningful to include.
     const recentPayments = [
       ...paidSubs.map(s => ({
         id: s.id,
@@ -109,7 +130,7 @@ export async function GET() {
         description: `Level ${s.level} · Semester ${s.semester} access`,
         createdAt: s.paid_at || s.created_at,
       })),
-      ...credits.map(c => ({
+      ...rangedCredits.map(c => ({
         id: c.id,
         type: 'tutor' as const,
         userEmail: userMap.get(c.user_id)?.email ?? 'unknown',
@@ -118,7 +139,7 @@ export async function GET() {
         description: `AI Tutor — ${planNameMap.get(c.plan) ?? c.plan} (${c.total_credits} credits)`,
         createdAt: c.created_at,
       })),
-    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50);
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 500);
 
     return Response.json({
       totals: {
@@ -126,7 +147,7 @@ export async function GET() {
         courseRevenue,
         tutorRevenue,
         courseSubCount: paidSubs.length,
-        tutorCreditCount: credits.length,
+        tutorCreditCount: rangedCredits.length,
         freePassCount: freePasses.length,
       },
       revenueByDay: Array.from(days.entries()).map(([date, v]) => ({ date, ...v })),
