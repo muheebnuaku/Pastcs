@@ -23,6 +23,7 @@ import {
   ChevronRight,
   MessageSquareQuote,
   Layers,
+  Radar,
 } from 'lucide-react';
 
 const adminNavSections = [
@@ -57,6 +58,15 @@ const adminNavSections = [
   },
 ];
 
+// Only ever appended for a super_admin — regular admins never see this
+// section or know it exists.
+const superAdminNavSection = {
+  label: 'Super Admin',
+  items: [
+    { href: '/admin/tracker', label: 'Tracker', icon: Radar },
+  ],
+};
+
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -71,6 +81,10 @@ export function AdminSidebar() {
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(href + '/');
+
+  const navSections = user?.role === 'super_admin'
+    ? [...adminNavSections, superAdminNavSection]
+    : adminNavSections;
 
   return (
     <>
@@ -117,7 +131,7 @@ export function AdminSidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-          {adminNavSections.map((section, si) => (
+          {navSections.map((section, si) => (
             <div key={si}>
               {section.label && (
                 <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-600">
