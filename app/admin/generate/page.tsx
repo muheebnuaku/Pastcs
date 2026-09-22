@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Select, Textarea, Badge } from '@/components/ui';
 import { chunkContent } from '@/lib/utils';
-import type { Course, Topic } from '@/types';
+import { coursesForProgram } from '@/lib/programs';
+import type { Course, Topic, Program } from '@/types';
 import {
   Sparkles,
   Upload,
@@ -66,6 +67,8 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function AdminGeneratePage() {
   const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState('');
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -103,6 +106,10 @@ export default function AdminGeneratePage() {
   // Generation history — recent AI question-generation runs
   const [history, setHistory] = useState<GenerationHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  // Unscoped course-code lookup for history rows — allCourses is
+  // program-scoped for the dropdown, but a past run may have used a
+  // course from a different program than the one currently selected.
+  const [courseCodeById, setCourseCodeById] = useState<Record<string, string>>({});
 
   const loadHistory = () => {
     setHistoryLoading(true);
@@ -119,14 +126,35 @@ export default function AdminGeneratePage() {
       });
   };
 
-  // Load all courses once
+  // Load programs once, auto-selecting the first
   useEffect(() => {
     const supabase = createClient();
-    supabase.from('courses').select('*').order('level').then(({ data }: { data: Course[] | null }) => {
-      if (data) setAllCourses(data);
+    supabase.from('programs').select('*').order('name').then(({ data }: { data: Program[] | null }) => {
+      setPrograms(data ?? []);
+      if (data && data.length > 0) setSelectedProgram(data[0].id);
+    });
+    supabase.from('courses').select('id, course_code').then(({ data }: { data: { id: string; course_code: string }[] | null }) => {
+      setCourseCodeById(Object.fromEntries((data ?? []).map(c => [c.id, c.course_code])));
     });
     loadHistory();
   }, []);
+
+  // Courses are program-scoped — a course only shows up here once an
+  // admin has explicitly assigned it to the selected program, same rule
+  // Courses/Analytics/Pricing already enforce.
+  useEffect(() => {
+    if (!selectedProgram) return;
+    const supabase = createClient();
+    coursesForProgram(supabase, selectedProgram).order('level').then(({ data }: { data: Course[] | null }) => {
+      setAllCourses(data ?? []);
+      setSelectedCourse('');
+      setGeneratedQuestions([]);
+      setBatchStatuses([]);
+      chunksRef.current = [];
+      batchStatusesRef.current = [];
+      batchErrorsRef.current = {};
+    });
+  }, [selectedProgram]);
 
   // Filter courses by level + semester
   const filteredCourses = allCourses.filter(c => {
@@ -519,6 +547,19 @@ export default function AdminGeneratePage() {
             </h2>
           </div>
           <CardContent className="space-y-4">
+            {/* Program selector — hidden while only one program exists */}
+            {programs.length > 1 && (
+              <Select
+                label="Program"
+                value={selectedProgram}
+                onChange={e => setSelectedProgram(e.target.value)}
+              >
+                {programs.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            )}
+
             {/* Level + Semester row */}
             <div className="grid grid-cols-2 gap-3">
               <Select
@@ -919,7 +960,7 @@ Binary Number System
           ) : (
             <div className="space-y-2">
               {history.map(row => {
-                const course = allCourses.find(c => c.id === row.metadata?.courseId);
+                const courseCode = row.metadata?.courseId ? courseCodeById[row.metadata.courseId] : undefined;
                 return (
                   <div
                     key={row.id}
@@ -927,7 +968,7 @@ Binary Number System
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {course ? course.course_code : 'Unknown course'}
+                        {courseCode ?? 'Unknown course'}
                       </span>
                       {row.metadata?.topicName && (
                         <span className="text-gray-500 dark:text-gray-400">— {row.metadata.topicName}</span>
