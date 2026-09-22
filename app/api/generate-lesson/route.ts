@@ -2,7 +2,11 @@ import OpenAI from 'openai';
 import { sampleContent } from '@/lib/utils';
 import { logAiUsage } from '@/lib/aiUsage';
 
-export const maxDuration = 120;
+// Raised from 120 alongside removing the old section-count cap below —
+// a genuinely long, uncapped lesson takes proportionally longer to
+// stream out, and this function's execution time (not just time-to-
+// first-byte) is what the platform's duration limit actually measures.
+export const maxDuration = 180;
 
 // Lecture slides text is almost always well within gpt-4o's 128k-token
 // context window — the old 8,000-character cap was silently dropping
@@ -40,7 +44,7 @@ FIRST, read what kind of document this is — the two most common cases:
 - A SCHOLARLY PAPER / ARTICLE / REPORT: has things like an abstract, citations, a methodology, findings, a discussion of significance or limitations.
 Let that judgment shape both how deep you go and what the sections below actually contain — the structure names stay the same, but a paper's "concept" sections should engage with its argument and evidence critically, not just summarize it as neutral fact.
 
-COVERAGE — this is critical: identify every distinct topic, idea, or claim actually present in the document and cover ALL of them. Do not stop early or run out of room on the first two and rush the rest. If the material is dense, favor giving every part solid, clear coverage over exhaustively over-explaining only the first ones. Do not compress this into a brief overview — a student should finish this lesson actually understanding each concept well enough to apply it, not just recognize its name.
+COVERAGE — this is critical: identify every distinct topic, idea, or claim actually present in the document and cover ALL of them. A 5-page handout and a 40-page slide deck do not get the same number of sections — the section count below scales with however many real topics the document actually has, with no upper limit, so a long document is never squeezed into a fixed small number of sections at the cost of leaving material out. Do not stop early or run out of room on the first few and rush or drop the rest. Do not compress this into a brief overview — a student should finish this lesson actually understanding every concept well enough to apply it, not just recognize its name. You have generous room to write in, but it is not infinite: if the document is exceptionally large (well beyond a normal lecture module's worth of material), write each section a bit more concisely rather than at full length — leaving every topic covered at a slightly tighter length beats covering only the first half in full and dropping the rest.
 
 STRUCTURE — respond with Markdown using EXACTLY this shape:
 
@@ -48,7 +52,7 @@ STRUCTURE — respond with Markdown using EXACTLY this shape:
 For lecture material: why this topic matters and what the student will be able to do by the end. For a paper: what the paper is actually arguing or contributing, in plain terms, before any of the detail. 2–4 sentences either way. Speak directly to the student.
 
 ## <Concept or idea name>
-One section like this per major concept (lecture material) or per key idea/claim/finding (a paper), in the order that makes them easiest to follow — usually the document's own order. Create as many as the material genuinely contains — typically 4 to 8 — never fewer than 3, never more than 10. Each section must weave together, as flowing prose (not labeled sub-parts), and should typically run 150–300 words — long enough to actually teach the idea, not a two-sentence gloss:
+One section like this per major concept (lecture material) or per key idea/claim/finding (a paper), in the order that makes them easiest to follow — usually the document's own order. The number of sections is NOT capped — create exactly as many as the material genuinely contains. A short single-topic handout might only need 3-4; a long, content-rich deck spanning many distinct ideas might genuinely need 15 or more. Never merge two distinct concepts into one section, and never skip or fold a topic into a passing mention, just to keep the section count low — undercovering the material is the one failure mode to avoid above all others here. Each section must weave together, as flowing prose (not labeled sub-parts), and should typically run 150–300 words — long enough to actually teach the idea, not a two-sentence gloss:
 - A plain-English statement of the idea, with the key term in **bold** the first time it appears
 - Why it matters and how it connects to the section before it
 - A step-by-step explanation, simple before complex, OR — for a paper — the evidence/reasoning actually offered for it
@@ -56,13 +60,13 @@ One section like this per major concept (lecture material) or per key idea/claim
 - For lecture material: a common mistake or point of confusion, if there's one worth flagging. For a paper: a limitation, an open question, or a competing view worth noting, if there's one worth flagging.
 
 ## Practice Review
-5 questions checking understanding of the material above, formatted EXACTLY like this with a blank line between each pair:
+Roughly one question per concept section above (so a lesson with 12 sections gets around 12 questions) — minimum 5, no maximum. Checking understanding of the material above, formatted EXACTLY like this with a blank line between each pair:
 **Q1.** question text
 *Answer:* answer text
-For lecture material, mix straightforward recall with at least 2 questions that apply a concept to a short scenario. For a paper, favor questions that ask the reader to evaluate, compare, or apply its argument rather than just recite it.
+For lecture material, mix straightforward recall with questions that apply a concept to a short scenario (at least a third of the total). For a paper, favor questions that ask the reader to evaluate, compare, or apply its argument rather than just recite it.
 
 ## Summary
-The 6 most important things to remember, as a bulleted list ("- "), one clear sentence each.
+The most important things to remember, as a bulleted list ("- "), one clear sentence each — enough bullets to genuinely represent everything covered above (roughly one per concept section, so this scales with the lesson the same way Practice Review does), not capped at a fixed count.
 
 FORMATTING RULES (the renderer only understands these — anything else won't display correctly):
 - "##" only for the top-level sections above — never use "###" or deeper headings.
