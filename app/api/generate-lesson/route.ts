@@ -4,14 +4,23 @@ import { logAiUsage } from '@/lib/aiUsage';
 
 export const maxDuration = 120;
 
-// Lecture slides text is almost always well within gpt-4o's context
-// window — the old 8,000-character cap was silently dropping everything
-// past roughly the first few slides, with no indication to the student
-// that the lesson only covered part of what they uploaded. This only
-// samples (start + middle + end) for genuinely oversized documents.
-const MAX_CONTENT_CHARS = 60000;
+// Lecture slides text is almost always well within gpt-4o's 128k-token
+// context window — the old 8,000-character cap was silently dropping
+// everything past roughly the first few slides, with no indication to
+// the student that the lesson only covered part of what they uploaded.
+// Raised from 60,000: a document that size was already getting cut into
+// a lossy 3-slice sample far more often than it needed to, which is a
+// big part of why a lesson from a substantial upload could come out
+// reading like a summary — whole sections of the source material were
+// simply never shown to the model. 100,000 chars (~25k tokens) still
+// leaves comfortable room in the context budget for the prompt itself
+// and a full-length response. This only samples (start + middle + end)
+// for genuinely oversized documents now.
+const MAX_CONTENT_CHARS = 100000;
 
 const SYSTEM_PROMPT = `You are an expert teacher — the kind students remember — equally capable of introducing a first-year student to a brand-new topic and engaging a graduate student critically with a research paper. You never apply one register by default; you read what you've been given and match it.
+
+A summary tells the student WHAT the material said. A lesson teaches WHY it's true, HOW it works, and how to actually use it — that's the difference you're aiming for on every section, not just the lesson as a whole.
 
 Your teaching method:
 - Teach ONE idea at a time. Never introduce a second idea before the first is fully landed.
@@ -20,6 +29,7 @@ Your teaching method:
 - Connect each idea explicitly to the one before it, so the lesson reads as a single thread, not a list of disconnected facts.
 - Where the source material makes a claim, a methodological choice, or an argument, engage with it — note its strength, a limitation, an open question, or a competing view, rather than just restating it as settled fact. This matters most for scholarly material and matters less for a straightforward lecture-slide definition.
 - Use one concrete, real example or analogy per idea — not a generic one bolted on, but one that actually illuminates why it works the way it does.
+- If a slide gives you only a bare term or a one-line bullet, that is your cue to expand, not your ceiling — unpack what it means, why it's true, and how it's used, the way a good lecturer would when talking through that same slide out loud, not just retype it in nicer prose.
 - Be warm and direct, but never pad with empty motivational filler — every sentence should teach something.
 - Speak to the student using "you" and "we".`;
 
@@ -30,7 +40,7 @@ FIRST, read what kind of document this is — the two most common cases:
 - A SCHOLARLY PAPER / ARTICLE / REPORT: has things like an abstract, citations, a methodology, findings, a discussion of significance or limitations.
 Let that judgment shape both how deep you go and what the sections below actually contain — the structure names stay the same, but a paper's "concept" sections should engage with its argument and evidence critically, not just summarize it as neutral fact.
 
-COVERAGE — this is critical: identify every distinct topic, idea, or claim actually present in the document and cover ALL of them. Do not stop early or run out of room on the first two and rush the rest. If the material is dense, favor giving every part solid, clear coverage over exhaustively over-explaining only the first ones.
+COVERAGE — this is critical: identify every distinct topic, idea, or claim actually present in the document and cover ALL of them. Do not stop early or run out of room on the first two and rush the rest. If the material is dense, favor giving every part solid, clear coverage over exhaustively over-explaining only the first ones. Do not compress this into a brief overview — a student should finish this lesson actually understanding each concept well enough to apply it, not just recognize its name.
 
 STRUCTURE — respond with Markdown using EXACTLY this shape:
 
@@ -38,7 +48,7 @@ STRUCTURE — respond with Markdown using EXACTLY this shape:
 For lecture material: why this topic matters and what the student will be able to do by the end. For a paper: what the paper is actually arguing or contributing, in plain terms, before any of the detail. 2–4 sentences either way. Speak directly to the student.
 
 ## <Concept or idea name>
-One section like this per major concept (lecture material) or per key idea/claim/finding (a paper), in the order that makes them easiest to follow — usually the document's own order. Create as many as the material genuinely contains — typically 4 to 8 — never fewer than 3, never more than 10. Each section must weave together, as flowing prose (not labeled sub-parts):
+One section like this per major concept (lecture material) or per key idea/claim/finding (a paper), in the order that makes them easiest to follow — usually the document's own order. Create as many as the material genuinely contains — typically 4 to 8 — never fewer than 3, never more than 10. Each section must weave together, as flowing prose (not labeled sub-parts), and should typically run 150–300 words — long enough to actually teach the idea, not a two-sentence gloss:
 - A plain-English statement of the idea, with the key term in **bold** the first time it appears
 - Why it matters and how it connects to the section before it
 - A step-by-step explanation, simple before complex, OR — for a paper — the evidence/reasoning actually offered for it
@@ -93,7 +103,12 @@ export async function POST(req: Request) {
         { role: 'user', content: userMessage },
       ],
       temperature: 0.7,
-      max_tokens: 12000,
+      // Matches generate-questions' ceiling — gpt-4o's practical output
+      // limit. A lesson covering 8-10 concept sections at 150-300 words
+      // each, plus practice questions and a summary, can genuinely need
+      // this much room; the previous 12,000 could cut a thorough lesson
+      // off mid-section on a content-rich upload.
+      max_tokens: 16000,
       stream_options: { include_usage: true }, // the final chunk carries token usage
     });
 
