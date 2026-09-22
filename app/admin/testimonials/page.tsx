@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Avatar } from '@/components/ui';
-import { CheckCircle, XCircle, Clock, MessageSquareQuote } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, MessageSquareQuote, Pencil, Save, X } from 'lucide-react';
 
 interface UserInfo { full_name: string | null; email: string; avatar_url: string | null; program: string | null; }
 interface TestimonialRow {
@@ -19,6 +19,8 @@ export default function AdminTestimonialsPage() {
   const [rows, setRows] = useState<TestimonialRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,7 +36,7 @@ export default function AdminTestimonialsPage() {
 
     // 2. Fetch user info separately for each unique user_id
     const userIds = [...new Set(testimonials.map(t => t.user_id).filter(Boolean))] as string[];
-    let userMap: Record<string, UserInfo> = {};
+    const userMap: Record<string, UserInfo> = {};
 
     if (userIds.length > 0) {
       const { data: uData } = await supabase
@@ -59,6 +61,27 @@ export default function AdminTestimonialsPage() {
     await supabase.from('testimonials').update({ is_approved: true }).eq('id', id);
     setRows(prev => prev.map(r => r.id === id ? { ...r, is_approved: true } : r));
     setActing(null);
+  };
+
+  const startEdit = (r: TestimonialRow) => {
+    setEditingId(r.id);
+    setEditText(r.quote);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText('');
+  };
+
+  const saveEdit = async (id: string) => {
+    const trimmed = editText.trim();
+    if (!trimmed) return;
+    setActing(id);
+    const supabase = createClient();
+    await supabase.from('testimonials').update({ quote: trimmed }).eq('id', id);
+    setRows(prev => prev.map(r => r.id === id ? { ...r, quote: trimmed } : r));
+    setActing(null);
+    cancelEdit();
   };
 
   const reject = async (id: string) => {
@@ -90,36 +113,79 @@ export default function AdminTestimonialsPage() {
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5 dark:text-gray-300">
             <Clock className="w-4 h-4 text-amber-500" /> Pending Review
           </h2>
-          {pending.map(r => (
-            <Card key={r.id} className="p-4">
-              <div className="flex items-start gap-3">
-                <Avatar src={r.user?.avatar_url} name={r.user?.full_name || r.user?.email} size="md" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm dark:text-gray-100">{r.user?.full_name || r.user?.email}</p>
-                  {r.user?.program && <p className="text-xs text-gray-400 dark:text-gray-500">{r.user.program}</p>}
-                  <p className="mt-2 text-gray-700 text-sm leading-relaxed dark:text-gray-300">&ldquo;{r.quote}&rdquo;</p>
+          {pending.map(r => {
+            const isEditing = editingId === r.id;
+            return (
+              <Card key={r.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <Avatar src={r.user?.avatar_url} name={r.user?.full_name || r.user?.email} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm dark:text-gray-100">{r.user?.full_name || r.user?.email}</p>
+                    {r.user?.program && <p className="text-xs text-gray-400 dark:text-gray-500">{r.user.program}</p>}
+                    {isEditing ? (
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        rows={3}
+                        className="mt-2 w-full text-sm border border-gray-300 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
+                      />
+                    ) : (
+                      <p className="mt-2 text-gray-700 text-sm leading-relaxed dark:text-gray-300">&ldquo;{r.quote}&rdquo;</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    {isEditing ? (
+                      <>
+                        <button
+                          onClick={() => saveEdit(r.id)}
+                          disabled={acting === r.id || !editText.trim()}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          disabled={acting === r.id}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startEdit(r)}
+                          disabled={acting === r.id}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => approve(r.id)}
+                          disabled={acting === r.id}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => reject(r.id)}
+                          disabled={acting === r.id}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => approve(r.id)}
-                    disabled={acting === r.id}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => reject(r.id)}
-                    disabled={acting === r.id}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                    Reject
-                  </button>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
