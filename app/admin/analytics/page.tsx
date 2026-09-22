@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Select } from '@/components/ui';
 import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
-import type { Course, Topic } from '@/types';
+import { coursesForProgram } from '@/lib/programs';
+import type { Course, Topic, Program } from '@/types';
 import {
   BarChart,
   Bar,
@@ -71,8 +72,11 @@ const FEATURE_LABELS: Record<string, string> = {
 };
 
 export default function AdminAnalyticsPage() {
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState('');
+  const [trendDays, setTrendDays] = useState(7);
 
   const [testTrends, setTestTrends] = useState<TestTrend[]>([]);
   const [topicPerformance, setTopicPerformance] = useState<TopicPerformance[]>([]);
@@ -124,23 +128,36 @@ export default function AdminAnalyticsPage() {
   }, []);
 
   useEffect(() => {
+    const fetchPrograms = async () => {
+      const supabase = createClient();
+      const { data } = await supabase.from('programs').select('*').order('name');
+      if (data) {
+        setPrograms(data);
+        if (data.length > 0) setSelectedProgram(data[0].id);
+      }
+    };
+    fetchPrograms();
+  }, []);
+
+  // Course list is scoped to the selected program — previously this
+  // page had no program awareness at all and just listed every course
+  // platform-wide, which stops making sense once a second program's
+  // courses exist alongside IT's.
+  useEffect(() => {
+    if (!selectedProgram) return;
+
     const fetchCourses = async () => {
       const supabase = createClient();
-      const { data } = await supabase
-        .from('courses')
-        .select('*')
-        .order('course_code');
-      
+      const { data } = await coursesForProgram(supabase, selectedProgram).order('course_code');
+
       if (data) {
         setCourses(data);
-        if (data.length > 0) {
-          setSelectedCourse(data[0].id);
-        }
+        setSelectedCourse(data.length > 0 ? data[0].id : '');
       }
     };
 
     fetchCourses();
-  }, []);
+  }, [selectedProgram]);
 
   useEffect(() => {
     if (!selectedCourse) return;
@@ -158,21 +175,23 @@ export default function AdminAnalyticsPage() {
       const typedTests = (tests || []) as TestData[];
 
       if (typedTests.length > 0) {
-        // Calculate test trends (last 7 days)
+        // Calculate test trends over the selected window
         const today = new Date();
         const trends: TestTrend[] = [];
-        
-        for (let i = 6; i >= 0; i--) {
+
+        for (let i = trendDays - 1; i >= 0; i--) {
           const date = new Date(today);
           date.setDate(date.getDate() - i);
           const dateStr = date.toISOString().split('T')[0];
-          
-          const dayTests = typedTests.filter(t => 
+
+          const dayTests = typedTests.filter(t =>
             t.created_at.startsWith(dateStr)
           );
-          
+
           trends.push({
-            date: date.toLocaleDateString('en', { weekday: 'short' }),
+            date: trendDays <= 7
+              ? date.toLocaleDateString('en', { weekday: 'short' })
+              : date.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
             tests: dayTests.length,
             avg_score: dayTests.length > 0
               ? dayTests.reduce((acc, t) => acc + (t.percentage || 0), 0) / dayTests.length
@@ -241,7 +260,7 @@ export default function AdminAnalyticsPage() {
     };
 
     fetchAnalytics();
-  }, [selectedCourse]);
+  }, [selectedCourse, trendDays]);
 
   const difficultyData = [
     { name: 'Easy', value: difficultyCounts.easy },
@@ -256,15 +275,25 @@ export default function AdminAnalyticsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Analytics</h1>
           <p className="text-gray-600 dark:text-gray-400">Performance insights and statistics</p>
         </div>
-        <Select
-          value={selectedCourse}
-          onChange={(e) => setSelectedCourse(e.target.value)}
-          className="w-full sm:w-48"
-          options={courses.map(c => ({
-            value: c.id,
-            label: `${c.icon || COURSE_ICONS[c.course_code] || ''} ${c.course_code}`,
-          }))}
-        />
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {programs.length > 1 && (
+            <Select
+              value={selectedProgram}
+              onChange={(e) => setSelectedProgram(e.target.value)}
+              className="w-full sm:w-44"
+              options={programs.map(p => ({ value: p.id, label: p.short_code }))}
+            />
+          )}
+          <Select
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+            className="w-full sm:w-48"
+            options={courses.map(c => ({
+              value: c.id,
+              label: `${c.icon || COURSE_ICONS[c.course_code] || ''} ${c.course_code}`,
+            }))}
+          />
+        </div>
       </div>
 
       {/* AI Usage — platform-wide, not course-scoped */}
@@ -359,8 +388,19 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Test Trends Chart */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Tests & Scores (Last 7 Days)</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Tests & Scores</h2>
+            <Select
+              value={String(trendDays)}
+              onChange={(e) => setTrendDays(Number(e.target.value))}
+              className="w-auto text-sm"
+              options={[
+                { value: '7', label: 'Last 7 days' },
+                { value: '14', label: 'Last 14 days' },
+                { value: '30', label: 'Last 30 days' },
+                { value: '90', label: 'Last 90 days' },
+              ]}
+            />
           </div>
           <CardContent>
             {testTrends.some(t => t.tests > 0) ? (
@@ -391,7 +431,7 @@ export default function AdminAnalyticsPage() {
               </ResponsiveContainer>
             ) : (
               <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                No test data for the last 7 days
+                No test data for the last {trendDays} days
               </div>
             )}
           </CardContent>
