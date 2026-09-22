@@ -32,7 +32,17 @@ const PAID_UPLOAD_LIMIT = 100;
 // several smaller, fully-attended calls to each do the same for their
 // own slice — batching gets more thorough coverage out of a large
 // document than raising the single-call ceiling alone did.
-const LESSON_BATCH_TARGET_CHARS = 60000;
+//
+// Set low on purpose: a slide deck's actual extracted text is far
+// sparser than its page count suggests — a typical bullet-heavy slide
+// runs only 250-400 characters once extracted, so even a substantial
+// 100+ slide deck can land well under a 60k threshold and silently
+// skip batching entirely (confirmed happening in practice). 25,000
+// chars is roughly 60-100 typical slides, so most "big" uploads that
+// actually need batching's more-thorough-per-chunk coverage get it,
+// while a genuinely small single-lecture upload (a handful of slides)
+// still stays on the plain single-call path untouched.
+const LESSON_BATCH_TARGET_CHARS = 25000;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -595,7 +605,12 @@ export default function AssistantPage() {
 
       if (!finalText.trim()) throw new Error('Could not extract text. If this is a scanned PDF, it must be text-based.');
 
-      setDocProgress('Detecting topic…');
+      // Visible so a report like "I uploaded 100+ pages and didn't see
+      // batching" is verifiable instead of guessed at — a sparse slide
+      // deck's actual extracted text is often far smaller than its page
+      // count implies (see LESSON_BATCH_TARGET_CHARS above).
+      console.log(`[AI Tutor] Extracted ${finalText.length.toLocaleString()} characters from ${pageCount} pages/slides`);
+      setDocProgress(`Extracted ${finalText.length.toLocaleString()} characters from ${pageCount} pages — detecting topic…`);
       const parseRes = await fetch('/api/parse-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
