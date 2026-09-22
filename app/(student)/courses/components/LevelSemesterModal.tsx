@@ -37,7 +37,10 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  const { label: priceLabel } = usePricing(selectedLevel);
+  // The program being picked right now, not the student's existing one
+  // (they may be actively changing it in this same modal) — pricing
+  // must reflect whichever program they're about to land in.
+  const { label: priceLabel } = usePricing(selectedLevel, selectedProgramId);
 
   // Portal to <body> — see Modal.tsx: rendering inline under a page that
   // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode

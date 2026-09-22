@@ -40,7 +40,7 @@ export default function CourseDetailPage() {
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
   const isFree = course?.course_code === user?.free_course_code;
-  const { label: priceLabel } = usePricing(user?.selected_level);
+  const { label: priceLabel } = usePricing(user?.selected_level, user?.program_id);
   const hasAccess = isPaid || isFree;
 
   useEffect(() => {

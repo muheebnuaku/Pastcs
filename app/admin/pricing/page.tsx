@@ -1,15 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, Button } from '@/components/ui';
+import { createClient } from '@/lib/supabase/client';
+import { Card, CardContent, Button, Select } from '@/components/ui';
 import { invalidatePricingCache } from '@/lib/hooks/usePricing';
 import type { TutorCreditPlan } from '@/app/api/tutor-pricing/route';
+import type { Program } from '@/types';
 import { DollarSign, Save, RefreshCw, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 
 const LEVELS = [100, 200, 300, 400] as const;
 const PLAN_ORDER = ['starter', 'pack_50', 'pack_100'];
 
 export default function AdminPricingPage() {
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState('');
   const [prices, setPrices] = useState<Record<number, string>>({
     100: '50',
     200: '50',
@@ -31,7 +35,33 @@ export default function AdminPricingPage() {
   const [plansError, setPlansError] = useState('');
 
   useEffect(() => {
-    fetch('/api/pricing')
+    const supabase = createClient();
+    supabase.from('programs').select('*').order('name')
+      .then(({ data }: { data: Program[] | null }) => {
+        setPrograms(data ?? []);
+        if (data && data.length > 0) setSelectedProgram(data[0].id);
+      });
+
+    fetch('/api/tutor-pricing')
+      .then(r => r.json())
+      .then((data: { plans?: TutorCreditPlan[] }) => {
+        if (data.plans?.length) {
+          const sorted = [...data.plans].sort((a, b) => PLAN_ORDER.indexOf(a.id) - PLAN_ORDER.indexOf(b.id));
+          setPlans(sorted.map(p => ({ id: p.id, name: p.name, credits: String(p.credits), price: String(p.amount / 100) })));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPlansLoading(false));
+  }, []);
+
+  // Course-access prices are program-scoped — refetched whenever the
+  // selected program changes.
+  useEffect(() => {
+    if (!selectedProgram) return;
+    setIsLoading(true);
+    setSuccess('');
+    setError('');
+    fetch(`/api/pricing?programId=${encodeURIComponent(selectedProgram)}`)
       .then(r => r.json())
       .then(data => {
         if (data.prices) {
@@ -45,18 +75,7 @@ export default function AdminPricingPage() {
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
-
-    fetch('/api/tutor-pricing')
-      .then(r => r.json())
-      .then((data: { plans?: TutorCreditPlan[] }) => {
-        if (data.plans?.length) {
-          const sorted = [...data.plans].sort((a, b) => PLAN_ORDER.indexOf(a.id) - PLAN_ORDER.indexOf(b.id));
-          setPlans(sorted.map(p => ({ id: p.id, name: p.name, credits: String(p.credits), price: String(p.amount / 100) })));
-        }
-      })
-      .catch(() => {})
-      .finally(() => setPlansLoading(false));
-  }, []);
+  }, [selectedProgram]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -83,7 +102,7 @@ export default function AdminPricingPage() {
       const res = await fetch('/api/pricing', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prices: pesewas }),
+        body: JSON.stringify({ prices: pesewas, programId: selectedProgram }),
       });
 
       const data = await res.json();
@@ -151,11 +170,22 @@ export default function AdminPricingPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <DollarSign className="w-5 h-5 text-blue-600" />
               Course Access — Price Per Level (GHC)
             </h2>
+            {programs.length > 1 && (
+              <Select
+                value={selectedProgram}
+                onChange={e => setSelectedProgram(e.target.value)}
+                className="sm:w-56"
+              >
+                {programs.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            )}
           </div>
           <CardContent className="space-y-5">
             {isLoading ? (

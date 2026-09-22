@@ -30,7 +30,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
   const [isVerifying, setIsVerifying] = useState(false);
   const [paymentClosed, setPaymentClosed] = useState(false);
   const [error, setError] = useState('');
-  const { amountPesewas: priceAmount, label: priceLabel } = usePricing(user?.selected_level);
+  const { amountPesewas: priceAmount, label: priceLabel } = usePricing(user?.selected_level, user?.program_id);
 
   // Portal to <body> — see Modal.tsx: rendering inline under a page that
   // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
