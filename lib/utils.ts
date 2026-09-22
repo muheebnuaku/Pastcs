@@ -34,6 +34,44 @@ export function sampleContent(text: string, maxChars: number): string {
   return `${start}\n\n[...middle section omitted — document continues...]\n\n${mid}\n\n[...more omitted — this is the end of the document...]\n\n${end}`;
 }
 
+// Splits a large document into sequential, digestible batches instead of
+// sampleContent's lossy 3-slice window — used by the AI Question Generator
+// so a merged whole-course upload (hundreds of pages) gets every page
+// covered across several requests rather than 90%+ of it silently unseen.
+// Splits on the page/slide boundary the PDF/PPTX extractors join with
+// ('\n\n') so a batch never cuts a page in half where that boundary
+// exists. DOCX extraction has no such boundary (Word has no structural
+// "page" — the whole document comes back as one unit), so a unit still
+// oversized after that split gets hard-sliced as a fallback.
+export function chunkContent(text: string, targetChars: number): string[] {
+  if (text.length <= targetChars) return [text];
+
+  const units = text.split('\n\n');
+  const chunks: string[] = [];
+  let current = '';
+
+  const flush = () => {
+    if (current) chunks.push(current);
+    current = '';
+  };
+
+  for (const unit of units) {
+    if (unit.length > targetChars) {
+      flush();
+      for (let i = 0; i < unit.length; i += targetChars) {
+        chunks.push(unit.slice(i, i + targetChars));
+      }
+      continue;
+    }
+    const candidateLen = current ? current.length + 2 + unit.length : unit.length;
+    if (current && candidateLen > targetChars) flush();
+    current = current ? `${current}\n\n${unit}` : unit;
+  }
+  flush();
+
+  return chunks;
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',

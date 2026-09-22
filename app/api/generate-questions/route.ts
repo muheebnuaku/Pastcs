@@ -4,6 +4,11 @@ import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
 import { requireAdmin } from '@/lib/adminAuth';
 
+// A large document is chunked client-side (see chunkContent in lib/utils.ts)
+// and each chunk arrives here as its own request — a single GPT-4o call on
+// a ~45k-char batch can take a while.
+export const maxDuration = 120;
+
 // Scale question count: ~1 question per 1000 chars, capped at 50
 function targetQuestionCount(contentLength: number): number {
   if (contentLength >= 80000) return 50;
@@ -19,7 +24,7 @@ export async function POST(request: Request) {
   if (auth instanceof Response) return auth;
 
   try {
-    const { slideContent, courseId, topicId, topicName } = await request.json();
+    const { slideContent, courseId, topicId, topicName, batchIndex, batchTotal } = await request.json();
 
     if (!slideContent && !topicName) {
       return Response.json(
@@ -184,6 +189,9 @@ Rules:
       topicId,
       topicName: topicName || null,
       questionCount: validatedQuestions.length,
+      ...(typeof batchTotal === 'number' && batchTotal > 1
+        ? { batch: { index: (batchIndex ?? 0) + 1, total: batchTotal } }
+        : {}),
     }).catch(() => {});
 
     return Response.json({ questions: validatedQuestions });
