@@ -246,6 +246,12 @@ export default function AssistantPage() {
   const [teachParas, setTeachParas] = useState<string[]>([]);
   const [teachParaIdx, setTeachParaIdx] = useState(0);
   const [paraReady, setParaReady] = useState(false);
+  // True once teaching has started at least once for the current lesson —
+  // drives the "Teach Me" vs "Resume" label. Stays true across a jump to a
+  // different sub-heading (jumpToSection stops the audio but this is a
+  // separate flag), so clicking play again after jumping resumes teaching
+  // at the newly selected section instead of restarting from the top.
+  const [hasStartedTeaching, setHasStartedTeaching] = useState(false);
   const [keywordImages, setKeywordImages] = useState<Record<string, { url: string; caption: string; pageUrl: string }>>({});
 
   // Upload quota
@@ -402,17 +408,23 @@ export default function AssistantPage() {
 
   // ── Teaching ──────────────────────────────────────────────────────────────
 
+  // Starts (or resumes) reading at whatever section teachIdx currently
+  // points to — NOT always section 0. teachIdx is updated by
+  // jumpToSection whenever the student clicks a different sub-heading,
+  // so pressing play again after a jump correctly picks up in the new
+  // section's context instead of restarting the whole lesson from the
+  // Introduction.
   const startTeaching = useCallback(() => {
     if (!voiceSupported || lessonSections.length === 0) return;
-    const paras = splitParas(lessonSections[0].content);
+    const paras = splitParas(lessonSections[teachIdx]?.content ?? '');
     teachingRef.current = true;
     setTeaching(true);
-    setTeachIdx(0);
+    setHasStartedTeaching(true);
     setTeachParas(paras);
     setTeachParaIdx(0);
     setParaReady(false);
     if (paras.length > 0) speak(paras[0], () => setParaReady(true));
-  }, [voiceSupported, lessonSections, speak]);
+  }, [voiceSupported, lessonSections, teachIdx, speak]);
 
   const stopTeaching = useCallback(() => {
     teachingRef.current = false;
@@ -552,6 +564,7 @@ export default function AssistantPage() {
     setLessonText('');
     setLessonSections([]);
     setTeachIdx(0);
+    setHasStartedTeaching(false);
 
     try {
       // Extraction happens entirely in the browser — sending the raw file
@@ -649,6 +662,7 @@ export default function AssistantPage() {
     setLessonText('');
     setLessonSections([]);
     setTeachIdx(0);
+    setHasStartedTeaching(false);
 
     try {
       // Reuses the same topic-detection call a file upload gets, just via
@@ -683,6 +697,7 @@ export default function AssistantPage() {
     setDocError('');
     setTeachParas([]);
     setTeachParaIdx(0);
+    setHasStartedTeaching(false);
     setKeywordImages({});
     setCurrentImage(null);
     setFetchingImages(false);
@@ -994,8 +1009,8 @@ export default function AssistantPage() {
                   </button>
                 </div>
               ) : (
-                <button onClick={startTeaching} title="Teach Me" className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors flex-shrink-0">
-                  <Play className="w-3.5 h-3.5" /><span className="hidden sm:inline">Teach Me</span>
+                <button onClick={startTeaching} title={hasStartedTeaching ? 'Resume' : 'Teach Me'} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors flex-shrink-0">
+                  <Play className="w-3.5 h-3.5" /><span className="hidden sm:inline">{hasStartedTeaching ? 'Resume' : 'Teach Me'}</span>
                 </button>
               )
             )}
