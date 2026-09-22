@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { sampleContent } from '@/lib/utils';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
+import { requireAdmin } from '@/lib/adminAuth';
 
 // Scale question count: ~1 question per 1000 chars, capped at 50
 function targetQuestionCount(contentLength: number): number {
@@ -14,6 +15,9 @@ function targetQuestionCount(contentLength: number): number {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if (auth instanceof Response) return auth;
+
   try {
     const { slideContent, courseId, topicId, topicName } = await request.json();
 
@@ -159,8 +163,6 @@ Rules:
       max_tokens: 16000,
     }));
 
-    logAiUsage('generate_questions', 'gpt-4o', completion.usage).catch(() => {});
-
     const responseContent = completion.choices[0].message.content;
     if (!responseContent) throw new Error('No response from OpenAI');
 
@@ -176,6 +178,13 @@ Rules:
       difficulty: q.difficulty || 'medium',
       is_scenario: !!q.is_scenario,
     }));
+
+    logAiUsage('generate_questions', 'gpt-4o', completion.usage, auth.userId, {
+      courseId,
+      topicId,
+      topicName: topicName || null,
+      questionCount: validatedQuestions.length,
+    }).catch(() => {});
 
     return Response.json({ questions: validatedQuestions });
   } catch (error: unknown) {

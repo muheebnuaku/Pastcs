@@ -11,13 +11,16 @@ interface Usage {
  * features is actually visible to admins (see admin's AI usage view) —
  * previously nothing tracked this anywhere. Fire-and-forget: a logging
  * failure, or the table not existing yet on a fresh environment, must
- * never affect the feature it's measuring.
+ * never affect the feature it's measuring. `metadata` is an optional,
+ * feature-specific detail blob (e.g. course/topic/question count for
+ * generate_questions) shown on the AI Generator's history list.
  */
 export async function logAiUsage(
   feature: string,
   model: string,
   usage: Usage | null | undefined,
-  userId?: string | null
+  userId?: string | null,
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   if (!usage) return;
   try {
@@ -32,6 +35,7 @@ export async function logAiUsage(
       prompt_tokens: usage.prompt_tokens ?? 0,
       completion_tokens: usage.completion_tokens ?? 0,
       total_tokens: usage.total_tokens ?? 0,
+      metadata: metadata ?? {},
     });
   } catch {
     // ai_usage_log may not be migrated on this environment yet — non-critical

@@ -16,6 +16,8 @@ import {
   X,
   ScanText,
   Puzzle,
+  History,
+  Clock,
 } from 'lucide-react';
 
 interface GeneratedQuestion {
@@ -30,6 +32,13 @@ interface GeneratedQuestion {
 }
 
 const LEVELS = [100, 200, 300, 400] as const;
+
+interface GenerationHistoryRow {
+  id: string;
+  created_at: string;
+  total_tokens: number;
+  metadata: { courseId?: string; topicName?: string | null; questionCount?: number } | null;
+}
 
 export default function AdminGeneratePage() {
   const [allCourses, setAllCourses] = useState<Course[]>([]);
@@ -56,12 +65,32 @@ export default function AdminGeneratePage() {
   const [parseProgress, setParseProgress] = useState('');
   const [pdfTopic, setPdfTopic] = useState('');
 
+  // Generation history — recent AI question-generation runs
+  const [history, setHistory] = useState<GenerationHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const loadHistory = () => {
+    setHistoryLoading(true);
+    const supabase = createClient();
+    supabase
+      .from('ai_usage_log')
+      .select('id, created_at, total_tokens, metadata')
+      .eq('feature', 'generate_questions')
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }: { data: GenerationHistoryRow[] | null }) => {
+        setHistory(data ?? []);
+        setHistoryLoading(false);
+      });
+  };
+
   // Load all courses once
   useEffect(() => {
     const supabase = createClient();
     supabase.from('courses').select('*').order('level').then(({ data }: { data: Course[] | null }) => {
       if (data) setAllCourses(data);
     });
+    loadHistory();
   }, []);
 
   // Filter courses by level + semester
@@ -235,6 +264,7 @@ export default function AdminGeneratePage() {
       if (!response.ok) throw new Error(data.error || 'Failed to generate questions');
 
       setGeneratedQuestions(data.questions.map((q: GeneratedQuestion) => ({ ...q, selected: true })));
+      loadHistory();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to generate questions');
     } finally {
@@ -713,6 +743,55 @@ Binary Number System
           </div>
         </Card>
       </div>
+
+      {/* Generation History */}
+      <Card>
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-gray-100">
+            <History className="w-5 h-5" />
+            Generation History
+          </h2>
+        </div>
+        <CardContent>
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400 dark:text-gray-500">
+              <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+              Loading history...
+            </div>
+          ) : history.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8 dark:text-gray-400">No generation runs yet</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map(row => {
+                const course = allCourses.find(c => c.id === row.metadata?.courseId);
+                return (
+                  <div
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg text-sm dark:bg-white/[0.03]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {course ? course.course_code : 'Unknown course'}
+                      </span>
+                      {row.metadata?.topicName && (
+                        <span className="text-gray-500 dark:text-gray-400">— {row.metadata.topicName}</span>
+                      )}
+                      <Badge variant="default" size="sm">
+                        {row.metadata?.questionCount ?? '?'} questions
+                      </Badge>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{row.total_tokens.toLocaleString()} tokens</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                      <Clock className="w-3.5 h-3.5" />
+                      {new Date(row.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

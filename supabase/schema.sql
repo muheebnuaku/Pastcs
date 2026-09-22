@@ -364,6 +364,7 @@ CREATE TABLE IF NOT EXISTS public.ai_usage_log (
   prompt_tokens     INTEGER NOT NULL DEFAULT 0,
   completion_tokens INTEGER NOT NULL DEFAULT 0,
   total_tokens      INTEGER NOT NULL DEFAULT 0,
+  metadata          JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
