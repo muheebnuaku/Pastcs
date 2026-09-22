@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Select, Modal, Badge, Textarea } from '@/components/ui';
 import { QUESTION_TYPE_LABELS, questionAccuracy as accuracyOf, needsQuestionReview as needsReview } from '@/lib/utils';
 import { logAudit } from '@/lib/auditLog';
-import type { Question, Course, Topic } from '@/types';
+import { coursesForProgram } from '@/lib/programs';
+import type { Question, Course, Topic, Program } from '@/types';
 import {
   Plus,
   Edit,
@@ -23,6 +24,8 @@ import {
 export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState('');
   const [topics, setTopics] = useState<Topic[]>([]);
   // Separate topic lists for filter bar and modal to avoid state collision
   const [filterBarTopics, setFilterBarTopics] = useState<Topic[]>([]);
@@ -63,9 +66,10 @@ export default function AdminQuestionsPage() {
   const [formDifficulty, setFormDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
 
   const fetchData = async () => {
+    if (!selectedProgram) return;
     const supabase = createClient();
     const [coursesRes, topicsRes] = await Promise.all([
-      supabase.from('courses').select('*').order('course_code'),
+      coursesForProgram(supabase, selectedProgram).order('course_code'),
       supabase.from('topics').select('*').order('order_index'),
     ]);
     if (coursesRes.data) setCourses(coursesRes.data);
@@ -108,7 +112,26 @@ export default function AdminQuestionsPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  // Load programs once, auto-selecting the first
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('programs').select('*').order('name').then(({ data }: { data: Program[] | null }) => {
+      setPrograms(data ?? []);
+      if (data && data.length > 0) setSelectedProgram(data[0].id);
+    });
+  }, []);
+
+  // Courses (and by extension, everything keyed off them below) are
+  // program-scoped — a course only shows up here once an admin has
+  // explicitly assigned it to the selected program, same rule
+  // Courses/Analytics/Pricing/AI Generator already enforce.
+  useEffect(() => {
+    fetchData();
+    setFilterCourse('');
+    setFilterTopic('');
+    setFormCourseId('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProgram]);
 
   useEffect(() => {
     fetchQuestions();
@@ -297,10 +320,23 @@ export default function AdminQuestionsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Question Bank</h1>
           <p className="text-gray-600 dark:text-gray-400">{filteredQuestions.length} questions total</p>
         </div>
-        <Button onClick={() => openModal()} className="self-start sm:self-auto">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Question
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {programs.length > 1 && (
+            <Select
+              value={selectedProgram}
+              onChange={(e) => setSelectedProgram(e.target.value)}
+              className="w-full sm:w-48"
+            >
+              {programs.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          )}
+          <Button onClick={() => openModal()} className="self-start sm:self-auto">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Question
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
