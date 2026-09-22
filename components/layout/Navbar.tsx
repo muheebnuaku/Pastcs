@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn, isAdminRole } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
 import { Menu, X, Home, BookOpen, Trophy } from 'lucide-react';
@@ -49,7 +49,7 @@ export function Navbar() {
           {/* Desktop auth */}
           <div className="hidden md:flex items-center gap-3.5 flex-shrink-0 ml-auto">
             {user ? (
-              <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>
+              <Link href={isAdminRole(user.role) ? '/admin' : '/dashboard'}>
                 <Button className="bg-[#e8603c] hover:bg-[#c94f2f] focus:ring-[#e8603c] rounded-full text-sm px-4 py-2">Dashboard</Button>
               </Link>
             ) : (
@@ -124,7 +124,7 @@ export function Navbar() {
 
         <div className="p-5 border-t border-[#efe2d0] space-y-3">
           {user ? (
-            <Link href={user.role === 'admin' ? '/admin' : '/dashboard'} onClick={() => setIsMobileMenuOpen(false)}>
+            <Link href={isAdminRole(user.role) ? '/admin' : '/dashboard'} onClick={() => setIsMobileMenuOpen(false)}>
               <Button className="w-full rounded-2xl bg-[#e8603c] hover:bg-[#c94f2f] focus:ring-[#e8603c]">Go to Dashboard</Button>
             </Link>
           ) : (

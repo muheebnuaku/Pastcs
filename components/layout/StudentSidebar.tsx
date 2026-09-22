@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn, isAdminRole } from '@/lib/utils';
 import { Avatar } from '@/components/ui';
 import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { useAuth } from '@/components/providers';
@@ -211,7 +211,7 @@ export function StudentSidebar() {
               <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5">{user?.email}</p>
             </div>
           </Link>
-          {user?.role === 'admin' && (
+          {isAdminRole(user?.role) && (
             <Link
               href="/admin"
               onClick={() => setIsOpen(false)}

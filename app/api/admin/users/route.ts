@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/adminAuth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -6,6 +7,9 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof Response) return auth;
+
   // Includes every account — students and admins alike — so admin access
   // can be reviewed and managed from the same place as student access.
   const { data: users, error } = await supabaseAdmin

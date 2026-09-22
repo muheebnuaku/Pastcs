@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/adminAuth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,9 @@ const supabaseAdmin = createClient(
 
 // Grant free pass
 export async function POST(req: Request) {
+  const auth = await requireAdmin();
+  if (auth instanceof Response) return auth;
+
   const { userId, level, semester, programId } = await req.json();
 
   if (!userId || !level || !semester || !programId) {
@@ -51,6 +55,9 @@ export async function POST(req: Request) {
 
 // Revoke free pass
 export async function DELETE(req: Request) {
+  const auth = await requireAdmin();
+  if (auth instanceof Response) return auth;
+
   const { userId, level, semester, programId } = await req.json();
 
   if (!userId || !level || !semester) {

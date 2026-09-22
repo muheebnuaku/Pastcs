@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   email              TEXT NOT NULL UNIQUE,
   full_name          TEXT,
   student_id         TEXT,
-  role               TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','admin')),
+  role               TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','admin','super_admin')),
   avatar_url         TEXT,
   practice_streak    INTEGER NOT NULL DEFAULT 0,
   last_practice_date DATE,
@@ -447,10 +447,18 @@ BEGIN
 END $$;
 
 -- Helper: avoids infinite recursion by using SECURITY DEFINER (bypasses RLS)
+-- super_admin counts as admin here too — it's a strict superset (see
+-- is_super_admin() below, which gates the super-admin-only Tracker).
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
-  SELECT role = 'admin' FROM public.users WHERE id = auth.uid() LIMIT 1;
+  SELECT role IN ('admin', 'super_admin') FROM public.users WHERE id = auth.uid() LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT role = 'super_admin' FROM public.users WHERE id = auth.uid() LIMIT 1;
 $$;
 
 -- Users

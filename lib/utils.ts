@@ -215,3 +215,11 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
   multiple_choice: 'Multiple Choice',
   fill_in_blank: 'Fill in the Blank',
 };
+
+// super_admin is a strict superset of admin — sees every admin page plus
+// the super-admin-only Tracker. Anywhere that previously gated on
+// `role === 'admin'` to mean "has admin access" should use this instead,
+// so a super admin never gets locked out of ordinary admin pages/APIs.
+export function isAdminRole(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'super_admin';
+}

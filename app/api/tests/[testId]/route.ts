@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isAdminRole } from '@/lib/utils';
 
 export async function GET(
   request: NextRequest,
@@ -40,7 +41,7 @@ export async function GET(
       .eq('id', user.id)
       .single();
 
-    if (test.user_id !== user.id && currentUser?.role !== 'admin') {
+    if (test.user_id !== user.id && !isAdminRole(currentUser?.role)) {
       return Response.json(
         { error: 'Access denied' },
         { status: 403 }
