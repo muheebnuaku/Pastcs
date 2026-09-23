@@ -7,16 +7,33 @@ import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { triggerNotifications } from '@/lib/hooks/useNotifications';
 import type { User } from '@/types';
 
+// Program/student ID are now collected on the registration form itself
+// (see app/register/page.tsx) instead of a separate post-signup step —
+// programId is set when an existing program was picked from the list,
+// customProgram when the student typed their own because it wasn't
+// listed (see the register API route for how each is stored).
+interface SignUpOptions {
+  referralCode?: string;
+  studentId?: string;
+  programId?: string;
+  customProgram?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, fullName: string, referralCode?: string) => Promise<{ error?: string }>;
+  signUp: (email: string, password: string, fullName: string, options?: SignUpOptions) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Deliberately generic — never confirms to whoever's logging in that
+// this specific account was flagged as suspended, which would just tell
+// a bad actor to go make another one instead.
+const SUSPENDED_MESSAGE = 'Account not found or invalid credentials.';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, setUser, isLoading, setLoading } = useAuthStore();
@@ -73,6 +90,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           const userData = await fetchOrCreateUser(session.user);
+          // Covers a session that was already valid when the account got
+          // suspended — caught here on next load, not just at the next
+          // fresh login attempt.
+          if (userData?.is_suspended) {
+            await supabase.auth.signOut();
+            setUser(null);
+            useSubscriptionStore.getState().setSubscriptions([]);
+            router.replace('/login?blocked=1');
+            return;
+          }
           setUser(userData);
           if (userData) {
             await fetchSubscriptions(userData.id);
@@ -98,6 +125,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!current || current.id !== session.user.id) {
             setLoading(true);
             const userData = await fetchOrCreateUser(session.user);
+            if (userData?.is_suspended) {
+              await supabase.auth.signOut();
+              setUser(null);
+              useSubscriptionStore.getState().setSubscriptions([]);
+              setLoading(false);
+              router.replace('/login?blocked=1');
+              return;
+            }
             setUser(userData);
             if (userData) await fetchSubscriptions(userData.id);
             setLoading(false);
@@ -143,6 +178,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       const userData = await fetchOrCreateUser(session.user);
+      if (userData?.is_suspended) {
+        await supabase.auth.signOut();
+        setLoading(false);
+        return { error: SUSPENDED_MESSAGE };
+      }
       setUser(userData);
       if (userData) await fetchSubscriptions(userData.id);
     }
@@ -150,13 +190,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return {};
   };
 
-  const signUp = async (email: string, password: string, fullName: string, referralCode?: string) => {
+  const signUp = async (email: string, password: string, fullName: string, options?: SignUpOptions) => {
     setLoading(true);
 
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, fullName, referralCode }),
+      body: JSON.stringify({
+        email,
+        password,
+        fullName,
+        referralCode: options?.referralCode,
+        studentId: options?.studentId,
+        programId: options?.programId,
+        customProgram: options?.customProgram,
+      }),
     });
 
     const resData = await res.json();

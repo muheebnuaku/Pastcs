@@ -35,6 +35,15 @@ export default function LoginPage() {
     }
   }, [user, isLoading, router]);
 
+  // AuthProvider lands here with ?blocked=1 when a session that was
+  // already active gets suspended — same generic wording as a failed
+  // login attempt, deliberately (see AuthProvider's SUSPENDED_MESSAGE).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('blocked')) {
+      setError('Account not found or invalid credentials.');
+    }
+  }, []);
+
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');

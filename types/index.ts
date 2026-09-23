@@ -28,6 +28,8 @@ export interface User {
   referral_code: string | null;
   referred_by: string | null;
   exam_date: string | null;
+  is_suspended: boolean;
+  registration_ip: string | null;
   created_at: string;
   updated_at: string;
 }

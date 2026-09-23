@@ -49,6 +49,12 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // The registration form now collects a program up front — a student
+  // who already has one set only needs Level/Semester here. "Change
+  // Program..." (isChanging) always shows the picker regardless, since
+  // that flow's whole point is picking a different one.
+  const showProgramPicker = isChanging || !user?.program_id;
+
   useEffect(() => {
     const supabase = createClient();
     supabase.from('programs').select('*').order('name')
@@ -122,33 +128,42 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
 
         <div className="px-5 py-4 space-y-4">
           {/* Program list */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-gray-400">Programme</p>
-            {loadingPrograms ? (
-              <div className="flex items-center justify-center py-4 text-gray-400 dark:text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                {programs.map((program) => (
-                  <button
-                    key={program.id}
-                    onClick={() => setSelectedProgramId(program.id)}
-                    className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border-2 text-left transition-all ${
-                      selectedProgramId === program.id
-                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-500/10'
-                        : 'border-gray-200 dark:border-white/10 hover:border-blue-300 hover:bg-gray-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <GraduationCap className={`w-4 h-4 flex-shrink-0 ${selectedProgramId === program.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} />
-                    <span className={`font-medium text-sm ${selectedProgramId === program.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                      {program.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {showProgramPicker ? (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-gray-400">Programme</p>
+              {loadingPrograms ? (
+                <div className="flex items-center justify-center py-4 text-gray-400 dark:text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {programs.map((program) => (
+                    <button
+                      key={program.id}
+                      onClick={() => setSelectedProgramId(program.id)}
+                      className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border-2 text-left transition-all ${
+                        selectedProgramId === program.id
+                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-500/10'
+                          : 'border-gray-200 dark:border-white/10 hover:border-blue-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      <GraduationCap className={`w-4 h-4 flex-shrink-0 ${selectedProgramId === program.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                      <span className={`font-medium text-sm ${selectedProgramId === program.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {program.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.03]">
+              <GraduationCap className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {programs.find(p => p.id === user?.program_id)?.name ?? user?.program ?? 'Your program'}
+              </span>
+            </div>
+          )}
 
           {/* Level Grid — 4 columns */}
           <div>

@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/components/providers';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
-import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy } from 'lucide-react';
+import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy, Layers, Hash, ChevronDown } from 'lucide-react';
+import type { Program } from '@/types';
+
+const OTHER_PROGRAM_VALUE = '__other__';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,6 +23,24 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Program + student ID — collected here instead of a separate
+  // post-signup onboarding step, to cut the number of steps between
+  // "create an account" and "see your courses" down to one.
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [selectedProgram, setSelectedProgram] = useState('');
+  const [customProgram, setCustomProgram] = useState('');
+  const [studentId, setStudentId] = useState('');
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('programs').select('*').order('name')
+      .then(({ data }: { data: Program[] | null }) => {
+        setPrograms(data ?? []);
+        setLoadingPrograms(false);
+      });
+  }, []);
 
   // Already logged in — go to dashboard
   useEffect(() => {
@@ -45,9 +67,22 @@ export default function RegisterPage() {
       setError('Passwords do not match.');
       return;
     }
+    if (!selectedProgram) {
+      setError('Please select your program.');
+      return;
+    }
+    if (selectedProgram === OTHER_PROGRAM_VALUE && !customProgram.trim()) {
+      setError('Please type your program name.');
+      return;
+    }
 
     setSubmitting(true);
-    const result = await signUp(email, password, fullName, referralCode.trim() || undefined);
+    const result = await signUp(email, password, fullName, {
+      referralCode: referralCode.trim() || undefined,
+      studentId: studentId.trim() || undefined,
+      programId: selectedProgram !== OTHER_PROGRAM_VALUE ? selectedProgram : undefined,
+      customProgram: selectedProgram === OTHER_PROGRAM_VALUE ? customProgram.trim() : undefined,
+    });
     if (result.error) {
       setError(result.error);
       setSubmitting(false);
@@ -154,6 +189,56 @@ export default function RegisterPage() {
                     placeholder="you@university.edu"
                     required
                     autoComplete="email"
+                    className="w-full pl-10 pr-4 py-2.5 text-base border border-[#e8dcc8] rounded-xl bg-white text-[#2b2420] placeholder:text-[#c2b5a0] transition-colors focus:outline-none focus:ring-2 focus:ring-[#e8603c] focus:border-[#e8603c]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2b2420] mb-1.5">Program</label>
+                <div className="relative">
+                  <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#a89a86] pointer-events-none" />
+                  <select
+                    value={selectedProgram}
+                    onChange={(e) => setSelectedProgram(e.target.value)}
+                    required
+                    disabled={loadingPrograms}
+                    className="w-full pl-10 pr-4 py-2.5 text-base border border-[#e8dcc8] rounded-xl bg-white text-[#2b2420] appearance-none transition-colors focus:outline-none focus:ring-2 focus:ring-[#e8603c] focus:border-[#e8603c] disabled:opacity-60"
+                  >
+                    <option value="" disabled>{loadingPrograms ? 'Loading programs…' : 'Select your program'}</option>
+                    {programs.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                    <option value={OTHER_PROGRAM_VALUE}>Other — not listed</option>
+                  </select>
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#a89a86] pointer-events-none" />
+                </div>
+                {selectedProgram === OTHER_PROGRAM_VALUE && (
+                  <input
+                    type="text"
+                    value={customProgram}
+                    onChange={(e) => setCustomProgram(e.target.value)}
+                    placeholder="Type your program name"
+                    required
+                    className="w-full mt-2 px-4 py-2.5 text-base border border-[#e8dcc8] rounded-xl bg-white text-[#2b2420] placeholder:text-[#c2b5a0] transition-colors focus:outline-none focus:ring-2 focus:ring-[#e8603c] focus:border-[#e8603c]"
+                  />
+                )}
+                {selectedProgram === OTHER_PROGRAM_VALUE && (
+                  <p className="text-xs text-[#a89a86] mt-1.5">
+                    We&apos;ll set this up and unlock your courses once we add your program — you can still finish creating your account now.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2b2420] mb-1.5">Student ID <span className="font-normal text-[#a89a86]">(optional)</span></label>
+                <div className="relative">
+                  <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#a89a86]" />
+                  <input
+                    type="text"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                    placeholder="e.g. 10912233"
                     className="w-full pl-10 pr-4 py-2.5 text-base border border-[#e8dcc8] rounded-xl bg-white text-[#2b2420] placeholder:text-[#c2b5a0] transition-colors focus:outline-none focus:ring-2 focus:ring-[#e8603c] focus:border-[#e8603c]"
                   />
                 </div>

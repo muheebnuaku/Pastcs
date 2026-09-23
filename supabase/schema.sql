@@ -56,6 +56,14 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS referred_by       UUID REFEREN
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS exam_date         DATE;
 -- Which program's courses this student sees — see PROGRAMS section below.
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program_id        UUID REFERENCES public.programs(id);
+-- Admin-set — a suspended account is treated as "not found" at login,
+-- deliberately vague so it never confirms to whoever's logging in that
+-- this specific account was flagged.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_suspended      BOOLEAN NOT NULL DEFAULT false;
+-- Captured once at signup so an admin can spot several accounts
+-- registered from the same IP (the "one free course per fake account"
+-- abuse pattern).
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS registration_ip   TEXT;
 
 -- View alias used throughout the app. IMPORTANT: `SELECT *` freezes the
 -- view's column list at CREATE time — adding a column to `users` later
@@ -511,8 +519,10 @@ CREATE POLICY "users_insert_own"        ON public.users FOR INSERT WITH CHECK (a
 CREATE POLICY "users_update_own"        ON public.users FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "admins_select_all_users" ON public.users FOR SELECT USING (is_admin());
 
--- Programs
-CREATE POLICY "programs_select" ON public.programs FOR SELECT TO authenticated USING (true);
+-- Programs — readable by anyone, including a not-yet-authenticated
+-- browser session, since the registration page lets a new student pick
+-- their program during signup itself (name/short_code is non-sensitive).
+CREATE POLICY "programs_select" ON public.programs FOR SELECT USING (true);
 CREATE POLICY "programs_admin"  ON public.programs FOR ALL USING (is_admin());
 
 -- Course <-> Program assignments
@@ -646,14 +656,21 @@ BEGIN
     SELECT id INTO referrer FROM public.users WHERE referral_code = UPPER(TRIM(ref_input));
   END IF;
 
-  INSERT INTO public.users (id, email, full_name, role, referral_code, referred_by)
+  INSERT INTO public.users (
+    id, email, full_name, role, referral_code, referred_by,
+    student_id, program_id, program, registration_ip
+  )
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'role', 'student'),
     new_code,
-    referrer
+    referrer,
+    NEW.raw_user_meta_data->>'student_id',
+    NULLIF(NEW.raw_user_meta_data->>'program_id', '')::UUID,
+    NEW.raw_user_meta_data->>'program',
+    NEW.raw_user_meta_data->>'registration_ip'
   )
   ON CONFLICT (id) DO NOTHING;
 
@@ -665,10 +682,11 @@ BEGIN
 
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
-  -- Referral bookkeeping is a nice-to-have; account creation is not.
-  -- Log the real reason (visible in Postgres Logs) and fall back to
-  -- exactly the pre-referral insert so signup always succeeds.
-  RAISE WARNING 'handle_new_user: referral logic failed (%), falling back to minimal insert', SQLERRM;
+  -- Referral bookkeeping (and the registration-form fields above) are a
+  -- nice-to-have; account creation is not. Log the real reason (visible
+  -- in Postgres Logs) and fall back to exactly the minimal insert so
+  -- signup always succeeds even if e.g. program_id doesn't parse as a UUID.
+  RAISE WARNING 'handle_new_user: extended insert failed (%), falling back to minimal insert', SQLERRM;
   INSERT INTO public.users (id, email, full_name, role)
   VALUES (
     NEW.id,
