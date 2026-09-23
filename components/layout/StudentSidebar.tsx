@@ -9,6 +9,7 @@ import { Avatar } from '@/components/ui';
 import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { useAuth } from '@/components/providers';
 import { useNotifications } from '@/lib/hooks/useNotifications';
+import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessages';
 import {
   Home,
   BookOpen,
@@ -23,12 +24,14 @@ import {
   Sparkles,
   Bell,
   Trash2,
+  MessageSquare,
 } from 'lucide-react';
 
 const studentNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/courses', label: 'Courses', icon: BookOpen },
   { href: '/assistant', label: 'AI Tutor', icon: BotMessageSquare },
+  { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/achievements', label: 'Achievements', icon: GraduationCap },
   { href: '/profile', label: 'Profile', icon: User },
@@ -44,6 +47,7 @@ export function StudentSidebar() {
   const [showNotifs, setShowNotifs] = useState(false);
 
   const { notifications, unreadCount, markAllRead, dismiss } = useNotifications(user?.id);
+  const unreadMessages = useUnreadMessageCount(user?.id, pathname);
 
   const handleSignOut = async () => {
     await signOut().catch(() => {});
@@ -123,21 +127,30 @@ export function StudentSidebar() {
               <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-5">No notifications</p>
             ) : (
               <div className="divide-y divide-gray-50 dark:divide-white/5">
-                {notifications.map(n => (
-                  <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 ${!n.is_read ? 'bg-[#fde3da]/60 dark:bg-[#e8603c]/10' : ''}`}>
+                {notifications.map(n => {
+                  const content = (
                     <div className="flex-1 min-w-0">
                       {n.type === 'admin_message' && (
                         <p className="text-[10px] font-semibold text-[#e8603c] uppercase tracking-wide mb-0.5">
-                          Message from PastCS
+                          Message from PastCS — tap to open
                         </p>
                       )}
                       <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{n.message}</p>
                     </div>
-                    <button onClick={() => dismiss(n.id)} className="flex-shrink-0 mt-0.5 text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                  return (
+                    <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 ${!n.is_read ? 'bg-[#fde3da]/60 dark:bg-[#e8603c]/10' : ''}`}>
+                      {n.type === 'admin_message' ? (
+                        <Link href="/messages" onClick={() => { setShowNotifs(false); setIsOpen(false); }} className="flex-1 min-w-0">
+                          {content}
+                        </Link>
+                      ) : content}
+                      <button onClick={() => dismiss(n.id)} className="flex-shrink-0 mt-0.5 text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -171,7 +184,12 @@ export function StudentSidebar() {
                 )}
               >
                 <item.icon className={cn('w-4.5 h-4.5 flex-shrink-0', isActive ? 'text-[#e8603c]' : 'text-gray-400 dark:text-gray-500')} style={{ width: '1.125rem', height: '1.125rem' }} />
-                <span className="font-medium text-sm">{item.label}</span>
+                <span className="font-medium text-sm flex-1">{item.label}</span>
+                {item.href === '/messages' && unreadMessages > 0 && (
+                  <span className="w-4.5 h-4.5 min-w-[1.125rem] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
               </Link>
             );
           })}

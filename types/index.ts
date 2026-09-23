@@ -34,6 +34,15 @@ export interface User {
   updated_at: string;
 }
 
+export interface AdminMessage {
+  id: string;
+  user_id: string;
+  sender_id: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface Program {
   id: string;
   name: string;

@@ -423,6 +423,26 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON public.admin_audit_
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- ADMIN MESSAGES TABLE
+-- Two-way thread between an admin and an individual student. user_id
+-- names whose thread a row belongs to; sender_id is whoever wrote it
+-- (the student or an admin) — comparing the two gives direction
+-- without a separate flag that could drift.
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.admin_messages (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  sender_id  UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  is_read    BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_messages_user ON public.admin_messages(user_id, created_at);
+
+ALTER TABLE public.admin_messages ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- REVIEW SCHEDULE TABLE
 -- Light SM-2-style spaced repetition. One row per (user, question)
 -- ever answered. On a wrong answer the interval resets to 1 day; on a
@@ -622,6 +642,18 @@ CREATE POLICY "ai_usage_log_admin_select" ON public.ai_usage_log FOR SELECT USIN
 -- bypass RLS and pass actor_id explicitly. Only super admins can read it.)
 CREATE POLICY "admin_audit_log_admin_insert" ON public.admin_audit_log FOR INSERT WITH CHECK (is_admin());
 CREATE POLICY "admin_audit_log_super_admin_select" ON public.admin_audit_log FOR SELECT USING (is_super_admin());
+
+-- Admin messages (same shape as semester_end_dates, above — added after
+-- the central idempotent-drop table list, so each policy drops itself
+-- first). A student reads/replies in their own thread only; admin
+-- reads/writes go through the service-role API route (bypasses RLS).
+DROP POLICY IF EXISTS "admin_messages_select_own" ON public.admin_messages;
+CREATE POLICY "admin_messages_select_own" ON public.admin_messages FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "admin_messages_insert_own" ON public.admin_messages;
+CREATE POLICY "admin_messages_insert_own" ON public.admin_messages FOR INSERT
+  WITH CHECK (auth.uid() = user_id AND auth.uid() = sender_id);
+DROP POLICY IF EXISTS "admin_messages_update_own" ON public.admin_messages;
+CREATE POLICY "admin_messages_update_own" ON public.admin_messages FOR UPDATE USING (auth.uid() = user_id);
 
 -- Review schedule (fully owned by the student — no reward/abuse risk
 -- like the referral free-passes, so the regular authenticated client
