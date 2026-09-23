@@ -9,6 +9,7 @@ import { formatPercentage } from '@/lib/utils';
 import { useSpeech, VOICE_PREF_KEY } from '@/lib/hooks/useSpeech';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { AvatarUpload } from './components/AvatarUpload';
+import type { Program } from '@/types';
 import {
   User,
   Mail,
@@ -30,7 +31,11 @@ import {
   Sun,
   Moon,
   Monitor,
+  Layers,
+  ChevronDown,
 } from 'lucide-react';
+
+const OTHER_PROGRAM_VALUE = '__other__';
 
 interface UserStats {
   totalTests: number;
@@ -44,7 +49,10 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [program, setProgram] = useState('');
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
+  const [customProgram, setCustomProgram] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -139,12 +147,22 @@ export default function ProfilePage() {
     if (user) {
       setFullName(user.full_name || '');
       setStudentId(user.student_id || '');
-      setProgram(user.program || '');
+      setSelectedProgramId(user.program_id || (user.program ? OTHER_PROGRAM_VALUE : ''));
+      setCustomProgram(user.program_id ? '' : (user.program || ''));
       fetchStats();
       fetchReferralStats();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('programs').select('*').order('name')
+      .then(({ data }: { data: Program[] | null }) => {
+        setPrograms(data ?? []);
+        setLoadingPrograms(false);
+      });
+  }, []);
 
   const handleSave = async () => {
     if (!user) return;
@@ -152,33 +170,22 @@ export default function ProfilePage() {
     setSaveError('');
 
     const supabase = createClient();
+    const isOther = selectedProgramId === OTHER_PROGRAM_VALUE;
 
-    // Save name + student ID first
-    const { error: baseError } = await supabase
+    const { error } = await supabase
       .from('users')
-      .update({ full_name: fullName, student_id: studentId })
+      .update({
+        full_name: fullName,
+        student_id: studentId,
+        program_id: isOther || !selectedProgramId ? null : selectedProgramId,
+        program: isOther ? (customProgram.trim() || null) : null,
+      })
       .eq('id', user.id);
 
-    if (baseError) {
-      setSaveError(baseError.message);
+    if (error) {
+      setSaveError(error.message);
       setIsSaving(false);
       return;
-    }
-
-    // Save program separately (column may not exist yet in DB)
-    if (program !== (user.program || '')) {
-      const { error: progError } = await supabase
-        .from('users')
-        .update({ program: program || null })
-        .eq('id', user.id);
-
-      if (progError) {
-        setSaveError('Programme not saved — please run the SQL migration in Supabase: ALTER TABLE public.users ADD COLUMN IF NOT EXISTS program TEXT;');
-        await refreshUser();
-        setIsEditing(false);
-        setIsSaving(false);
-        return;
-      }
     }
 
     await refreshUser();
@@ -219,13 +226,17 @@ export default function ProfilePage() {
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">My Profile</h1>
 
       {/* Program missing banner */}
-      {user && !user.program && (
+      {user && !user.program_id && (
         <div className="rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-amber-900 dark:text-amber-300 text-sm">Please update your program</p>
+            <p className="font-semibold text-amber-900 dark:text-amber-300 text-sm">
+              {user.program ? `${user.program} isn't set up yet` : 'Please set your program'}
+            </p>
             <p className="text-amber-700 dark:text-amber-400 text-sm mt-0.5">
-              Tell us which programme you&apos;re enrolled in so we can personalise your experience. Click <strong>Edit</strong> below to set it.
+              {user.program
+                ? "We'll unlock your courses once we add it — check back soon, or pick a listed program below if this was a mistake."
+                : <>Tell us which programme you&apos;re enrolled in so we can personalise your experience. Click <strong>Edit</strong> below to set it.</>}
             </p>
           </div>
         </div>
@@ -266,7 +277,8 @@ export default function ProfilePage() {
                         setIsEditing(false);
                         setFullName(user?.full_name || '');
                         setStudentId(user?.student_id || '');
-                        setProgram(user?.program || '');
+                        setSelectedProgramId(user?.program_id || (user?.program ? OTHER_PROGRAM_VALUE : ''));
+                        setCustomProgram(user?.program_id ? '' : (user?.program || ''));
                       }}
                     >
                       <X className="w-4 h-4" />
@@ -320,12 +332,37 @@ export default function ProfilePage() {
                     onChange={(e) => setStudentId(e.target.value)}
                     placeholder="Enter your student ID"
                   />
-                  <Input
-                    label="Programme"
-                    value={program}
-                    onChange={(e) => setProgram(e.target.value)}
-                    placeholder="e.g. BSc Computer Science"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Programme</label>
+                    <div className="relative">
+                      <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                      <select
+                        value={selectedProgramId}
+                        onChange={(e) => setSelectedProgramId(e.target.value)}
+                        disabled={loadingPrograms}
+                        className="w-full appearance-none pl-9 pr-9 py-2.5 text-sm border border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e8603c]"
+                      >
+                        <option value="">Select your programme…</option>
+                        {programs.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                        <option value={OTHER_PROGRAM_VALUE}>Other — not listed</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                    </div>
+                    {selectedProgramId === OTHER_PROGRAM_VALUE && (
+                      <div className="mt-2 space-y-1">
+                        <Input
+                          value={customProgram}
+                          onChange={(e) => setCustomProgram(e.target.value)}
+                          placeholder="Type your programme name"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          We&apos;ll set this up and unlock your courses once we add your program.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -354,8 +391,8 @@ export default function ProfilePage() {
                     <GraduationCap className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Programme</p>
-                      <p className={`font-medium ${user.program ? 'text-gray-900 dark:text-gray-100' : 'text-amber-600 dark:text-amber-400'}`}>
-                        {user.program || 'Not set — please edit'}
+                      <p className={`font-medium ${user.program_id || user.program ? 'text-gray-900 dark:text-gray-100' : 'text-amber-600 dark:text-amber-400'}`}>
+                        {programs.find(p => p.id === user.program_id)?.name ?? user.program ?? 'Not set — please edit'}
                       </p>
                     </div>
                   </div>
