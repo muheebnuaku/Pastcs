@@ -94,6 +94,7 @@ export default function AdminUsersPage() {
   const [suspending, setSuspending] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [passwordResetDone, setPasswordResetDone] = useState(false);
+  const [passwordResetFallback, setPasswordResetFallback] = useState('');
   const [actionError, setActionError] = useState('');
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -114,6 +115,7 @@ export default function AdminUsersPage() {
     setMessageError('');
     setThreadMessages([]);
     setPasswordResetDone(false);
+    setPasswordResetFallback('');
     // Default to the student's own program — that's what "grant access"
     // means for them almost every time.
     setGrantProgramId(user.program_id ?? programs[0]?.id ?? '');
@@ -349,6 +351,7 @@ export default function AdminUsersPage() {
     setResettingPassword(true);
     setActionError('');
     setPasswordResetDone(false);
+    setPasswordResetFallback('');
     const res = await fetch('/api/admin/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -357,6 +360,10 @@ export default function AdminUsersPage() {
     const json = await res.json();
     if (!res.ok) {
       setActionError(json.error ?? 'Failed to reset password');
+    } else if (json.messageDelivered === false) {
+      // Password changed, but the thread message failed — hand the admin
+      // the password directly so it isn't lost.
+      setPasswordResetFallback(json.tempPassword ?? '');
     } else {
       // The new admin_messages row arrives in threadMessages via the
       // realtime subscription above — no need to append it manually here.
@@ -802,6 +809,13 @@ export default function AdminUsersPage() {
                 <span className="text-xs text-green-600 dark:text-green-400">Sent via message thread ↓</span>
               )}
             </div>
+
+            {passwordResetFallback && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <p className="font-semibold">Password reset, but the message couldn&apos;t be delivered.</p>
+                <p>Share this temporary password with them directly: <code className="font-mono bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 rounded">{passwordResetFallback}</code></p>
+              </div>
+            )}
 
             {modalIpSiblings.length > 0 && (
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
