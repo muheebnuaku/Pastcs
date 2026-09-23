@@ -125,7 +125,14 @@ export function StudentSidebar() {
               <div className="divide-y divide-gray-50 dark:divide-white/5">
                 {notifications.map(n => (
                   <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 ${!n.is_read ? 'bg-[#fde3da]/60 dark:bg-[#e8603c]/10' : ''}`}>
-                    <p className="flex-1 text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{n.message}</p>
+                    <div className="flex-1 min-w-0">
+                      {n.type === 'admin_message' && (
+                        <p className="text-[10px] font-semibold text-[#e8603c] uppercase tracking-wide mb-0.5">
+                          Message from PastCS
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{n.message}</p>
+                    </div>
                     <button onClick={() => dismiss(n.id)} className="flex-shrink-0 mt-0.5 text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400">
                       <Trash2 className="w-3 h-3" />
                     </button>

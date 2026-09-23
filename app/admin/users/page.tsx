@@ -23,6 +23,9 @@ import {
   Ban,
   RotateCcw,
   AlertTriangle,
+  MessageSquare,
+  Send,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface UserRow extends User {
@@ -88,6 +91,10 @@ export default function AdminUsersPage() {
   const [revoking, setRevoking] = useState<string | null>(null); // subscriptionId being revoked
   const [suspending, setSuspending] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageSent, setMessageSent] = useState(false);
+  const [messageError, setMessageError] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -98,9 +105,32 @@ export default function AdminUsersPage() {
   const openManageModal = (user: UserRow) => {
     setModalUser(user);
     setActionError('');
+    setMessageText('');
+    setMessageSent(false);
+    setMessageError('');
     // Default to the student's own program — that's what "grant access"
     // means for them almost every time.
     setGrantProgramId(user.program_id ?? programs[0]?.id ?? '');
+  };
+
+  const handleSendMessage = async () => {
+    if (!modalUser || !messageText.trim()) return;
+    setSendingMessage(true);
+    setMessageError('');
+    setMessageSent(false);
+    const res = await fetch('/api/admin/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: modalUser.id, message: messageText.trim() }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setMessageError(json.error ?? 'Failed to send message');
+    } else {
+      setMessageText('');
+      setMessageSent(true);
+    }
+    setSendingMessage(false);
   };
 
   const fetchUsers = useCallback(async () => {
@@ -739,6 +769,45 @@ export default function AdminUsersPage() {
               >
                 <Gift className="w-4 h-4 mr-2" />
                 {granting ? 'Granting…' : 'Grant Free Pass'}
+              </Button>
+            </div>
+
+            {/* Send message */}
+            <div className="border-t border-gray-100 pt-4 dark:border-white/10">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5 dark:text-gray-300">
+                <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                Send Message
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Delivered to their notification bell in the app.
+              </p>
+              <textarea
+                value={messageText}
+                onChange={e => { setMessageText(e.target.value); setMessageSent(false); setMessageError(''); }}
+                rows={3}
+                maxLength={500}
+                placeholder={`Message ${modalUser.full_name || modalUser.email}…`}
+                className="w-full border border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              <div className="flex items-center justify-between mt-1 mb-2">
+                <span className="text-xs text-gray-400 dark:text-gray-500">{messageText.length}/500</span>
+                {messageSent && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Sent
+                  </span>
+                )}
+              </div>
+              {messageError && (
+                <p className="text-sm text-red-600 dark:text-red-400 mb-2">{messageError}</p>
+              )}
+              <Button
+                className="w-full"
+                onClick={handleSendMessage}
+                disabled={sendingMessage || !messageText.trim()}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {sendingMessage ? 'Sending…' : 'Send Message'}
               </Button>
             </div>
           </div>
