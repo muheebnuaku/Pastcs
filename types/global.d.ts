@@ -51,11 +51,18 @@ declare module '@supabase/ssr' {
     exchangeCodeForSession(code: string): Promise<{ error: any }>;
   }
 
+  interface RealtimeChannel {
+    on(event: string, filter: any, callback: (payload: any) => void): RealtimeChannel;
+    subscribe(callback?: (status: string) => void): RealtimeChannel;
+  }
+
   interface SupabaseClient {
     auth: SupabaseAuthClient;
     from(table: string): any;
     rpc(fn: string, params?: any): any;
     storage: any;
+    channel(name: string): RealtimeChannel;
+    removeChannel(channel: RealtimeChannel): void;
   }
   
   export function createBrowserClient(

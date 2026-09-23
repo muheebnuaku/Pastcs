@@ -77,6 +77,8 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [freePassOnly, setFreePassOnly] = useState(false);
   const [sharedIpOnly, setSharedIpOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [unreadReplyUserIds, setUnreadReplyUserIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -117,7 +119,41 @@ export default function AdminUsersPage() {
       .then(res => res.json())
       .then(json => setThreadMessages(json.messages ?? []))
       .finally(() => setLoadingThread(false));
+
+    // The GET above marks the student's messages read server-side —
+    // reflect that immediately instead of waiting on the next full
+    // fetchUsers() to clear their "unread reply" badge.
+    setUnreadReplyUserIds(prev => {
+      if (!prev.has(user.id)) return prev;
+      const next = new Set(prev);
+      next.delete(user.id);
+      return next;
+    });
   };
+
+  // Live updates while the modal is open — without this, a reply the
+  // student sends mid-conversation doesn't appear until the modal is
+  // closed and reopened.
+  useEffect(() => {
+    if (!modalUser) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`admin_messages_admin:${modalUser.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_messages', filter: `user_id=eq.${modalUser.id}` },
+        (payload) => {
+          const incoming = payload.new as AdminMessage;
+          setThreadMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
+          if (incoming.sender_id === modalUser.id) {
+            supabase.from('admin_messages').update({ is_read: true }).eq('id', incoming.id);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [modalUser]);
 
   const handleSendMessage = async () => {
     if (!modalUser || !messageText.trim()) return;
@@ -142,7 +178,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     const res = await fetch('/api/admin/users');
     if (res.ok) {
-      const { users: rawUsers, subscriptions, lastActive } = await res.json();
+      const { users: rawUsers, subscriptions, lastActive, unreadReplyUserIds: unreadIds } = await res.json();
 
       // Build subscriptions map
       const map: Record<string, Subscription[]> = {};
@@ -152,6 +188,7 @@ export default function AdminUsersPage() {
       }
       setSubsMap(map);
       setLastActiveMap(lastActive ?? {});
+      setUnreadReplyUserIds(new Set(unreadIds ?? []));
 
       setUsers(rawUsers.map((u: User) => ({
         ...u,
@@ -163,6 +200,30 @@ export default function AdminUsersPage() {
   }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // Live "new reply" badge/stat while just browsing the list — without
+  // this an admin only finds out about a reply on the next full
+  // fetchUsers() (page load or after some other action). Postgres
+  // realtime filters can't express "sender_id = user_id" (cross-column),
+  // so this listens to every insert and checks that client-side; message
+  // volume here is low (support messages, not a busy chat).
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('admin_messages_list')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_messages' },
+        (payload) => {
+          const row = payload.new as { user_id: string; sender_id: string };
+          if (row.sender_id !== row.user_id) return; // an admin's own message, not a reply
+          setUnreadReplyUserIds(prev => new Set(prev).add(row.user_id));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // Accounts that share a registration IP with at least one other account —
   // the concrete, checkable signal behind "someone made several fake
@@ -186,12 +247,14 @@ export default function AdminUsersPage() {
     admins: users.filter(u => isAdminRole(u.role)).length,
     freePasses: Object.values(subsMap).flat().filter(isFreePass).length,
     sharedIp: sharedIpUserIds.size,
-  }), [users, subsMap, sharedIpUserIds]);
+    unreadReplies: unreadReplyUserIds.size,
+  }), [users, subsMap, sharedIpUserIds, unreadReplyUserIds]);
 
   const filteredUsers = users
     .filter(u => roleFilter === 'all' || (roleFilter === 'admin' ? isAdminRole(u.role) : u.role === roleFilter))
     .filter(u => !freePassOnly || (subsMap[u.id] ?? []).some(isFreePass))
     .filter(u => !sharedIpOnly || sharedIpUserIds.has(u.id))
+    .filter(u => !unreadOnly || unreadReplyUserIds.has(u.id))
     .filter(u =>
       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -311,10 +374,10 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Stat summary — each is a filter shortcut into the table below */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <button
-          onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly && !sharedIpOnly ? 'ring-2 ring-gray-300 dark:ring-white/20' : ''}`}
+          onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-gray-300 dark:ring-white/20' : ''}`}
         >
           <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
             <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0 dark:bg-white/10">
@@ -327,8 +390,8 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setRoleFilter('student'); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'student' && !freePassOnly && !sharedIpOnly ? 'ring-2 ring-blue-300 dark:ring-blue-500/40' : ''}`}
+          onClick={() => { setRoleFilter('student'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'student' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-blue-300 dark:ring-blue-500/40' : ''}`}
         >
           <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center flex-shrink-0">
@@ -341,8 +404,8 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setRoleFilter('admin'); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'admin' && !freePassOnly && !sharedIpOnly ? 'ring-2 ring-purple-300 dark:ring-purple-500/40' : ''}`}
+          onClick={() => { setRoleFilter('admin'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'admin' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-purple-300 dark:ring-purple-500/40' : ''}`}
         >
           <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
             <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/15 flex items-center justify-center flex-shrink-0">
@@ -355,7 +418,7 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setFreePassOnly(v => !v); setSharedIpOnly(false); setCurrentPage(1); }}
+          onClick={() => { setFreePassOnly(v => !v); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
           className={`text-left rounded-xl transition-shadow ${freePassOnly ? 'ring-2 ring-green-400 dark:ring-green-500/40' : ''}`}
           title="Show only users with an active free pass"
         >
@@ -370,7 +433,7 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setSharedIpOnly(v => !v); setFreePassOnly(false); setCurrentPage(1); }}
+          onClick={() => { setSharedIpOnly(v => !v); setFreePassOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
           className={`text-left rounded-xl transition-shadow ${sharedIpOnly ? 'ring-2 ring-amber-400 dark:ring-amber-500/40' : ''}`}
           title="Accounts registered from the same IP as at least one other account"
         >
@@ -381,6 +444,21 @@ export default function AdminUsersPage() {
             <div>
               <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.sharedIp}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{sharedIpOnly ? 'Showing shared IPs' : 'Shared IP w/ another account'}</p>
+            </div>
+          </Card>
+        </button>
+        <button
+          onClick={() => { setUnreadOnly(v => !v); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${unreadOnly ? 'ring-2 ring-blue-400 dark:ring-blue-500/40' : ''}`}
+          title="Students who replied and are waiting on you"
+        >
+          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.unreadReplies}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{unreadOnly ? 'Showing unread replies' : 'Unread replies'}</p>
             </div>
           </Card>
         </button>
@@ -401,6 +479,16 @@ export default function AdminUsersPage() {
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           Showing accounts that share a registration IP with at least one other account — not proof of abuse on its own (a shared campus/home network is common and innocent), just worth a manual look, especially if each has claimed a different free course.
           <button onClick={() => setSharedIpOnly(false)} className="ml-auto text-amber-800 dark:text-amber-300 font-medium hover:underline flex-shrink-0">
+            Clear
+          </button>
+        </div>
+      )}
+
+      {unreadOnly && (
+        <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-2.5">
+          <MessageSquare className="w-4 h-4 flex-shrink-0" />
+          Showing students who&apos;ve replied and are waiting on a response.
+          <button onClick={() => setUnreadOnly(false)} className="ml-auto text-blue-800 dark:text-blue-300 font-medium hover:underline flex-shrink-0">
             Clear
           </button>
         </div>
@@ -498,6 +586,12 @@ export default function AdminUsersPage() {
                               <Badge variant="warning" size="sm" title="Shares a registration IP with another account">
                                 <AlertTriangle className="w-3 h-3 mr-1" />
                                 Shared IP
+                              </Badge>
+                            )}
+                            {unreadReplyUserIds.has(user.id) && (
+                              <Badge variant="info" size="sm" title="Replied — waiting on a response">
+                                <MessageSquare className="w-3 h-3 mr-1" />
+                                New reply
                               </Badge>
                             )}
                           </div>
