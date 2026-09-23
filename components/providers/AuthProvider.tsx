@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useCallback } from 'react';
+import { createContext, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore, useSubscriptionStore } from '@/lib/store';
@@ -39,6 +39,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, setUser, isLoading, setLoading } = useAuthStore();
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  // signInWithPassword's own success triggers a SIGNED_IN auth-state
+  // event, which the onAuthStateChange listener below ALSO handles
+  // (needed for the "already logged-in session gets suspended
+  // mid-use" case). Both signIn() and that listener independently call
+  // fetchOrCreateUser() + check is_suspended for the exact same event —
+  // a real race: whichever finishes first "wins", and the listener
+  // signing the session back out mid-flight could make signIn()'s own
+  // getSession() call come back empty, silently skipping its
+  // suspension check and returning success. This flag makes signIn()
+  // the sole authority while it's actively running; the listener still
+  // covers every other case (page load, token refresh, another tab).
+  const isSigningInRef = useRef(false);
 
   const fetchOrCreateUser = useCallback(
     async (authUser: { id: string; email?: string; user_metadata?: Record<string, string> }) => {
@@ -121,6 +133,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
+          // signIn() below is already handling this exact sign-in
+          // (including its own suspension check) — deferring here
+          // avoids the race described above.
+          if (isSigningInRef.current) return;
           const current = useAuthStore.getState().user;
           if (!current || current.id !== session.user.id) {
             setLoading(true);
@@ -168,65 +184,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    isSigningInRef.current = true;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      setLoading(false);
-      return { error: error.message };
-    }
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const userData = await fetchOrCreateUser(session.user);
-      if (userData?.is_suspended) {
-        await supabase.auth.signOut();
-        setLoading(false);
-        return { error: SUSPENDED_MESSAGE };
+      if (error) {
+        return { error: error.message };
       }
-      setUser(userData);
-      if (userData) await fetchSubscriptions(userData.id);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const userData = await fetchOrCreateUser(session.user);
+        if (userData?.is_suspended) {
+          await supabase.auth.signOut();
+          return { error: SUSPENDED_MESSAGE };
+        }
+        setUser(userData);
+        if (userData) await fetchSubscriptions(userData.id);
+      }
+      return {};
+    } finally {
+      isSigningInRef.current = false;
+      setLoading(false);
     }
-    setLoading(false);
-    return {};
   };
 
   const signUp = async (email: string, password: string, fullName: string, options?: SignUpOptions) => {
     setLoading(true);
+    // Same reasoning as signIn() — the signInWithPassword call below
+    // fires its own SIGNED_IN event that the listener would otherwise
+    // also handle, duplicating the fetchOrCreateUser/fetchSubscriptions
+    // work for the exact same sign-in.
+    isSigningInRef.current = true;
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+          referralCode: options?.referralCode,
+          studentId: options?.studentId,
+          programId: options?.programId,
+          customProgram: options?.customProgram,
+        }),
+      });
 
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        password,
-        fullName,
-        referralCode: options?.referralCode,
-        studentId: options?.studentId,
-        programId: options?.programId,
-        customProgram: options?.customProgram,
-      }),
-    });
+      const resData = await res.json();
+      if (!res.ok) {
+        return { error: resData.error ?? 'Registration failed' };
+      }
 
-    const resData = await res.json();
-    if (!res.ok) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        return { error: signInError.message };
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const userData = await fetchOrCreateUser(session.user);
+        setUser(userData);
+        useSubscriptionStore.getState().setSubscriptions([]);
+      }
+      return {};
+    } finally {
+      isSigningInRef.current = false;
       setLoading(false);
-      return { error: resData.error ?? 'Registration failed' };
     }
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) {
-      setLoading(false);
-      return { error: signInError.message };
-    }
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const userData = await fetchOrCreateUser(session.user);
-      setUser(userData);
-      useSubscriptionStore.getState().setSubscriptions([]);
-    }
-    setLoading(false);
-    return {};
   };
 
   const signOut = async () => {
