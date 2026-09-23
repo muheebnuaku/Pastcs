@@ -12,10 +12,9 @@ import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
-import type { Course, Test, WeakTopic, UserAchievement } from '@/types';
+import type { Course, Test, WeakTopic } from '@/types';
 import {
   Flame,
-  Trophy,
   Target,
   BookOpen,
   ArrowRight,
@@ -49,7 +48,6 @@ export default function DashboardPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [recentTests, setRecentTests] = useState<Test[]>([]);
   const [weakTopics, setWeakTopics] = useState<WeakTopic[]>([]);
-  const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState({ totalTests: 0, avgScore: 0, coursesCount: 0 });
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -108,13 +106,6 @@ export default function DashboardPage() {
       const { data: weakTopicsData } = await supabase
         .rpc('get_weak_topics', { p_user_id: user?.id, p_limit: 5 });
 
-      const { data: achievementsData } = await supabase
-        .from('user_achievements')
-        .select('*, achievement:achievements(*)')
-        .eq('user_id', user?.id)
-        .order('earned_at', { ascending: false })
-        .limit(4);
-
       const { data: statsData } = await supabase
         .from('tests')
         .select('score, percentage, course_id')
@@ -123,7 +114,6 @@ export default function DashboardPage() {
       if (coursesData) setCourses(coursesData);
       if (testsData) setRecentTests(testsData);
       if (weakTopicsData) setWeakTopics(weakTopicsData);
-      if (achievementsData) setAchievements(achievementsData);
 
       if (statsData) {
         // Scoped to the current level/semester's courses — otherwise a
@@ -304,8 +294,8 @@ export default function DashboardPage() {
 
       {/* ── Main grid: Courses + Sidebar ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
-        {/* Courses list */}
-        <div className="lg:col-span-2">
+        {/* Courses list + Recent Tests */}
+        <div className="lg:col-span-2 space-y-5 sm:space-y-6">
           <Card>
             <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base">
@@ -350,6 +340,100 @@ export default function DashboardPage() {
                 );
               })}
             </CardContent>
+          </Card>
+
+          {/* ── Recent Tests ── */}
+          <Card>
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-white/10">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base">Recent Tests</h2>
+            </div>
+
+            {recentTests.length === 0 ? (
+              <div className="px-4 py-10 text-center text-gray-500 dark:text-gray-400 text-sm">
+                No tests taken yet — start practising to see your results here!
+              </div>
+            ) : (
+              <>
+                {/* Mobile: card list */}
+                <div className="divide-y divide-gray-100 dark:divide-white/10 md:hidden">
+                  {recentTests.map((test) => (
+                    <div key={test.id} className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{test.course?.course_code}</span>
+                          <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'} size="sm">
+                            {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
+                          </Badge>
+                        </div>
+                        <span className={`text-sm font-semibold ${
+                          test.percentage >= 70 ? 'text-green-600 dark:text-green-400'
+                          : test.percentage >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {formatPercentage(test.percentage)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          {test.score}/{test.total_questions} &middot; {new Date(test.created_at).toLocaleDateString()}
+                        </span>
+                        <Link href={`/results/${test.id}`} className="text-xs text-[#e8603c] hover:underline font-medium">
+                          View Details
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop: table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-white/[0.03]">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Course</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Score</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-white/10">
+                      {recentTests.map((test) => (
+                        <tr key={test.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.03]">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xl">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">{test.course?.course_code}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'}>
+                              {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`font-semibold ${
+                              test.percentage >= 70 ? 'text-green-600 dark:text-green-400'
+                              : test.percentage >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {test.score}/{test.total_questions} ({formatPercentage(test.percentage)})
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
+                            {new Date(test.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <Link href={`/results/${test.id}`} className="text-[#e8603c] hover:underline text-sm">
+                              View Details
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </Card>
         </div>
 
@@ -503,143 +587,8 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
-
-          {/* Achievements */}
-          <Card>
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-white/10">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-yellow-500" />
-                Achievements
-              </h2>
-            </div>
-            <CardContent className="px-3 sm:px-6">
-              {achievements.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  {achievements.map((ua) => (
-                    <div
-                      key={ua.id}
-                      className="p-3 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-500/10 dark:to-orange-500/10 rounded-xl text-center"
-                    >
-                      <p className="text-2xl mb-1">
-                        {ua.achievement?.icon === 'trophy' ? '🏆'
-                          : ua.achievement?.icon === 'medal' ? '🥇'
-                          : ua.achievement?.icon === 'star' ? '⭐' : '🔥'}
-                      </p>
-                      <p className="text-xs font-medium text-gray-900 dark:text-gray-100 leading-tight">
-                        {ua.achievement?.name}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                  Complete tests to earn achievements!
-                </p>
-              )}
-              <Link
-                href="/achievements"
-                className="block text-center text-xs sm:text-sm text-[#e8603c] hover:underline mt-4"
-              >
-                View All Achievements
-              </Link>
-            </CardContent>
-          </Card>
         </div>
       </div>
-
-      {/* ── Recent Tests ── */}
-      <Card>
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-white/10">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base">Recent Tests</h2>
-        </div>
-
-        {recentTests.length === 0 ? (
-          <div className="px-4 py-10 text-center text-gray-500 dark:text-gray-400 text-sm">
-            No tests taken yet — start practising to see your results here!
-          </div>
-        ) : (
-          <>
-            {/* Mobile: card list */}
-            <div className="divide-y divide-gray-100 dark:divide-white/10 md:hidden">
-              {recentTests.map((test) => (
-                <div key={test.id} className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{test.course?.course_code}</span>
-                      <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'} size="sm">
-                        {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
-                      </Badge>
-                    </div>
-                    <span className={`text-sm font-semibold ${
-                      test.percentage >= 70 ? 'text-green-600 dark:text-green-400'
-                      : test.percentage >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {formatPercentage(test.percentage)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {test.score}/{test.total_questions} &middot; {new Date(test.created_at).toLocaleDateString()}
-                    </span>
-                    <Link href={`/results/${test.id}`} className="text-xs text-[#e8603c] hover:underline font-medium">
-                      View Details
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop: table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-white/[0.03]">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Course</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Score</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-                  {recentTests.map((test) => (
-                    <tr key={test.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.03]">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{test.course?.course_code}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'}>
-                          {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`font-semibold ${
-                          test.percentage >= 70 ? 'text-green-600 dark:text-green-400'
-                          : test.percentage >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {test.score}/{test.total_questions} ({formatPercentage(test.percentage)})
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                        {new Date(test.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <Link href={`/results/${test.id}`} className="text-[#e8603c] hover:underline text-sm">
-                          View Details
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </Card>
     </div>
   );
 }
