@@ -38,6 +38,25 @@ export default function MessagesPage() {
         .eq('is_read', false);
     };
     load();
+
+    // Without this, a message either side sends while this page is open
+    // only shows up after a navigate-away-and-back or a manual refresh.
+    const channel = supabase
+      .channel(`admin_messages:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_messages', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const incoming = payload.new as AdminMessage;
+          setMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
+          if (incoming.sender_id !== user.id) {
+            supabase.from('admin_messages').update({ is_read: true }).eq('id', incoming.id);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   useEffect(() => {

@@ -654,6 +654,24 @@ CREATE POLICY "admin_messages_insert_own" ON public.admin_messages FOR INSERT
   WITH CHECK (auth.uid() = user_id AND auth.uid() = sender_id);
 DROP POLICY IF EXISTS "admin_messages_update_own" ON public.admin_messages;
 CREATE POLICY "admin_messages_update_own" ON public.admin_messages FOR UPDATE USING (auth.uid() = user_id);
+-- An admin viewing a student's thread live (realtime subscription, not
+-- just the service-role API route) needs to read it via the plain
+-- client too — authorized the same way admins_select_all_users is.
+DROP POLICY IF EXISTS "admin_messages_admin_select" ON public.admin_messages;
+CREATE POLICY "admin_messages_admin_select" ON public.admin_messages FOR SELECT USING (is_admin());
+
+-- Live updates for admin_messages — without this, a message sent while
+-- the other side has the page/modal open doesn't appear until they
+-- navigate away and back.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'admin_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.admin_messages;
+  END IF;
+END $$;
 
 -- Review schedule (fully owned by the student — no reward/abuse risk
 -- like the referral free-passes, so the regular authenticated client

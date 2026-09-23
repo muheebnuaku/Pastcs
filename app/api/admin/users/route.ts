@@ -23,11 +23,21 @@ export async function GET() {
 
   const userIds = (users ?? []).map((s: { id: string }) => s.id);
 
-  const [{ data: subscriptions }, { data: recentTests }, { data: recentEvents }] = await Promise.all([
+  const [{ data: subscriptions }, { data: recentTests }, { data: recentEvents }, { data: unreadMsgs }] = await Promise.all([
     supabaseAdmin.from('subscriptions').select('*').in('user_id', userIds).eq('status', 'active'),
     supabaseAdmin.from('tests').select('user_id, completed_at').in('user_id', userIds).order('completed_at', { ascending: false }),
     supabaseAdmin.from('feature_events').select('user_id, created_at').in('user_id', userIds).order('created_at', { ascending: false }),
+    supabaseAdmin.from('admin_messages').select('user_id, sender_id').in('user_id', userIds).eq('is_read', false),
   ]);
+
+  // A message is an unread *reply* (worth an admin's attention) only when
+  // the student sent it — sender_id === user_id. An admin's own unread
+  // message (not yet opened by the student) doesn't belong here.
+  const unreadReplyUserIds = Array.from(new Set(
+    (unreadMsgs ?? [])
+      .filter((m: { user_id: string; sender_id: string }) => m.sender_id === m.user_id)
+      .map((m: { user_id: string }) => m.user_id)
+  ));
 
   // Last activity = most recent of "took a test" or "used a tracked feature".
   // Each result set is already sorted newest-first, so the first row seen
@@ -48,5 +58,6 @@ export async function GET() {
     users: users ?? [],
     subscriptions: subscriptions ?? [],
     lastActive,
+    unreadReplyUserIds,
   });
 }
