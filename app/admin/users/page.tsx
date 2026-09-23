@@ -20,6 +20,9 @@ import {
   GraduationCap,
   Download,
   Clock,
+  Ban,
+  RotateCcw,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface UserRow extends User {
@@ -71,6 +74,7 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [freePassOnly, setFreePassOnly] = useState(false);
+  const [sharedIpOnly, setSharedIpOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -82,6 +86,7 @@ export default function AdminUsersPage() {
   const [grantProgramId, setGrantProgramId] = useState<string>('');
   const [granting, setGranting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null); // subscriptionId being revoked
+  const [suspending, setSuspending] = useState(false);
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
@@ -124,16 +129,34 @@ export default function AdminUsersPage() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  // Accounts that share a registration IP with at least one other account —
+  // the concrete, checkable signal behind "someone made several fake
+  // accounts to each claim a different free course." Doesn't prove abuse
+  // on its own (a shared campus/home network is common and innocent), but
+  // narrows down who's worth a manual look.
+  const sharedIpUserIds = useMemo(() => {
+    const ipCounts = new Map<string, number>();
+    for (const u of users) {
+      if (!u.registration_ip) continue;
+      ipCounts.set(u.registration_ip, (ipCounts.get(u.registration_ip) ?? 0) + 1);
+    }
+    return new Set(
+      users.filter(u => u.registration_ip && (ipCounts.get(u.registration_ip) ?? 0) > 1).map(u => u.id)
+    );
+  }, [users]);
+
   const stats = useMemo(() => ({
     total: users.length,
     students: users.filter(u => u.role === 'student').length,
     admins: users.filter(u => isAdminRole(u.role)).length,
     freePasses: Object.values(subsMap).flat().filter(isFreePass).length,
-  }), [users, subsMap]);
+    sharedIp: sharedIpUserIds.size,
+  }), [users, subsMap, sharedIpUserIds]);
 
   const filteredUsers = users
     .filter(u => roleFilter === 'all' || (roleFilter === 'admin' ? isAdminRole(u.role) : u.role === roleFilter))
     .filter(u => !freePassOnly || (subsMap[u.id] ?? []).some(isFreePass))
+    .filter(u => !sharedIpOnly || sharedIpUserIds.has(u.id))
     .filter(u =>
       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,6 +170,9 @@ export default function AdminUsersPage() {
   );
 
   const modalSubs = modalUser ? (subsMap[modalUser.id] ?? []) : [];
+  const modalIpSiblings = modalUser?.registration_ip
+    ? users.filter(u => u.id !== modalUser.id && u.registration_ip === modalUser.registration_ip)
+    : [];
 
   const handleGrantFreePass = async () => {
     if (!modalUser || !grantProgramId) return;
@@ -189,6 +215,30 @@ export default function AdminUsersPage() {
     setRevoking(null);
   };
 
+  const handleToggleSuspend = async () => {
+    if (!modalUser) return;
+    const nextSuspended = !modalUser.is_suspended;
+    if (nextSuspended && !confirm(`Suspend ${modalUser.full_name || modalUser.email}? They won't be able to sign in until reactivated — login will just show "account not found" with no explanation, so they won't know they've been flagged.`)) {
+      return;
+    }
+
+    setSuspending(true);
+    setActionError('');
+    const res = await fetch('/api/admin/users/suspend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: modalUser.id, suspended: nextSuspended }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setActionError(json.error ?? 'Failed to update suspension status');
+    } else {
+      setModalUser(prev => prev ? { ...prev, is_suspended: nextSuspended } : prev);
+      setUsers(prev => prev.map(u => u.id === modalUser.id ? { ...u, is_suspended: nextSuspended } : u));
+    }
+    setSuspending(false);
+  };
+
   const handleExportCsv = () => {
     const headers = ['Name', 'Email', 'Student ID', 'Role', 'Programme', 'Tests Taken', 'Streak', 'XP', 'Last Active'];
     const rows = filteredUsers.map(u => [
@@ -226,10 +276,10 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Stat summary — each is a filter shortcut into the table below */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <button
-          onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly ? 'ring-2 ring-gray-300 dark:ring-white/20' : ''}`}
+          onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly && !sharedIpOnly ? 'ring-2 ring-gray-300 dark:ring-white/20' : ''}`}
         >
           <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
             <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0 dark:bg-white/10">
@@ -242,8 +292,8 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setRoleFilter('student'); setFreePassOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'student' && !freePassOnly ? 'ring-2 ring-blue-300 dark:ring-blue-500/40' : ''}`}
+          onClick={() => { setRoleFilter('student'); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'student' && !freePassOnly && !sharedIpOnly ? 'ring-2 ring-blue-300 dark:ring-blue-500/40' : ''}`}
         >
           <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center flex-shrink-0">
@@ -256,8 +306,8 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setRoleFilter('admin'); setFreePassOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'admin' && !freePassOnly ? 'ring-2 ring-purple-300 dark:ring-purple-500/40' : ''}`}
+          onClick={() => { setRoleFilter('admin'); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${roleFilter === 'admin' && !freePassOnly && !sharedIpOnly ? 'ring-2 ring-purple-300 dark:ring-purple-500/40' : ''}`}
         >
           <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
             <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/15 flex items-center justify-center flex-shrink-0">
@@ -270,7 +320,7 @@ export default function AdminUsersPage() {
           </Card>
         </button>
         <button
-          onClick={() => { setFreePassOnly(v => !v); setCurrentPage(1); }}
+          onClick={() => { setFreePassOnly(v => !v); setSharedIpOnly(false); setCurrentPage(1); }}
           className={`text-left rounded-xl transition-shadow ${freePassOnly ? 'ring-2 ring-green-400 dark:ring-green-500/40' : ''}`}
           title="Show only users with an active free pass"
         >
@@ -284,6 +334,21 @@ export default function AdminUsersPage() {
             </div>
           </Card>
         </button>
+        <button
+          onClick={() => { setSharedIpOnly(v => !v); setFreePassOnly(false); setCurrentPage(1); }}
+          className={`text-left rounded-xl transition-shadow ${sharedIpOnly ? 'ring-2 ring-amber-400 dark:ring-amber-500/40' : ''}`}
+          title="Accounts registered from the same IP as at least one other account"
+        >
+          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.sharedIp}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{sharedIpOnly ? 'Showing shared IPs' : 'Shared IP w/ another account'}</p>
+            </div>
+          </Card>
+        </button>
       </div>
 
       {freePassOnly && (
@@ -291,6 +356,16 @@ export default function AdminUsersPage() {
           <Gift className="w-4 h-4 flex-shrink-0" />
           Showing only users with an active free pass.
           <button onClick={() => setFreePassOnly(false)} className="ml-auto text-green-800 dark:text-green-300 font-medium hover:underline">
+            Clear
+          </button>
+        </div>
+      )}
+
+      {sharedIpOnly && (
+        <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl px-4 py-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          Showing accounts that share a registration IP with at least one other account — not proof of abuse on its own (a shared campus/home network is common and innocent), just worth a manual look, especially if each has claimed a different free course.
+          <button onClick={() => setSharedIpOnly(false)} className="ml-auto text-amber-800 dark:text-amber-300 font-medium hover:underline flex-shrink-0">
             Clear
           </button>
         </div>
@@ -376,7 +451,21 @@ export default function AdminUsersPage() {
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">{user.full_name || 'No Name'}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{user.full_name || 'No Name'}</p>
+                            {user.is_suspended && (
+                              <Badge variant="danger" size="sm">
+                                <Ban className="w-3 h-3 mr-1" />
+                                Suspended
+                              </Badge>
+                            )}
+                            {!user.is_suspended && sharedIpUserIds.has(user.id) && (
+                              <Badge variant="warning" size="sm" title="Shares a registration IP with another account">
+                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                Shared IP
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
                         </div>
                       </div>
@@ -516,6 +605,39 @@ export default function AdminUsersPage() {
               <div className="flex items-start gap-2 p-3 bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-500/20 rounded-xl text-xs text-purple-700 dark:text-purple-400">
                 <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <span>This is an admin account. You can still grant it a free pass to test or preview student-side course access.</span>
+              </div>
+            )}
+
+            {!isAdminRole(modalUser.role) && (
+              modalUser.is_suspended ? (
+                <div className="flex items-center justify-between gap-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-xl">
+                  <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-400">
+                    <Ban className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>This account is suspended — sign-in shows a generic error, not why.</span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleToggleSuspend} disabled={suspending} className="flex-shrink-0">
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                    {suspending ? 'Working…' : 'Reactivate'}
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleToggleSuspend}
+                  disabled={suspending}
+                  className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium disabled:opacity-50"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  {suspending ? 'Working…' : 'Suspend this account'}
+                </button>
+              )
+            )}
+
+            {modalIpSiblings.length > 0 && (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  Registered from {modalUser.registration_ip} — shared with {modalIpSiblings.length} other account{modalIpSiblings.length !== 1 ? 's' : ''}: {modalIpSiblings.map(s => s.full_name || s.email).join(', ')}.
+                </span>
               </div>
             )}
 
