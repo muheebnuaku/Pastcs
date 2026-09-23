@@ -31,13 +31,9 @@ import {
   Sun,
   Moon,
   Monitor,
-  Layers,
-  ChevronDown,
   KeyRound,
   CheckCircle,
 } from 'lucide-react';
-
-const OTHER_PROGRAM_VALUE = '__other__';
 
 interface UserStats {
   totalTests: number;
@@ -52,9 +48,6 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [loadingPrograms, setLoadingPrograms] = useState(true);
-  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
-  const [customProgram, setCustomProgram] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -155,8 +148,6 @@ export default function ProfilePage() {
     if (user) {
       setFullName(user.full_name || '');
       setStudentId(user.student_id || '');
-      setSelectedProgramId(user.program_id || (user.program ? OTHER_PROGRAM_VALUE : ''));
-      setCustomProgram(user.program_id ? '' : (user.program || ''));
       fetchStats();
       fetchReferralStats();
     }
@@ -166,10 +157,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.from('programs').select('*').order('name')
-      .then(({ data }: { data: Program[] | null }) => {
-        setPrograms(data ?? []);
-        setLoadingPrograms(false);
-      });
+      .then(({ data }: { data: Program[] | null }) => setPrograms(data ?? []));
   }, []);
 
   const handleSave = async () => {
@@ -178,16 +166,9 @@ export default function ProfilePage() {
     setSaveError('');
 
     const supabase = createClient();
-    const isOther = selectedProgramId === OTHER_PROGRAM_VALUE;
-
     const { error } = await supabase
       .from('users')
-      .update({
-        full_name: fullName,
-        student_id: studentId,
-        program_id: isOther || !selectedProgramId ? null : selectedProgramId,
-        program: isOther ? (customProgram.trim() || null) : null,
-      })
+      .update({ full_name: fullName, student_id: studentId })
       .eq('id', user.id);
 
     if (error) {
@@ -267,8 +248,8 @@ export default function ProfilePage() {
             </p>
             <p className="text-amber-700 dark:text-amber-400 text-sm mt-0.5">
               {user.program
-                ? "We'll unlock your courses once we add it — check back soon, or pick a listed program below if this was a mistake."
-                : <>Tell us which programme you&apos;re enrolled in so we can personalise your experience. Click <strong>Edit</strong> below to set it.</>}
+                ? <>We&apos;ll unlock your courses once we add it — check back soon, or use <strong>Change</strong> on the Program, Level &amp; Semester card if this was a mistake.</>
+                : <>Tell us which programme you&apos;re enrolled in so we can personalise your experience. Use <strong>Change</strong> on the Program, Level &amp; Semester card below.</>}
             </p>
           </div>
         </div>
@@ -309,8 +290,6 @@ export default function ProfilePage() {
                         setIsEditing(false);
                         setFullName(user?.full_name || '');
                         setStudentId(user?.student_id || '');
-                        setSelectedProgramId(user?.program_id || (user?.program ? OTHER_PROGRAM_VALUE : ''));
-                        setCustomProgram(user?.program_id ? '' : (user?.program || ''));
                       }}
                     >
                       <X className="w-4 h-4" />
@@ -364,37 +343,9 @@ export default function ProfilePage() {
                     onChange={(e) => setStudentId(e.target.value)}
                     placeholder="Enter your student ID"
                   />
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Programme</label>
-                    <div className="relative">
-                      <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                      <select
-                        value={selectedProgramId}
-                        onChange={(e) => setSelectedProgramId(e.target.value)}
-                        disabled={loadingPrograms}
-                        className="w-full appearance-none pl-9 pr-9 py-2.5 text-sm border border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e8603c]"
-                      >
-                        <option value="">Select your programme…</option>
-                        {programs.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                        <option value={OTHER_PROGRAM_VALUE}>Other — not listed</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                    </div>
-                    {selectedProgramId === OTHER_PROGRAM_VALUE && (
-                      <div className="mt-2 space-y-1">
-                        <Input
-                          value={customProgram}
-                          onChange={(e) => setCustomProgram(e.target.value)}
-                          placeholder="Type your programme name"
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          We&apos;ll set this up and unlock your courses once we add your program.
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    To change your programme, use <strong>Change</strong> on the Program, Level &amp; Semester card below.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -424,7 +375,7 @@ export default function ProfilePage() {
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Programme</p>
                       <p className={`font-medium ${user.program_id || user.program ? 'text-gray-900 dark:text-gray-100' : 'text-amber-600 dark:text-amber-400'}`}>
-                        {programs.find(p => p.id === user.program_id)?.name ?? user.program ?? 'Not set — please edit'}
+                        {programs.find(p => p.id === user.program_id)?.name ?? user.program ?? 'Not set — use Change below'}
                       </p>
                     </div>
                   </div>
@@ -438,7 +389,7 @@ export default function ProfilePage() {
             <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <GraduationCap className="w-5 h-5 text-[#e8603c]" />
-                Level &amp; Semester
+                Program, Level &amp; Semester
               </h2>
               <Button variant="ghost" size="sm" onClick={handleChangeLevelClick}>
                 <Edit className="w-4 h-4 mr-1" />
@@ -446,6 +397,12 @@ export default function ProfilePage() {
               </Button>
             </div>
             <CardContent className="space-y-4">
+              <div className="p-4 bg-gray-50 dark:bg-white/[0.03] rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Program</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                  {programs.find(p => p.id === user.program_id)?.name ?? user.program ?? 'Not set'}
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-[#fde3da] dark:bg-[#e8603c]/10 rounded-xl text-center">
                   <p className="text-sm text-[#c94f2f] dark:text-[#f0906f] font-medium mb-1">Current Level</p>
@@ -477,7 +434,7 @@ export default function ProfilePage() {
                     <div>
                       <p className="font-medium text-yellow-900 dark:text-yellow-300 text-sm">Are you sure?</p>
                       <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-                        Changing your level or semester will reset your free course selection. Your payment history is preserved.
+                        Changing your program, level, or semester will reset your free course selection. Your payment history is preserved.
                       </p>
                     </div>
                   </div>
