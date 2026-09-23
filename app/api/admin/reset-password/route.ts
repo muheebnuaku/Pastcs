@@ -50,11 +50,27 @@ export async function POST(req: Request) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  await supabaseAdmin.from('admin_messages').insert({
+  // Deliberately not logging the password itself.
+  logAudit(supabaseAdmin, 'user.reset_password', target.email, { userId }, auth.userId).catch(() => {});
+
+  const { error: messageError } = await supabaseAdmin.from('admin_messages').insert({
     user_id: userId,
     sender_id: auth.userId,
     body: `Your password has been reset by the PastCS team.\n\nTemporary password: ${tempPassword}\n\nLog in with this, then change it right away from Profile → Change Password.`,
   });
+
+  if (messageError) {
+    // The password WAS changed — don't report failure for that. But the
+    // student now has no way to learn the new password unless we hand it
+    // back here so the admin can relay it some other way.
+    console.error('reset-password: admin_messages insert failed', messageError);
+    return Response.json({
+      success: true,
+      messageDelivered: false,
+      tempPassword,
+      warning: 'Password was reset, but the message could not be delivered. Share this temporary password with them directly.',
+    });
+  }
 
   await supabaseAdmin.from('notifications').insert({
     user_id: userId,
@@ -62,8 +78,5 @@ export async function POST(req: Request) {
     message: 'You have a new message from the PastCS team.',
   });
 
-  // Deliberately not logging the password itself.
-  logAudit(supabaseAdmin, 'user.reset_password', target.email, { userId }, auth.userId).catch(() => {});
-
-  return Response.json({ success: true });
+  return Response.json({ success: true, messageDelivered: true });
 }
