@@ -33,6 +33,8 @@ import {
   Monitor,
   Layers,
   ChevronDown,
+  KeyRound,
+  CheckCircle,
 } from 'lucide-react';
 
 const OTHER_PROGRAM_VALUE = '__other__';
@@ -65,6 +67,12 @@ export default function ProfilePage() {
 
   const [referralStats, setReferralStats] = useState({ referred: 0, rewarded: 0 });
   const [codeCopied, setCodeCopied] = useState(false);
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordDone, setPasswordDone] = useState(false);
 
   const { speak, isSpeaking, isSupported: voiceSupported } = useSpeech();
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
@@ -208,6 +216,30 @@ export default function ProfilePage() {
       setTestimonial('');
     }
     setTestimonialSaving(false);
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    setChangingPassword(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordError(error.message);
+    } else {
+      setPasswordDone(true);
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPasswordDone(false), 4000);
+    }
+    setChangingPassword(false);
   };
 
   const handleChangeLevelClick = () => {
@@ -479,6 +511,54 @@ export default function ProfilePage() {
                     Select now
                   </button>
                 </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Change Password */}
+          <Card>
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-[#e8603c]" />
+                Change Password
+              </h2>
+            </div>
+            <CardContent className="space-y-4">
+              {passwordDone ? (
+                <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl px-4 py-3">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  Password updated.
+                </div>
+              ) : (
+                <>
+                  <Input
+                    label="New password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    autoComplete="new-password"
+                  />
+                  <Input
+                    label="Confirm new password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat your new password"
+                    autoComplete="new-password"
+                  />
+                  {passwordError && (
+                    <p className="text-sm text-red-500 dark:text-red-400">{passwordError}</p>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={handleChangePassword}
+                    isLoading={changingPassword}
+                    disabled={changingPassword || !newPassword || !confirmPassword}
+                  >
+                    Update Password
+                  </Button>
+                </>
               )}
             </CardContent>
           </Card>

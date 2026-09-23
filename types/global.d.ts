@@ -49,6 +49,7 @@ declare module '@supabase/ssr' {
     signUp(credentials: { email: string; password: string; options?: any }): Promise<{ error: any }>;
     signOut(): Promise<void>;
     exchangeCodeForSession(code: string): Promise<{ error: any }>;
+    updateUser(attributes: { password?: string; email?: string; data?: any }): Promise<{ data: any; error: any }>;
   }
 
   interface RealtimeChannel {

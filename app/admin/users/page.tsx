@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   MessageSquare,
   Send,
+  KeyRound,
 } from 'lucide-react';
 
 interface UserRow extends User {
@@ -91,6 +92,8 @@ export default function AdminUsersPage() {
   const [granting, setGranting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null); // subscriptionId being revoked
   const [suspending, setSuspending] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [passwordResetDone, setPasswordResetDone] = useState(false);
   const [actionError, setActionError] = useState('');
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -110,6 +113,7 @@ export default function AdminUsersPage() {
     setMessageText('');
     setMessageError('');
     setThreadMessages([]);
+    setPasswordResetDone(false);
     // Default to the student's own program — that's what "grant access"
     // means for them almost every time.
     setGrantProgramId(user.program_id ?? programs[0]?.id ?? '');
@@ -335,6 +339,30 @@ export default function AdminUsersPage() {
       setUsers(prev => prev.map(u => u.id === modalUser.id ? { ...u, is_suspended: nextSuspended } : u));
     }
     setSuspending(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!modalUser) return;
+    if (!confirm(`Reset ${modalUser.full_name || modalUser.email}'s password? Their current password stops working immediately — a temporary one will be sent to them via the message thread.`)) {
+      return;
+    }
+    setResettingPassword(true);
+    setActionError('');
+    setPasswordResetDone(false);
+    const res = await fetch('/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: modalUser.id }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setActionError(json.error ?? 'Failed to reset password');
+    } else {
+      // The new admin_messages row arrives in threadMessages via the
+      // realtime subscription above — no need to append it manually here.
+      setPasswordResetDone(true);
+    }
+    setResettingPassword(false);
   };
 
   const handleExportCsv = () => {
@@ -760,6 +788,20 @@ export default function AdminUsersPage() {
                 </button>
               )
             )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleResetPassword}
+                disabled={resettingPassword}
+                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium disabled:opacity-50"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                {resettingPassword ? 'Working…' : 'Reset password'}
+              </button>
+              {passwordResetDone && (
+                <span className="text-xs text-green-600 dark:text-green-400">Sent via message thread ↓</span>
+              )}
+            </div>
 
             {modalIpSiblings.length > 0 && (
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
