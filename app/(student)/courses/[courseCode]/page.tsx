@@ -201,7 +201,7 @@ export default function CourseDetailPage() {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
         <div className="flex items-start gap-6">
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20">
-            {COURSE_ICONS[course.course_code]}
+            {course.icon || COURSE_ICONS[course.course_code] || '📚'}
           </div>
           <div className="flex-1">
             <h1 className="text-3xl font-bold mb-2">{course.course_code}</h1>
@@ -224,94 +224,94 @@ export default function CourseDetailPage() {
       </div>
 
       {/* Practice Options */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-2 border-blue-100 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center">
-                <Zap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="w-9 h-9 bg-blue-50 dark:bg-blue-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Zap className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" style={{ width: '1.125rem', height: '1.125rem' }} />
               </div>
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Quick Practice</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{QUESTIONS_PER_PRACTICE} random questions</p>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">Quick Practice</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{QUESTIONS_PER_PRACTICE} random questions</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
-              Practice random questions from all topics. No time limit, instant feedback.
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
+              No time limit, instant feedback.
             </p>
             <Link href={`/practice/${course.course_code.toLowerCase()}?mode=quick`}>
-              <Button className="w-full">
-                <Play className="w-4 h-4 mr-2" />
-                Start Quick Practice
+              <Button size="sm" className="w-full">
+                <Play className="w-3.5 h-3.5 mr-1.5" />
+                Start
               </Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-purple-100 dark:border-purple-500/20 bg-purple-50/50 dark:bg-purple-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-500/15 rounded-xl flex items-center justify-center">
-                <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="w-9 h-9 bg-purple-50 dark:bg-purple-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Clock className="w-4.5 h-4.5 text-purple-600 dark:text-purple-400" style={{ width: '1.125rem', height: '1.125rem' }} />
               </div>
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Exam Simulation</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{QUESTIONS_PER_EXAM} questions • {EXAM_DURATION_MINUTES} minutes</p>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">Exam Simulation</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{QUESTIONS_PER_EXAM} questions • {EXAM_DURATION_MINUTES} min</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
-              Simulate the real exam experience with timed questions and auto-submit.
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
+              Timed, with auto-submit — like the real thing.
             </p>
             <Link href={`/exam/${course.course_code.toLowerCase()}`}>
-              <Button variant="secondary" className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-                <Target className="w-4 h-4 mr-2" />
-                Start Exam Simulation
+              <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                <Target className="w-3.5 h-3.5 mr-1.5" />
+                Start
               </Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-amber-100 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/15 rounded-xl flex items-center justify-center">
-                <RotateCcw className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="w-9 h-9 bg-amber-50 dark:bg-amber-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <RotateCcw className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400" style={{ width: '1.125rem', height: '1.125rem' }} />
               </div>
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Practice My Mistakes</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Only what you got wrong</p>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">My Mistakes</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Only what you got wrong</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
-              Revisit every question you&rsquo;ve answered incorrectly in this course until it sticks.
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
+              Revisit missed questions until they stick.
             </p>
             <Link href={`/practice/${course.course_code.toLowerCase()}?mode=mistakes`}>
-              <Button variant="secondary" className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Review Mistakes
+              <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Review
               </Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-violet-100 dark:border-violet-500/20 bg-violet-50/50 dark:bg-violet-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-violet-100 dark:bg-violet-500/15 rounded-xl flex items-center justify-center">
-                <CalendarClock className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="w-9 h-9 bg-violet-50 dark:bg-violet-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CalendarClock className="w-4.5 h-4.5 text-violet-600 dark:text-violet-400" style={{ width: '1.125rem', height: '1.125rem' }} />
               </div>
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Due for Review</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Spaced repetition</p>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">Due for Review</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Spaced repetition</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4 dark:text-gray-400">
-              Questions resurface on a schedule — sooner if you missed them, later once they stick.
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
+              Resurfaces on a schedule as it sticks.
             </p>
             <Link href={`/practice/${course.course_code.toLowerCase()}?mode=due`}>
-              <Button variant="secondary" className="w-full bg-violet-600 hover:bg-violet-700 text-white">
-                <CalendarClock className="w-4 h-4 mr-2" />
-                Start Review
+              <Button size="sm" className="w-full bg-violet-600 hover:bg-violet-700 text-white">
+                <CalendarClock className="w-3.5 h-3.5 mr-1.5" />
+                Start
               </Button>
             </Link>
           </CardContent>
