@@ -49,7 +49,15 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     const fetchStats = async () => {
       const supabase = createClient();
-      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      // Calendar week (Monday 00:00 local time), not a rolling 7×24h
+      // window — a rolling window looks "this week" but actually drops
+      // students as they age past exactly 7 days, so the count can visibly
+      // fall even on a day with new signups. A calendar week only grows
+      // until it resets at the next Monday, matching what the label promises.
+      const now = new Date();
+      const daysSinceMonday = (now.getDay() + 6) % 7;
+      const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday);
+      const startOfWeekIso = startOfWeek.toISOString();
 
       // Fetch counts
       const [
@@ -63,7 +71,7 @@ export default function AdminOverviewPage() {
         { count: pendingTestimonialsCount },
       ] = await Promise.all([
         supabase.from('user_public').select('*', { count: 'exact', head: true }).eq('role', 'student'),
-        supabase.from('user_public').select('*', { count: 'exact', head: true }).eq('role', 'student').gte('created_at', sevenDaysAgo),
+        supabase.from('user_public').select('*', { count: 'exact', head: true }).eq('role', 'student').gte('created_at', startOfWeekIso),
         supabase.from('questions').select('*', { count: 'exact', head: true }),
         supabase.from('tests').select('*', { count: 'exact', head: true }),
         supabase.from('course_programs').select('course_id, program_id'),
