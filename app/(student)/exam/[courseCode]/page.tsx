@@ -7,7 +7,7 @@ import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
-import { Card, Button, Badge, Modal, Progress } from '@/components/ui';
+import { Card, Button, Badge, Modal, Progress, QuestionContent } from '@/components/ui';
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
@@ -311,7 +311,9 @@ export default function ExamPage() {
           </div>
         </div>
 
-        <h2 className="text-lg font-medium text-gray-900 mb-6 dark:text-gray-100">{currentQuestion.question_text}</h2>
+        <div className="mb-6">
+          <QuestionContent text={currentQuestion.question_text} textClassName="text-lg font-medium text-gray-900 dark:text-gray-100" />
+        </div>
 
         {currentQuestion.question_type !== 'fill_in_blank' && currentQuestion.options && (
           <div className="space-y-3">

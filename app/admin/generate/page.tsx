@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Select, Textarea, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Select, Textarea, Badge, QuestionContent } from '@/components/ui';
 import { chunkContent } from '@/lib/utils';
 import { coursesForProgram } from '@/lib/programs';
 import type { Course, Topic, Program } from '@/types';
@@ -899,7 +899,9 @@ Binary Number System
                             </Badge>
                           )}
                         </div>
-                        <p className="font-medium text-gray-900 mb-2 dark:text-gray-100">{question.question_text}</p>
+                        <div className="mb-2">
+                          <QuestionContent text={question.question_text} textClassName="font-medium text-gray-900 dark:text-gray-100" />
+                        </div>
                         {question.options && (
                           <div className="space-y-1 mb-2">
                             {question.options.map((opt, i) => (
@@ -924,9 +926,9 @@ Binary Number System
                           </p>
                         )}
                         {question.explanation && (
-                          <p className="text-sm text-gray-500 mt-2 dark:text-gray-400">
-                            💡 {question.explanation}
-                          </p>
+                          <div className="text-sm text-gray-500 mt-2 dark:text-gray-400">
+                            💡 <QuestionContent text={question.explanation} />
+                          </div>
                         )}
                       </div>
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${

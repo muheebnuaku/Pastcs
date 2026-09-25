@@ -7,7 +7,7 @@ import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
-import { Card, Button, Badge, Progress } from '@/components/ui';
+import { Card, Button, Badge, Progress, QuestionContent } from '@/components/ui';
 import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
@@ -538,7 +538,9 @@ function PracticeContent() {
           </div>
         </div>
 
-        <h2 className="text-lg font-medium text-gray-900 mb-6 dark:text-gray-100">{currentQuestion.question_text}</h2>
+        <div className="mb-6">
+          <QuestionContent text={currentQuestion.question_text} textClassName="text-lg font-medium text-gray-900 dark:text-gray-100" />
+        </div>
 
         {/* Options */}
         {currentQuestion.question_type !== 'fill_in_blank' && currentQuestion.options && (
@@ -626,9 +628,10 @@ function PracticeContent() {
               </p>
             )}
             {currentQuestion.explanation ? (
-              <p className="text-gray-700 text-sm leading-relaxed dark:text-gray-300">
-                <span className="font-medium">Why: </span>{currentQuestion.explanation}
-              </p>
+              <div className="text-gray-700 text-sm leading-relaxed dark:text-gray-300">
+                <span className="font-medium">Why: </span>
+                <QuestionContent text={currentQuestion.explanation} />
+              </div>
             ) : (
               <p className="text-gray-500 text-sm italic dark:text-gray-400">No explanation stored for this question.</p>
             )}

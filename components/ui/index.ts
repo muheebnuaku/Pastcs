@@ -11,3 +11,4 @@ export { Loading, PageLoading } from './Loading';
 export { PushingProgress } from './PushingProgress';
 export { Tabs } from './Tabs';
 export type { TabItem } from './Tabs';
+export { QuestionContent } from './QuestionContent';
