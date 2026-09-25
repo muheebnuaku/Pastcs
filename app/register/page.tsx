@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
-import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy, Layers, Hash, ChevronDown } from 'lucide-react';
+import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy, Layers, Hash, ChevronDown, MailCheck } from 'lucide-react';
 import type { Program } from '@/types';
 
 const OTHER_PROGRAM_VALUE = '__other__';
@@ -23,6 +23,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [confirmationEmailSent, setConfirmationEmailSent] = useState(true);
 
   // Program + student ID — collected here instead of a separate
   // post-signup onboarding step, to cut the number of steps between
@@ -87,7 +89,9 @@ export default function RegisterPage() {
       setError(result.error);
       setSubmitting(false);
     } else {
-      router.replace('/dashboard');
+      setNeedsConfirmation(true);
+      setConfirmationEmailSent(result.emailSent !== false);
+      setSubmitting(false);
     }
   };
 
@@ -161,6 +165,39 @@ export default function RegisterPage() {
           </div>
 
           <div className="animate-fade-in-up delay-100 bg-[#fffdf9] rounded-[28px] shadow-xl border border-[#efe2d0] p-6 sm:p-8">
+            {needsConfirmation ? (
+              <div className="text-center py-4 space-y-4">
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${confirmationEmailSent ? 'bg-[#dcf1ee]' : 'bg-[#fde3da]'}`}>
+                  <MailCheck className={`w-7 h-7 ${confirmationEmailSent ? 'text-[#2f9e8f]' : 'text-[#c94f2f]'}`} />
+                </div>
+                <div>
+                  <p className="font-bold text-[#2b2420] text-lg">
+                    {confirmationEmailSent ? 'Check your inbox' : 'Account created'}
+                  </p>
+                  {confirmationEmailSent ? (
+                    <>
+                      <p className="text-sm text-[#8a7f6f] mt-1.5 leading-relaxed">
+                        We sent a confirmation link to <strong className="text-[#2b2420]">{email}</strong>. Click it to activate your account, then come back and sign in.
+                      </p>
+                      <p className="text-xs text-[#a89a86] mt-3">
+                        Don&apos;t see it? Check your spam folder — it can take a minute to arrive.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-[#8a7f6f] mt-1.5 leading-relaxed">
+                      Your account was created, but we couldn&apos;t send the confirmation email just now. Please contact support so we can confirm your account manually.
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#e8603c] hover:underline mt-2"
+                >
+                  Back to sign in
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-[#2b2420] mb-1.5">Full name</label>
@@ -333,13 +370,16 @@ export default function RegisterPage() {
                 )}
               </Button>
             </form>
+            )}
 
-            <p className="text-center text-sm text-[#8a7f6f] mt-6">
-              Already have an account?{' '}
-              <Link href="/login" className="text-[#e8603c] font-semibold hover:underline">
-                Sign in
-              </Link>
-            </p>
+            {!needsConfirmation && (
+              <p className="text-center text-sm text-[#8a7f6f] mt-6">
+                Already have an account?{' '}
+                <Link href="/login" className="text-[#e8603c] font-semibold hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            )}
           </div>
         </div>
       </div>

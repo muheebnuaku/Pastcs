@@ -25,15 +25,18 @@ export async function POST(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Create the auth user with email pre-confirmed.
-    // The DB trigger (on_auth_user_created → handle_new_user) runs synchronously
-    // inside the same transaction and auto-creates the public.users profile row
-    // from user_metadata. No manual insert needed — that caused duplicate-key
-    // errors and silent rollbacks of the auth user.
+    // Create the auth user UNCONFIRMED — anyone could previously sign up
+    // with an email they don't own (or a made-up one) and get a fully
+    // working account instantly, which is also what let one person farm
+    // several free-course slots behind different fake addresses. The DB
+    // trigger (on_auth_user_created → handle_new_user) runs synchronously
+    // inside the same transaction and auto-creates the public.users profile
+    // row from user_metadata regardless of confirmation status — no manual
+    // insert needed here, and no change to that part of the flow.
     const { error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: false,
       user_metadata: {
         full_name: fullName,
         // referral_code here is the CODE THEY WERE INVITED WITH (their
@@ -59,7 +62,24 @@ export async function POST(request: Request) {
       return Response.json({ error: authError.message }, { status: 400 });
     }
 
-    return Response.json({ success: true });
+    // The admin API's createUser deliberately skips every automatic email
+    // flow (that's the whole point of an admin-provisioned account), so
+    // the actual "confirm your email" send has to be requested explicitly
+    // through the public auth API — a separate anon-key client, since
+    // resend() isn't an admin action and the service-role client above
+    // has session persistence disabled.
+    const origin = request.headers.get('origin') || 'https://www.pastcs.com';
+    const supabasePublic = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { error: resendError } = await supabasePublic.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${origin}/dashboard` },
+    });
+
+    return Response.json({ success: true, emailSent: !resendError });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Registration failed';
     return Response.json({ error: message }, { status: 500 });
