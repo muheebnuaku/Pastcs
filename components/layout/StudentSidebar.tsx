@@ -10,6 +10,7 @@ import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { useAuth } from '@/components/providers';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessages';
+import { usePricing } from '@/lib/hooks/usePricing';
 import {
   Home,
   BookOpen,
@@ -58,6 +59,7 @@ export function StudentSidebar() {
   const semester = user?.selected_semester;
   const isPaid = hasActiveSub(level, semester, user?.program_id);
   const showUpgradeNudge = !isPaid && !!user?.free_course_code;
+  const { label: priceLabel } = usePricing(level, user?.program_id);
 
   return (
     <>
@@ -209,7 +211,7 @@ export function StudentSidebar() {
                 <p className="text-xs font-semibold text-white">Unlock Full Access</p>
               </div>
               <p className="text-[11px] text-white/80 leading-snug mb-2">
-                Get all courses, exam simulations &amp; AI explanations for just GHC 50.
+                Get all courses, exam simulations &amp; AI explanations for just {priceLabel}.
               </p>
               <div className="bg-white/20 hover:bg-white/30 transition-colors rounded-lg py-1.5 text-center text-xs font-semibold">
                 Upgrade Now →
