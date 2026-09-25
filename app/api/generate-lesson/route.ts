@@ -55,7 +55,7 @@ const FORMAT_RULES = `FORMATTING RULES (the renderer only understands these — 
 - "##" only for top-level sections — never use "###" or deeper headings.
 - "**bold**" for key terms and emphasis, "*italic*" sparingly.
 - "- " for bullet lists, "1. " for ordered steps. Never nest a list inside another list.
-- Never use a Markdown table — it will render as broken text. Describe comparisons in prose or a bullet list instead.
+- Use a Markdown table (| col | col | with a |---|---| header separator row) when comparing multiple items across attributes, or presenting a dataset/record set the reader needs to see — the renderer now supports these.
 - Keep paragraphs short: 2–4 sentences before a break.`;
 
 function depthGuidance(context?: string): string {
