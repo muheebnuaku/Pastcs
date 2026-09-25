@@ -23,7 +23,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, fullName: string, options?: SignUpOptions) => Promise<{ error?: string }>;
+  signUp: (email: string, password: string, fullName: string, options?: SignUpOptions) => Promise<{ error?: string; needsConfirmation?: boolean; emailSent?: boolean }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -189,6 +189,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
+        // GoTrue's own wording for this is already clear, but doesn't
+        // mention that a confirmation email was sent — worth spelling
+        // out since this is a brand-new check nobody's used to yet.
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          return { error: 'Please confirm your email first — check your inbox (and spam folder) for the link we sent when you signed up.' };
+        }
         return { error: error.message };
       }
 
@@ -211,11 +217,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string, options?: SignUpOptions) => {
     setLoading(true);
-    // Same reasoning as signIn() — the signInWithPassword call below
-    // fires its own SIGNED_IN event that the listener would otherwise
-    // also handle, duplicating the fetchOrCreateUser/fetchSubscriptions
-    // work for the exact same sign-in.
-    isSigningInRef.current = true;
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -236,20 +237,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: resData.error ?? 'Registration failed' };
       }
 
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        return { error: signInError.message };
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const userData = await fetchOrCreateUser(session.user);
-        setUser(userData);
-        useSubscriptionStore.getState().setSubscriptions([]);
-      }
-      return {};
+      // The account is created but unconfirmed — signing in now would
+      // just fail with "Email not confirmed" (or worse, silently succeed
+      // if confirmation isn't actually enforced, defeating the whole
+      // point). Confirming the address is what happens next, via the
+      // link the register route just asked Supabase to send.
+      return { needsConfirmation: true, emailSent: resData.emailSent !== false };
     } finally {
-      isSigningInRef.current = false;
       setLoading(false);
     }
   };
