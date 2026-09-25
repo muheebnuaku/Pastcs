@@ -11,6 +11,7 @@ import { TutorPricingModal } from './components/TutorPricingModal';
 import { PasteTextModal } from './components/PasteTextModal';
 import { coursesForProgram } from '@/lib/programs';
 import { chunkContent } from '@/lib/utils';
+import { renderMarkdownTables } from '@/lib/markdown';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
@@ -59,10 +60,15 @@ interface LessonSection {
 // ── Markdown renderer ──────────────────────────────────────────────────────
 
 function mdToHtml(text: string): string {
+  // Code fences first (before table detection could misfire on pipe
+  // characters inside an example), then tables (before the header/list/
+  // paragraph steps below, which depend on the original newlines a
+  // table's rows need to stay intact).
+  const withCodeBlocks = text.replace(/```(\w*)\n?([\s\S]*?)```/g,
+    '<pre class="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-3 font-mono"><code>$2</code></pre>');
+
   return (
-    text
-      .replace(/```(\w*)\n?([\s\S]*?)```/g,
-        '<pre class="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-3 font-mono"><code>$2</code></pre>')
+    renderMarkdownTables(withCodeBlocks)
       .replace(/`([^`\n]+)`/g, '<code class="bg-gray-100 dark:bg-white/10 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>')
       .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mt-4 mb-1.5">$1</h2>')
       .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-3 mb-1">$1</h3>')
