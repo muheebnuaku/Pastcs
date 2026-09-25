@@ -63,6 +63,8 @@ function AdminQuestionsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [isApproving, setIsApproving] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveTargetTopicId, setMoveTargetTopicId] = useState('');
 
   // Form state
   const [formCourseId, setFormCourseId] = useState('');
@@ -277,6 +279,18 @@ function AdminQuestionsContent() {
     await supabase.from('questions').update({ is_approved: true }).in('id', ids);
     setIsApproving(false);
     setSelectedIds(new Set());
+    fetchQuestions();
+  };
+
+  const handleBulkMoveTopic = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || !moveTargetTopicId) return;
+    setIsMoving(true);
+    const supabase = createClient();
+    await supabase.from('questions').update({ topic_id: moveTargetTopicId }).in('id', ids);
+    setIsMoving(false);
+    setSelectedIds(new Set());
+    setMoveTargetTopicId('');
     fetchQuestions();
   };
 
@@ -502,7 +516,30 @@ function AdminQuestionsContent() {
               </label>
 
               {selectedIds.size > 0 && (
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="flex flex-wrap items-center gap-2 ml-auto">
+                  {filterBarTopics.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={moveTargetTopicId}
+                        onChange={e => setMoveTargetTopicId(e.target.value)}
+                        className="text-sm border border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Move to topic…</option>
+                        {filterBarTopics.map(t => (
+                          <option key={t.id} value={t.id}>{t.topic_name}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleBulkMoveTopic}
+                        disabled={isMoving || !moveTargetTopicId}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                      >
+                        {isMoving ? 'Moving…' : `Move ${selectedIds.size}`}
+                      </Button>
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"

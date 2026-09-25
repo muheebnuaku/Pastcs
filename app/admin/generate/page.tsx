@@ -24,6 +24,7 @@ import {
   Layers,
   OctagonPause,
   RotateCcw,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface GeneratedQuestion {
@@ -749,6 +750,48 @@ Binary Number System
             {(() => {
               const preview = slideContent.trim() ? chunkContent(slideContent.trim(), BATCH_TARGET_CHARS) : [];
               const willBatch = preview.length > 1;
+              // A document large enough to batch almost always spans more
+              // than one topic — forcing every batch under one manually
+              // picked topic anyway (see handleSaveSelected) is rarely what
+              // was intended if the dropdown just happened to still hold a
+              // selection from an earlier, unrelated task. Block the normal
+              // one-click Generate here and make the admin explicitly choose,
+              // instead of silently misfiling dozens of questions.
+              const topicBatchConflict = willBatch && !!selectedTopic;
+
+              if (topicBatchConflict) {
+                return (
+                  <div className="rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-800 dark:text-amber-300">
+                        This content is large enough to process in <strong>{preview.length} batches</strong>, but you also have <strong>&ldquo;{selectedTopicObj?.topic_name}&rdquo;</strong> selected above — every batch&rsquo;s questions will be saved under that one topic, even though a document this size usually covers more than one. If the topic selection is left over from something else, clear it so each batch gets its own correctly detected topic instead.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setSelectedTopic('')}
+                      >
+                        Clear Topic Selection
+                      </Button>
+                      <Button
+                        onClick={handleGenerate}
+                        disabled={isGenerating || isParsing}
+                        className="flex-1 !bg-amber-600 hover:!bg-amber-700"
+                      >
+                        {isGenerating ? (
+                          <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Generating…</>
+                        ) : (
+                          `Generate Anyway — All Under "${selectedTopicObj?.topic_name}"`
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <>
                   <Button
@@ -776,9 +819,7 @@ Binary Number System
                   {willBatch && (
                     <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                       <Layers className="w-3.5 h-3.5 flex-shrink-0" />
-                      {selectedTopic
-                        ? `Large document — will process in ${preview.length} sequential batches (~50 pages each), all under "${selectedTopicObj?.topic_name}".`
-                        : `Large document — will process in ${preview.length} sequential batches (~50 pages each), each grouped under its own detected topic.`}
+                      Large document — will process in {preview.length} sequential batches (~50 pages each), each grouped under its own detected topic.
                     </p>
                   )}
                 </>
