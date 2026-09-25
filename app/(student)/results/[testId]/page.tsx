@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Badge, QuestionContent } from '@/components/ui';
 import { formatPercentage, formatTime, getGradeBadgeColor } from '@/lib/utils';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
@@ -301,7 +301,9 @@ export default function ResultsPage() {
                       )}
                     </div>
 
-                    <p className="text-gray-900 font-medium mb-3 dark:text-gray-100">{answer.question.question_text}</p>
+                    <div className="mb-3">
+                      <QuestionContent text={answer.question.question_text} textClassName="text-gray-900 font-medium dark:text-gray-100" />
+                    </div>
 
                     {/* MCQ options */}
                     {answer.question.options && (
@@ -349,9 +351,8 @@ export default function ResultsPage() {
                     {/* Stored explanation */}
                     {answer.question.explanation && (
                       <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-lg mb-3">
-                        <p className="text-sm text-blue-800 dark:text-blue-300">
-                          <strong>Explanation:</strong> {answer.question.explanation}
-                        </p>
+                        <p className="text-sm text-blue-800 dark:text-blue-300 font-semibold mb-1">Explanation:</p>
+                        <QuestionContent text={answer.question.explanation} textClassName="text-sm text-blue-800 dark:text-blue-300" />
                       </div>
                     )}
 

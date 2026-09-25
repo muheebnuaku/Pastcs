@@ -69,7 +69,26 @@ At least 30–40% of the questions in this batch must be genuine
 scenario-based questions. Mark each question with "is_scenario": true or
 false so reviewers can tell at a glance. Scenario questions can use any of
 the answer formats below (single_choice, multiple_choice, or
-fill_in_blank) — the format is independent of the style.`;
+fill_in_blank) — the format is independent of the style.
+
+CRITICAL — never reference data the student can't see: if a question
+depends on specific rows, columns, or values (e.g. "In the given
+ENROLLMENT_RECORD table, which functional dependency..."), you MUST
+reproduce that exact table inside question_text as a markdown table,
+placed right after the question's introductory sentence — for example:
+
+What functional dependency exists in this table?
+
+| StudentID | CourseCode | CourseTitle | CreditHours |
+|---|---|---|---|
+| S001 | CS101 | Intro to Programming | 3 |
+| S002 | CS101 | Intro to Programming | 3 |
+
+Use pipes (|) for columns and a |---|---| separator row right after the
+header row, exactly like that. Never write a question that names or
+implies a table, dataset, code snippet, or diagram without actually
+including its contents this way — a question a student cannot answer
+because the data was never shown is a defect, not a valid question.`;
 
     if (topicName && !slideContent) {
       // Topic-only mode: generate without slides
