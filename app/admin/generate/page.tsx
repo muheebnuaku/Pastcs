@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Select, Textarea, Badge, QuestionContent } from '@/components/ui';
@@ -854,9 +855,27 @@ Binary Number System
             )}
 
             {successMessage && (
-              <div className="flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 p-4 rounded-lg mb-4">
-                <Check className="w-5 h-5" />
-                {successMessage}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 p-4 rounded-lg mb-4">
+                <div className="flex items-start gap-2 flex-1">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>{successMessage}</span>
+                </div>
+                {selectedCourse && (() => {
+                  const courseObj = allCourses.find(c => c.id === selectedCourse);
+                  const params = new URLSearchParams({ course: selectedCourse, pending: '1' });
+                  if (courseObj) {
+                    params.set('level', String(courseObj.level));
+                    params.set('semester', String(courseObj.semester));
+                  }
+                  return (
+                    <Link
+                      href={`/admin/questions?${params.toString()}`}
+                      className="flex-shrink-0 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-center transition-colors"
+                    >
+                      Review &amp; Approve Now →
+                    </Link>
+                  );
+                })()}
               </div>
             )}
 
