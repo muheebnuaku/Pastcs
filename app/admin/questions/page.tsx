@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Select, Modal, Badge, Textarea } from '@/components/ui';
 import { QUESTION_TYPE_LABELS, questionAccuracy as accuracyOf, needsQuestionReview as needsReview } from '@/lib/utils';
@@ -21,7 +22,15 @@ import {
   Check,
 } from 'lucide-react';
 
-export default function AdminQuestionsPage() {
+function AdminQuestionsContent() {
+  // Deep link from the AI Generator's "Review & Approve Now" button
+  // (?program=&course=&pending=1) — a 50-page upload can batch into
+  // several topics, and questions default to unapproved (is_approved:
+  // false) until reviewed here, so it's easy to approve only the first
+  // topic's page and never notice the rest are still pending.
+  const searchParams = useSearchParams();
+  const urlCourseFilterAppliedRef = useRef(false);
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -82,7 +91,11 @@ export default function AdminQuestionsPage() {
   };
 
   const fetchQuestions = async () => {
-    if (!filterLevel) { setQuestions([]); setSelectedIds(new Set()); return; }
+    // A specific course is enough on its own to build a real query below
+    // (the filterCourse branch doesn't touch level/semester at all) — the
+    // level requirement only matters for the "every course at this level"
+    // fallback, so a course-only deep link shouldn't be blocked by it.
+    if (!filterLevel && !filterCourse) { setQuestions([]); setSelectedIds(new Set()); return; }
     const supabase = createClient();
     let query = supabase
       .from('questions')
@@ -112,14 +125,35 @@ export default function AdminQuestionsPage() {
     }
   };
 
-  // Load programs once, auto-selecting the first
+  // Load programs once, auto-selecting the first — or the one named in
+  // the URL, if a deep link named a valid one.
   useEffect(() => {
     const supabase = createClient();
     supabase.from('programs').select('*').order('name').then(({ data }: { data: Program[] | null }) => {
       setPrograms(data ?? []);
-      if (data && data.length > 0) setSelectedProgram(data[0].id);
+      if (data && data.length > 0) {
+        const urlProgram = searchParams.get('program');
+        const match = urlProgram && data.some(p => p.id === urlProgram) ? urlProgram : data[0].id;
+        setSelectedProgram(match);
+      }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Apply the deep-linked course/pending filter once its program's
+  // courses have actually loaded — setting filterCourse any earlier
+  // races the [selectedProgram] effect below, which resets it.
+  useEffect(() => {
+    if (urlCourseFilterAppliedRef.current) return;
+    const courseId = searchParams.get('course');
+    if (!courseId) { urlCourseFilterAppliedRef.current = true; return; }
+    if (courses.some(c => c.id === courseId)) {
+      setFilterCourse(courseId);
+      if (searchParams.get('pending') === '1') setPendingOnly(true);
+      urlCourseFilterAppliedRef.current = true;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses]);
 
   // Courses (and by extension, everything keyed off them below) are
   // program-scoped — a course only shows up here once an admin has
@@ -796,5 +830,13 @@ export default function AdminQuestionsPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function AdminQuestionsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminQuestionsContent />
+    </Suspense>
   );
 }
