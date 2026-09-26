@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/providers';
-import { usePricing } from '@/lib/hooks/usePricing';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
 import type { Program } from '@/types';
@@ -37,10 +36,6 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  // The program being picked right now, not the student's existing one
-  // (they may be actively changing it in this same modal) — pricing
-  // must reflect whichever program they're about to land in.
-  const { label: priceLabel } = usePricing(selectedLevel, selectedProgramId);
 
   // Portal to <body> — see Modal.tsx: rendering inline under a page that
   // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
@@ -210,12 +205,13 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
             </div>
           </div>
 
-          {/* Free note */}
+          {/* Free note — no price here: pricing varies by level/program and
+              isn't resolvable yet at this point (no level picked), so
+              showing one would just be a misleading placeholder default. */}
           <div className="flex items-start gap-2.5 bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl p-3">
             <BookOpen className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-green-700 dark:text-green-400">
-              <span className="font-semibold">One course free.</span>{' '}
-              Unlock the rest for just <span className="font-semibold">{priceLabel}</span>.
+              <span className="font-semibold">One course is always free</span> — pick any course to try it out, no payment needed.
             </p>
           </div>
 

@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     const { error: resendError } = await supabasePublic.auth.resend({
       type: 'signup',
       email,
-      options: { emailRedirectTo: `${origin}/dashboard` },
+      options: { emailRedirectTo: `${origin}/auth/confirmed` },
     });
 
     return Response.json({ success: true, emailSent: !resendError });
