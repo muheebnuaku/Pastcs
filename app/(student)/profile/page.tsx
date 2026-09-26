@@ -46,7 +46,6 @@ export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [programs, setPrograms] = useState<Program[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -147,7 +146,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       setFullName(user.full_name || '');
-      setStudentId(user.student_id || '');
       fetchStats();
       fetchReferralStats();
     }
@@ -168,7 +166,7 @@ export default function ProfilePage() {
     const supabase = createClient();
     const { error } = await supabase
       .from('users')
-      .update({ full_name: fullName, student_id: studentId })
+      .update({ full_name: fullName })
       .eq('id', user.id);
 
     if (error) {
@@ -289,7 +287,6 @@ export default function ProfilePage() {
                       onClick={() => {
                         setIsEditing(false);
                         setFullName(user?.full_name || '');
-                        setStudentId(user?.student_id || '');
                       }}
                     >
                       <X className="w-4 h-4" />
@@ -337,12 +334,6 @@ export default function ProfilePage() {
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Enter your full name"
                   />
-                  <Input
-                    label="Student ID"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    placeholder="Enter your student ID"
-                  />
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     To change your programme, use <strong>Change</strong> on the Program, Level &amp; Semester card below.
                   </p>
@@ -361,13 +352,6 @@ export default function ProfilePage() {
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
                       <p className="font-medium text-gray-900 dark:text-gray-100">{user.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-lg">
-                    <BookOpen className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Student ID</p>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{user.student_id || 'Not set'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-lg">

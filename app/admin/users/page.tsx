@@ -263,8 +263,7 @@ export default function AdminUsersPage() {
     .filter(u => !unreadOnly || unreadReplyUserIds.has(u.id))
     .filter(u =>
       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.student_id?.toLowerCase().includes(searchQuery.toLowerCase())
+      u.email.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
   const totalPages = Math.ceil(filteredUsers.length / pageSize);
@@ -373,11 +372,10 @@ export default function AdminUsersPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ['Name', 'Email', 'Student ID', 'Role', 'Programme', 'Tests Taken', 'Streak', 'XP', 'Last Active'];
+    const headers = ['Name', 'Email', 'Role', 'Programme', 'Tests Taken', 'Streak', 'XP', 'Last Active'];
     const rows = filteredUsers.map(u => [
       u.full_name || '',
       u.email,
-      u.student_id || '',
       u.role === 'super_admin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'Student',
       u.program || '',
       String(u.total_tests_taken ?? 0),
@@ -644,9 +642,6 @@ export default function AdminUsersPage() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4">
-                      {user.student_id && (
-                        <p className="text-xs text-gray-400 mb-0.5 dark:text-gray-500">{user.student_id}</p>
-                      )}
                       {user.program ? (
                         <span className="text-sm text-gray-700 dark:text-gray-300">{user.program}</span>
                       ) : (
