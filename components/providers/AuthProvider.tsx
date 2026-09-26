@@ -7,14 +7,13 @@ import { useAuthStore, useSubscriptionStore } from '@/lib/store';
 import { triggerNotifications } from '@/lib/hooks/useNotifications';
 import type { User } from '@/types';
 
-// Program/student ID are now collected on the registration form itself
-// (see app/register/page.tsx) instead of a separate post-signup step —
+// Program is now collected on the registration form itself (see
+// app/register/page.tsx) instead of a separate post-signup step —
 // programId is set when an existing program was picked from the list,
 // customProgram when the student typed their own because it wasn't
 // listed (see the register API route for how each is stored).
 interface SignUpOptions {
   referralCode?: string;
-  studentId?: string;
   programId?: string;
   customProgram?: string;
 }
@@ -226,7 +225,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password,
           fullName,
           referralCode: options?.referralCode,
-          studentId: options?.studentId,
           programId: options?.programId,
           customProgram: options?.customProgram,
         }),

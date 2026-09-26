@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
-import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy, Layers, Hash, ChevronDown, MailCheck } from 'lucide-react';
+import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy, Layers, ChevronDown, MailCheck } from 'lucide-react';
 import type { Program } from '@/types';
 
 const OTHER_PROGRAM_VALUE = '__other__';
@@ -33,7 +33,6 @@ export default function RegisterPage() {
   const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [selectedProgram, setSelectedProgram] = useState('');
   const [customProgram, setCustomProgram] = useState('');
-  const [studentId, setStudentId] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -81,7 +80,6 @@ export default function RegisterPage() {
     setSubmitting(true);
     const result = await signUp(email, password, fullName, {
       referralCode: referralCode.trim() || undefined,
-      studentId: studentId.trim() || undefined,
       programId: selectedProgram !== OTHER_PROGRAM_VALUE ? selectedProgram : undefined,
       customProgram: selectedProgram === OTHER_PROGRAM_VALUE ? customProgram.trim() : undefined,
     });
@@ -265,20 +263,6 @@ export default function RegisterPage() {
                     We&apos;ll set this up and unlock your courses once we add your program — you can still finish creating your account now.
                   </p>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-[#2b2420] mb-1.5">Student ID <span className="font-normal text-[#a89a86]">(optional)</span></label>
-                <div className="relative">
-                  <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#a89a86]" />
-                  <input
-                    type="text"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    placeholder="e.g. 10912233"
-                    className="w-full pl-10 pr-4 py-2.5 text-base border border-[#e8dcc8] rounded-xl bg-white text-[#2b2420] placeholder:text-[#c2b5a0] transition-colors focus:outline-none focus:ring-2 focus:ring-[#e8603c] focus:border-[#e8603c]"
-                  />
-                </div>
               </div>
 
               <div>
