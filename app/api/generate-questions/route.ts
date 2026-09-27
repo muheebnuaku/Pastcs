@@ -148,7 +148,13 @@ Respond with a JSON object in this exact format:
 Rules:
 - single_choice: correct_answer is a string matching one option exactly
 - multiple_choice: correct_answer is an array of strings matching correct options exactly
-- fill_in_blank: options is null, correct_answer is the fill-in text`;
+- fill_in_blank: options is null, correct_answer is the fill-in text. NEVER phrase a
+  fill_in_blank question as "Which of the following..." or reference any set of choices
+  — no options are ever shown for this type, so that phrasing leaves the student staring
+  at an empty text box with no idea what "the following" refers to. Phrase it as a direct
+  statement with a blank (e.g. "Binary thresholding assigns maximum intensity to pixels
+  above a threshold and ___ to all others.") or a direct factual question (e.g. "What value
+  does binary thresholding assign to pixels below the threshold?").`;
     } else {
       // Slide-content mode (topic is optional extra context). A large
       // document arrives here as one of several sequential batches (see
@@ -202,7 +208,13 @@ Respond with a JSON object in this exact format:
 Rules:
 - single_choice: correct_answer is a string matching one option exactly
 - multiple_choice: correct_answer is an array of strings matching correct options exactly
-- fill_in_blank: options is null, correct_answer is the fill-in text
+- fill_in_blank: options is null, correct_answer is the fill-in text. NEVER phrase a
+  fill_in_blank question as "Which of the following..." or reference any set of choices
+  — no options are ever shown for this type, so that phrasing leaves the student staring
+  at an empty text box with no idea what "the following" refers to. Phrase it as a direct
+  statement with a blank (e.g. "Binary thresholding assigns maximum intensity to pixels
+  above a threshold and ___ to all others.") or a direct factual question (e.g. "What value
+  does binary thresholding assign to pixels below the threshold?").
 - Cover every key point — do not skip any`;
     }
 
