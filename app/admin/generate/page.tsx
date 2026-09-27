@@ -103,6 +103,16 @@ export default function AdminGeneratePage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Paste-ready-made-questions import — for hand-authored batches (e.g.
+  // matching a specific lecturer's actual exam style) that shouldn't go
+  // through the AI at all. Feeds the same review/edit/save pipeline below
+  // as an AI-generated batch — same shape, same topic resolution, same
+  // is_approved:false gate — just skips the OpenAI call.
+  const [showImport, setShowImport] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importTopicName, setImportTopicName] = useState('');
+  const [importError, setImportError] = useState('');
+
   // File upload state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -378,6 +388,60 @@ export default function AdminGeneratePage() {
         setError(`${errorCount} of ${total} batches failed${sampleReason ? ` (${sampleReason})` : ''} — the rest succeeded and are ready to review below. Retry the failed ones with the button above the questions.`);
       }
     }
+  };
+
+  const handleLoadImport = () => {
+    setImportError('');
+
+    if (!selectedCourse) {
+      setImportError('Select a course first.');
+      return;
+    }
+    const topicName = (selectedTopicObj?.topic_name || importTopicName).trim();
+    if (!topicName) {
+      setImportError('Type a topic name for these questions (or pick one from the Topic dropdown above).');
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(importJson);
+    } catch {
+      setImportError('That\'s not valid JSON — check for a missing comma or bracket.');
+      return;
+    }
+
+    const list = Array.isArray(parsed) ? parsed : (parsed as { questions?: unknown[] })?.questions;
+    if (!Array.isArray(list) || list.length === 0) {
+      setImportError('Expected a JSON array of questions (or an object with a "questions" array).');
+      return;
+    }
+
+    const mapped: GeneratedQuestion[] = [];
+    for (let i = 0; i < list.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q = list[i] as any;
+      if (!q?.question_text || !q?.question_type || q?.correct_answer === undefined) {
+        setImportError(`Question ${i + 1} is missing question_text, question_type, or correct_answer.`);
+        return;
+      }
+      mapped.push({
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: q.options ?? null,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation ?? '',
+        difficulty: q.difficulty ?? 'medium',
+        is_scenario: !!q.is_scenario,
+        selected: true,
+        batchTopic: topicName,
+      });
+    }
+
+    setGeneratedQuestions(prev => [...prev, ...mapped]);
+    setSuccessMessage(`Loaded ${mapped.length} question${mapped.length !== 1 ? 's' : ''} into review below — check them over, then Save Selected.`);
+    setImportJson('');
+    setShowImport(false);
   };
 
   const handleGenerate = async () => {
@@ -825,6 +889,52 @@ Binary Number System
                 </>
               );
             })()}
+
+            {selectedCourse && (
+              <div className="border-t border-gray-100 dark:border-white/10 pt-4">
+                <button
+                  onClick={() => setShowImport(v => !v)}
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium"
+                >
+                  {showImport ? '− Hide' : '+ Or paste ready-made questions (JSON)'}
+                </button>
+                {showImport && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      For hand-authored questions that should skip the AI entirely — matching a
+                      specific lecturer&rsquo;s style, for example. Same JSON shape the AI itself
+                      produces: an array of <code className="text-[11px] bg-gray-100 dark:bg-white/10 px-1 py-0.5 rounded">{'{ question_text, question_type, options, correct_answer, explanation, difficulty, is_scenario }'}</code>.
+                    </p>
+                    <input
+                      type="text"
+                      value={importTopicName}
+                      onChange={e => setImportTopicName(e.target.value)}
+                      placeholder="Topic name for these questions (existing or new)"
+                      disabled={!!selectedTopicObj}
+                      className="w-full text-sm border border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                    />
+                    {selectedTopicObj && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        Using the Topic selected above: <strong>{selectedTopicObj.topic_name}</strong>.
+                      </p>
+                    )}
+                    <Textarea
+                      value={importJson}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setImportJson(e.target.value)}
+                      placeholder='[{"question_text": "...", "question_type": "multiple_choice", "options": ["...", "...", "...", "..."], "correct_answer": ["...", "..."], "explanation": "...", "difficulty": "hard", "is_scenario": true}]'
+                      rows={8}
+                      className="font-mono text-xs"
+                    />
+                    {importError && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{importError}</p>
+                    )}
+                    <Button size="sm" onClick={handleLoadImport} disabled={!importJson.trim()}>
+                      Load into Review
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -88,7 +88,30 @@ Use pipes (|) for columns and a |---|---| separator row right after the
 header row, exactly like that. Never write a question that names or
 implies a table, dataset, code snippet, or diagram without actually
 including its contents this way — a question a student cannot answer
-because the data was never shown is a defect, not a valid question.`;
+because the data was never shown is a defect, not a valid question.
+
+EXPLANATION AND OPTION QUALITY — match the level of a real university
+exam, not a trivia quiz. Every wrong option should be plausible enough
+that a student who only half-understands the material could pick it —
+never a joke answer or something obviously irrelevant. For multiple_choice
+questions especially, favor a design where the options are genuinely
+competing claims that require actually reasoning through the material
+to evaluate (e.g. several statements that are each superficially
+reasonable, where only some hold up under closer analysis), not "2
+obviously right facts + 2 obviously wrong ones."
+
+Write the explanation to justify EVERY option individually, not just
+name the correct answer — briefly say why each correct option holds and
+why each incorrect option fails, the way a lecturer would walk through
+it in a model answer. For example:
+
+"B and D. B is right because [specific reason tied to the material]. D
+is right because [specific reason]. A is wrong because [specific flaw
+in that claim]. C is wrong because [specific flaw]."
+
+A one-line explanation like "The correct answer is B because it's
+right" is not acceptable — it doesn't teach anything a student didn't
+already get wrong.`;
 
     if (topicName && !slideContent) {
       // Topic-only mode: generate without slides
