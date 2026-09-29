@@ -40,7 +40,10 @@ export default function DashboardLayout({
       )}
       <StudentSidebar />
       <main className="lg:ml-64 min-h-screen">
-        <div className="pt-16 lg:pt-0 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        {/* Bottom padding below lg clears the fixed mobile tab bar
+            (StudentSidebar) — assistant/page.tsx sizes itself against
+            these exact values. */}
+        <div className="pt-16 lg:pt-0 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
       </main>
