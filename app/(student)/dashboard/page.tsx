@@ -9,7 +9,7 @@ import { useCountdown } from '@/lib/hooks/useCountdown';
 import { createClient } from '@/lib/supabase/client';
 import { coursesForProgram } from '@/lib/programs';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
-import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, courseCodeSlug, type ExamUrgency } from '@/lib/utils';
+import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, courseCodeSlug, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
 import type { Course, Test, WeakTopic } from '@/types';
@@ -17,8 +17,11 @@ import {
   Flame,
   Target,
   BookOpen,
-  ArrowRight,
   TrendingUp,
+  Play,
+  RotateCcw,
+  MessageCircle,
+  ChevronRight,
   AlertTriangle,
   Lock,
   GraduationCap,
@@ -145,6 +148,21 @@ export default function DashboardPage() {
     ? Math.max(0, courses.length - 1)
     : 0;
 
+  // Quick actions target the course the student last practised (if they
+  // still have access to it), otherwise their first accessible course.
+  const canOpen = (c: Course) => isPaid || c.course_code === user?.free_course_code;
+  const lastCourseCode = recentTests[0]?.course?.course_code;
+  const focusCourse =
+    courses.find(c => c.course_code === lastCourseCode && canOpen(c)) ??
+    courses.find(canOpen);
+  const focusSlug = focusCourse ? courseCodeSlug(focusCourse.course_code) : '';
+  const quickActions = focusCourse ? [
+    { href: `/practice/${focusSlug}?mode=quick`, icon: Play, title: lastCourseCode === focusCourse.course_code ? 'Continue practising' : 'Start practising', sub: focusCourse.course_code, iconBox: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' },
+    { href: `/exam/${focusSlug}`, icon: Target, title: 'Mock exam', sub: `${QUESTIONS_PER_EXAM} Qs · ${EXAM_DURATION_MINUTES} min`, iconBox: 'bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400' },
+    { href: `/practice/${focusSlug}?mode=mistakes`, icon: RotateCcw, title: 'Fix my mistakes', sub: 'Redo what you missed', iconBox: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' },
+    { href: '/assistant', icon: MessageCircle, title: 'Ask the AI tutor', sub: 'Get anything explained', iconBox: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400' },
+  ] : [];
+
   return (
     <div className="space-y-5 sm:space-y-8 animate-fade-in">
       {showLevelModal && (
@@ -161,22 +179,39 @@ export default function DashboardPage() {
       )}
 
       {/* ── Welcome Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Welcome back, {user?.full_name?.split(' ')[0] || 'Student'}!
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-0.5">
-            {getStreakMessage(user?.practice_streak || 0)}
-          </p>
-        </div>
-        <Link href="/courses" className="self-start sm:self-auto">
-          <Button size="sm" className="sm:size-auto">
-            Start Practice
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </Link>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Welcome back, {user?.full_name?.split(' ')[0] || 'Student'}!
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-0.5">
+          {getStreakMessage(user?.practice_streak || 0)}
+        </p>
       </div>
+
+      {/* ── Quick actions ── */}
+      {quickActions.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {quickActions.map(({ href, icon: Icon, title, sub, iconBox }, i) => (
+            <Link
+              key={title}
+              href={href}
+              className={`group flex items-center gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm hover:shadow-md active:scale-[0.98] transition-all ${
+                i === 0
+                  ? 'bg-blue-600 border-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:border-blue-600'
+                  : 'bg-white border-gray-200 hover:border-gray-300 dark:bg-white/[0.04] dark:border-white/10 dark:hover:border-white/20'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${i === 0 ? 'bg-white/20 text-white' : iconBox}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className={`font-semibold text-sm leading-tight ${i === 0 ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>{title}</p>
+                <p className={`text-xs mt-0.5 truncate ${i === 0 ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>{sub}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* ── No level selected ── */}
       {!level && (
@@ -196,13 +231,7 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => setShowLevelModal(true)}
-            className="mt-3 w-full bg-[#e8603c] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#c94f2f] transition-colors sm:hidden"
-          >
-            Select Level
-          </button>
-          <button
-            onClick={() => setShowLevelModal(true)}
-            className="hidden sm:block mt-3 bg-[#e8603c] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#c94f2f] transition-colors"
+            className="mt-3 w-full sm:w-auto bg-[#e8603c] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#c94f2f] transition-colors"
           >
             Select Level
           </button>
@@ -305,37 +334,36 @@ export default function DashboardPage() {
                 View All
               </Link>
             </div>
-            <CardContent className="space-y-1 sm:space-y-2 px-2 sm:px-4">
-              {courses.slice(0, 4).map((course) => {
+            <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 p-3 sm:p-4">
+              {courses.slice(0, 6).map((course) => {
                 const isLocked = !isPaid && course.course_code !== user?.free_course_code && !!user?.free_course_code;
                 return (
                   <Link
                     key={course.id}
                     href={`/courses/${courseCodeSlug(course.course_code)}`}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                    className={`flex flex-col gap-2 p-3 rounded-xl border transition-all active:scale-[0.98] ${
+                      isLocked
+                        ? 'border-dashed border-gray-200 bg-gray-50/60 hover:border-gray-300 dark:border-white/10 dark:bg-white/[0.02]'
+                        : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-500/40'
+                    }`}
                   >
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
-                      {isLocked
-                        ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500" />
-                        : course.icon || COURSE_ICONS[course.course_code] || '📚'
-                      }
+                    <div className="flex items-center justify-between">
+                      <span className="w-9 h-9 bg-gray-100 dark:bg-white/10 rounded-lg flex items-center justify-center text-lg">
+                        {isLocked
+                          ? <Lock className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                          : course.icon || COURSE_ICONS[course.course_code] || '📚'
+                        }
+                      </span>
+                      <span className="text-[11px] text-gray-400 dark:text-gray-500">{course.total_questions} Qs</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className={`font-medium text-sm sm:text-base truncate ${isLocked ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
-                          {course.course_code}
-                        </p>
-                        <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{course.total_questions}q</span>
-                      </div>
-                      <p className={`text-xs sm:text-sm truncate ${isLocked ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <div className="min-w-0">
+                      <p className={`font-semibold text-sm truncate ${isLocked ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {course.course_code}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-snug">
                         {course.course_name}
                       </p>
                     </div>
-                    {isLocked && (
-                      <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-full">
-                        Locked
-                      </span>
-                    )}
                   </Link>
                 );
               })}
@@ -357,7 +385,7 @@ export default function DashboardPage() {
                 {/* Mobile: card list */}
                 <div className="divide-y divide-gray-100 dark:divide-white/10 md:hidden">
                   {recentTests.map((test) => (
-                    <div key={test.id} className="p-4">
+                    <Link key={test.id} href={`/results/${test.id}`} className="block p-4 active:bg-gray-50 dark:active:bg-white/5">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-lg">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
@@ -377,11 +405,11 @@ export default function DashboardPage() {
                         <span className="text-xs text-gray-400 dark:text-gray-500">
                           {test.score}/{test.total_questions} &middot; {new Date(test.created_at).toLocaleDateString()}
                         </span>
-                        <Link href={`/results/${test.id}`} className="text-xs text-[#e8603c] hover:underline font-medium">
-                          View Details
-                        </Link>
+                        <span className="inline-flex items-center text-xs text-[#e8603c] font-medium">
+                          Review <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
 
@@ -519,30 +547,6 @@ export default function DashboardPage() {
                     {getPerformanceNote(stats.avgScore, stats.totalTests)}
                   </p>
 
-                  {weakTopics.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        Focus on
-                      </p>
-                      <ul className="space-y-1.5">
-                        {weakTopics.slice(0, 3).map(topic => (
-                          <li key={topic.topic_id}>
-                            <Link
-                              href={`/practice/${courseCodeSlug(topic.course_code)}?topic=${topic.topic_id}`}
-                              className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 hover:text-violet-700 dark:hover:text-violet-300 group"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
-                              <span className="truncate flex-1 group-hover:underline">{topic.topic_name}</span>
-                              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-1.5 py-0.5 rounded-full flex-shrink-0 tabular-nums">
-                                {Math.round(topic.accuracy)}%
-                              </span>
-                              <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{topic.course_code}</span>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </div>
               )}
             </CardContent>
@@ -573,8 +577,8 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-gray-500 dark:text-gray-400">{topic.course_code}</p>
-                        <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          Practice this →
+                        <span className="inline-flex items-center text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                          Practice <ChevronRight className="w-3.5 h-3.5" />
                         </span>
                       </div>
                     </Link>
