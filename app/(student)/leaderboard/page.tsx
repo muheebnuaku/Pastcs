@@ -3,41 +3,30 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { Card, CardContent, Badge, Avatar, Select } from '@/components/ui';
-import { COURSE_ICONS, formatPercentage } from '@/lib/utils';
-import { coursesForProgram } from '@/lib/programs';
-import type { Course, LeaderboardEntry } from '@/types';
+import { Card, CardContent, Avatar } from '@/components/ui';
+import { formatPercentage } from '@/lib/utils';
+import type { LeaderboardEntry } from '@/types';
 import { Trophy, Medal, Award, Crown, TrendingUp } from 'lucide-react';
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
-  const [courses, setCourses] = useState<Course[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string>('all');
 
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
-
-      // Fetch courses — scoped to the student's own program so the
-      // filter dropdown can't offer a course they don't even take.
-      const coursesQuery = user?.program_id
-        ? coursesForProgram(supabase, user.program_id).order('course_code')
-        : supabase.from('courses').select('*').order('course_code');
-      const { data: coursesData } = await coursesQuery;
-
-      if (coursesData) setCourses(coursesData);
-
-      // Fetch leaderboard
-      const courseId = selectedCourse === 'all' ? null : selectedCourse;
+      // get_leaderboard was never program-scoped even when a per-course
+      // filter was offered (p_course_id: null was already "everyone,
+      // every course") — dropping the course dropdown doesn't change
+      // what this ranks, just removes a narrowing option nobody needed.
       const { data: leaderboardData } = await supabase
-        .rpc('get_leaderboard', { p_course_id: courseId, p_limit: 25 });
+        .rpc('get_leaderboard', { p_course_id: null, p_limit: 25 });
 
       if (leaderboardData) setLeaderboard(leaderboardData);
     };
 
     fetchData();
-  }, [selectedCourse, user?.program_id]);
+  }, []);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -69,20 +58,9 @@ export default function LeaderboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Leaderboard</h1>
-          <p className="text-gray-600 dark:text-gray-400">See how you rank against other students</p>
-        </div>
-        <Select
-          options={[
-            { value: 'all', label: 'All Courses' },
-            ...courses.map(c => ({ value: c.id, label: `${c.course_code} - ${c.course_name}` })),
-          ]}
-          value={selectedCourse}
-          onChange={(e) => setSelectedCourse(e.target.value)}
-          className="w-full sm:w-64"
-        />
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Leaderboard</h1>
+        <p className="text-gray-600 dark:text-gray-400">See how you rank against other students</p>
       </div>
 
       {/* User's Position */}
@@ -153,7 +131,7 @@ export default function LeaderboardPage() {
           ) : (
             <div className="p-12 text-center text-gray-500 dark:text-gray-400">
               <Trophy className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-white/10" />
-              <p>No rankings yet for this selection.</p>
+              <p>No rankings yet.</p>
               <p className="text-sm mt-1">Be the first to take a test!</p>
             </div>
           )}
