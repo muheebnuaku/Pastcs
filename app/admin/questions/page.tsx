@@ -497,7 +497,7 @@ function AdminQuestionsContent() {
         <div className="space-y-3">
           {/* Bulk action bar */}
           {filteredQuestions.length > 0 && (
-            <div className="flex items-center gap-3 px-1">
+            <div className="flex flex-wrap items-center gap-3 px-1">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
