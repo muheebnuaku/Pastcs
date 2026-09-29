@@ -61,8 +61,51 @@ export function StudentSidebar() {
   const showUpgradeNudge = !isPaid && !!user?.free_course_code;
   const { label: priceLabel } = usePricing(level, user?.program_id);
 
+  // Hidden while a practice session or exam is running so a stray tap
+  // can't pull the student out mid-test.
+  const inTest = pathname.startsWith('/practice/') || pathname.startsWith('/exam/');
+  const tabs = [
+    { href: '/dashboard', label: 'Home', icon: Home },
+    { href: '/courses', label: 'Courses', icon: BookOpen },
+    { href: '/assistant', label: 'AI Tutor', icon: BotMessageSquare },
+    { href: '/leaderboard', label: 'Ranks', icon: Trophy },
+  ];
+
   return (
     <>
+      {!inTest && (
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-20 bg-white/95 dark:bg-[#1c1a15]/95 backdrop-blur border-t border-gray-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)]">
+          <div className="grid grid-cols-5">
+            {tabs.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(href + '/');
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    'flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors',
+                    active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+                  )}
+                >
+                  <Icon className="w-5 h-5" />
+                  {label}
+                </Link>
+              );
+            })}
+            <button
+              onClick={() => setIsOpen(true)}
+              className="relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-gray-500 dark:text-gray-400"
+            >
+              <Menu className="w-5 h-5" />
+              More
+              {unreadMessages > 0 && (
+                <span className="absolute top-1.5 left-1/2 ml-2 w-2 h-2 bg-red-500 rounded-full" />
+              )}
+            </button>
+          </div>
+        </nav>
+      )}
+
       {/* Mobile menu button — hidden once open: it sits right over the
           drawer's own logo, and clicking the overlay already closes it. */}
       {!isOpen && (

@@ -791,14 +791,15 @@ export default function AssistantPage() {
   const isProcessing = docStage === 'uploading' || docStage === 'generating';
 
   return (
-    // The parent (student) layout wraps every page in pt-16+pb-5 padding
-    // below lg (room for the mobile hamburger button) and pt-0+lg:py-8
-    // at lg and up — this has to match that exactly, or the internal
-    // scroll area below is either too short (dead space) or too tall
-    // (pushes the composer off-screen / creates a second page-level
-    // scrollbar). 100dvh instead of 100vh so mobile Safari/Chrome's
-    // address bar showing or hiding doesn't make the layout jump.
-    <div className="flex flex-col h-[calc(100dvh-5.25rem)] lg:h-[calc(100dvh-2rem)] max-h-[900px]">
+    // The parent (student) layout pads every page with pt-16 on top and
+    // 5rem + the safe-area inset at the bottom below lg (room for the
+    // hamburger and the bottom tab bar), and pt-0+lg:py-8 at lg and up —
+    // this has to match that exactly, or the internal scroll area below
+    // is either too short (dead space) or too tall (pushes the composer
+    // off-screen / creates a second page-level scrollbar). 100dvh instead
+    // of 100vh so mobile Safari/Chrome's address bar showing or hiding
+    // doesn't make the layout jump.
+    <div className="flex flex-col h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-2rem)] max-h-[900px]">
 
       {showTutorPricing && (
         <TutorPricingModal

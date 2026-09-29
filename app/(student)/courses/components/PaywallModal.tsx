@@ -6,7 +6,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Button } from '@/components/ui';
-import { Lock, X, CheckCircle, XCircle, Loader2, Users } from 'lucide-react';
+import { Lock, X, CheckCircle, XCircle, Loader2, ShieldCheck } from 'lucide-react';
 import type { Subscription } from '@/types';
 
 interface Props {
@@ -24,7 +24,7 @@ declare global {
   }
 }
 
-export function PaywallModal({ courseName, courseCode, totalCourses, onClose, onSuccess }: Props) {
+export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const { addSubscription } = useSubscriptionStore();
   const [isVerifying, setIsVerifying] = useState(false);
@@ -131,14 +131,13 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
     }
   };
 
-  const freeCount = 1;
-  const lockedCount = totalCourses - freeCount;
+  const lockedCount = Math.max(0, totalCourses - 1);
 
   if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 py-8 sm:py-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto dark:bg-white/[0.04]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto dark:bg-[#1c1a15] dark:border dark:border-white/10">
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-0">
           <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center">
@@ -153,62 +152,55 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
         </div>
 
         <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Unlock Full Access</h2>
-          <p className="text-gray-500 text-sm mb-6 dark:text-gray-400">
-            You&rsquo;re trying to open <strong className="text-gray-800 dark:text-gray-200">{courseCode} — {courseName}</strong>
+          <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Unlock every course</h2>
+          <p className="text-gray-500 text-sm mb-5 dark:text-gray-400">
+            One payment opens {totalCourses > 0 ? `all ${totalCourses}` : 'every'} Level {user?.selected_level} course{totalCourses > 1 ? 's' : ''} for this semester.
           </p>
 
-          {/* Comparison table */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          {/* Comparison */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
             <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 dark:bg-white/[0.03] dark:border-white/10">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 dark:text-gray-400">Free</p>
               <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <li className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                   1 course
                 </li>
-                <li className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
-                  <XCircle className="w-4 h-4 flex-shrink-0" />
-                  {lockedCount} more courses
-                </li>
-                <li className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
-                  <XCircle className="w-4 h-4 flex-shrink-0" />
-                  Exam practice
+                <li className="flex items-start gap-2 text-gray-400 dark:text-gray-500">
+                  <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  {lockedCount} other course{lockedCount === 1 ? '' : 's'}
                 </li>
               </ul>
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-500/10 rounded-2xl p-4 border-2 border-blue-200 dark:border-blue-500/30">
-              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-3">Full Access</p>
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-3">Full access</p>
               <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                  <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                  All {totalCourses} courses
+                <li className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                  <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  {totalCourses > 0 ? `All ${totalCourses} courses` : 'Every course'}
                 </li>
-                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                  <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                  Exam simulations
+                <li className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                  <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  Mock exams in each
                 </li>
-                <li className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                  <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                  Progress tracking
+                <li className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                  <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  Whole semester
                 </li>
               </ul>
             </div>
           </div>
 
-          {/* Price + anchoring */}
-          <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-4">
-            <div className="flex items-center justify-center gap-2">
-              <p className="text-3xl font-bold text-white">{priceLabel}</p>
-            </div>
-            <p className="text-blue-200 text-sm mt-1">this semester — invest in your grades</p>
+          {/* Price */}
+          <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-3">
+            <p className="text-3xl font-bold text-white">{priceLabel}</p>
+            <p className="text-blue-100 text-sm mt-1">one payment · this semester · all courses</p>
           </div>
 
-          {/* Social proof */}
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-5 dark:text-gray-400">
-            <Users className="w-4 h-4 text-blue-500" />
-            <span>200+ students already unlocked Level {user?.selected_level} access</span>
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-5 dark:text-gray-400">
+            <ShieldCheck className="w-4 h-4 text-green-500 flex-shrink-0" />
+            <span>Secure checkout by Paystack — Mobile Money or card</span>
           </div>
 
           {error && (
@@ -233,7 +225,7 @@ export function PaywallModal({ courseName, courseCode, totalCourses, onClose, on
                 Verifying payment…
               </>
             ) : (
-              `Unlock Now — ${priceLabel}`
+              `Pay ${priceLabel} & unlock`
             )}
           </Button>
 
