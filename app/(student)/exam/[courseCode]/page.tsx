@@ -273,8 +273,12 @@ export default function ExamPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-gray-50 py-4 -mx-6 px-6 dark:bg-white/[0.03]">
+      {/* Sticky Header — the negative margin/padding pair has to match the
+          page shell's own padding (app/(student)/layout.tsx: px-4, sm:px-6,
+          lg:px-8) at every breakpoint to cancel out cleanly; a flat -mx-6
+          px-6 only lined up at the sm: breakpoint and bled past the real
+          content edge on mobile (px-4) and large screens (lg:px-8). */}
+      <div className="sticky top-0 z-10 bg-gray-50 py-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:bg-white/[0.03]">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <Badge variant="info">{course?.course_code}</Badge>
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-semibold ${
