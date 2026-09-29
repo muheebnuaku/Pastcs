@@ -8,7 +8,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Progress, QuestionContent } from '@/components/ui';
-import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam } from '@/lib/utils';
+import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
 import { courseCountForProgram } from '@/lib/programs';
@@ -136,7 +136,7 @@ function PracticeContent() {
     setCourse(courseData);
     trackEvent('practice_start', { course: courseCode, topicId: topicId ?? undefined });
 
-    if (!isPaid && !isFree) { router.push(`/courses/${courseCode.toLowerCase()}`); return; }
+    if (!isPaid && !isFree) { router.push(`/courses/${courseCodeSlug(courseCode)}`); return; }
 
     if (user?.selected_level && user?.selected_semester && user?.program_id) {
       const { count } = await courseCountForProgram(supabase, user.program_id)

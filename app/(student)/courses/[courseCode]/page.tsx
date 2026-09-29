@@ -8,7 +8,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
-import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
+import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
 import { courseCountForProgram } from '@/lib/programs';
 import type { Course, Topic } from '@/types';
@@ -239,7 +239,7 @@ export default function CourseDetailPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
               No time limit, instant feedback.
             </p>
-            <Link href={`/practice/${course.course_code.toLowerCase()}?mode=quick`}>
+            <Link href={`/practice/${courseCodeSlug(course.course_code)}?mode=quick`}>
               <Button size="sm" className="w-full">
                 <Play className="w-3.5 h-3.5 mr-1.5" />
                 Start
@@ -262,7 +262,7 @@ export default function CourseDetailPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
               Timed, with auto-submit — like the real thing.
             </p>
-            <Link href={`/exam/${course.course_code.toLowerCase()}`}>
+            <Link href={`/exam/${courseCodeSlug(course.course_code)}`}>
               <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                 <Target className="w-3.5 h-3.5 mr-1.5" />
                 Start
@@ -285,7 +285,7 @@ export default function CourseDetailPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
               Revisit missed questions until they stick.
             </p>
-            <Link href={`/practice/${course.course_code.toLowerCase()}?mode=mistakes`}>
+            <Link href={`/practice/${courseCodeSlug(course.course_code)}?mode=mistakes`}>
               <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white">
                 <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
                 Review
@@ -308,7 +308,7 @@ export default function CourseDetailPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
               Resurfaces on a schedule as it sticks.
             </p>
-            <Link href={`/practice/${course.course_code.toLowerCase()}?mode=due`}>
+            <Link href={`/practice/${courseCodeSlug(course.course_code)}?mode=due`}>
               <Button size="sm" className="w-full bg-violet-600 hover:bg-violet-700 text-white">
                 <CalendarClock className="w-3.5 h-3.5 mr-1.5" />
                 Start
@@ -329,7 +329,7 @@ export default function CourseDetailPage() {
               {topics.map((topic, idx) => (
                 <Link
                   key={topic.id}
-                  href={`/practice/${course.course_code.toLowerCase()}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
+                  href={`/practice/${courseCodeSlug(course.course_code)}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors dark:bg-white/[0.03] dark:hover:bg-white/10"
                 >
                   <div>

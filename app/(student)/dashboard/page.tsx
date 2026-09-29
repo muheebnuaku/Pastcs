@@ -9,7 +9,7 @@ import { useCountdown } from '@/lib/hooks/useCountdown';
 import { createClient } from '@/lib/supabase/client';
 import { coursesForProgram } from '@/lib/programs';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
-import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, type ExamUrgency } from '@/lib/utils';
+import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, courseCodeSlug, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
 import type { Course, Test, WeakTopic } from '@/types';
@@ -311,7 +311,7 @@ export default function DashboardPage() {
                 return (
                   <Link
                     key={course.id}
-                    href={`/courses/${course.course_code.toLowerCase()}`}
+                    href={`/courses/${courseCodeSlug(course.course_code)}`}
                     className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                   >
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
@@ -528,7 +528,7 @@ export default function DashboardPage() {
                         {weakTopics.slice(0, 3).map(topic => (
                           <li key={topic.topic_id}>
                             <Link
-                              href={`/practice/${topic.course_code.toLowerCase()}?topic=${topic.topic_id}`}
+                              href={`/practice/${courseCodeSlug(topic.course_code)}?topic=${topic.topic_id}`}
                               className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 hover:text-violet-700 dark:hover:text-violet-300 group"
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
@@ -562,7 +562,7 @@ export default function DashboardPage() {
                   {weakTopics.map((topic) => (
                     <Link
                       key={topic.topic_id}
-                      href={`/practice/${topic.course_code.toLowerCase()}?topic=${topic.topic_id}`}
+                      href={`/practice/${courseCodeSlug(topic.course_code)}?topic=${topic.topic_id}`}
                       className="block p-3 bg-yellow-50 dark:bg-yellow-500/10 rounded-xl hover:bg-yellow-100 dark:hover:bg-yellow-500/15 transition-colors group"
                     >
                       <div className="flex items-center justify-between mb-0.5">

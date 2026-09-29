@@ -8,7 +8,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, CardContent, Badge } from '@/components/ui';
-import { COURSE_ICONS } from '@/lib/utils';
+import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import { LevelSemesterModal } from './components/LevelSemesterModal';
 import { PaywallModal } from './components/PaywallModal';
 import { coursesForProgram } from '@/lib/programs';
@@ -87,7 +87,7 @@ export default function CoursesPage() {
       });
       if (res.ok) {
         await refreshUser();
-        router.push(`/courses/${courseCode.toLowerCase()}`);
+        router.push(`/courses/${courseCodeSlug(courseCode)}`);
       }
     } finally {
       setSettingFreeCourse(null);
@@ -336,7 +336,7 @@ export default function CoursesPage() {
             }
 
             return (
-              <Link key={course.id} href={`/courses/${course.course_code.toLowerCase()}`} className="group">
+              <Link key={course.id} href={`/courses/${courseCodeSlug(course.course_code)}`} className="group">
                 <Card className="h-full border-2 border-transparent group-hover:border-blue-200 group-hover:shadow-md transition-all cursor-pointer">
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">

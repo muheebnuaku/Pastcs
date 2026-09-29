@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Badge, QuestionContent } from '@/components/ui';
-import { formatPercentage, formatTime, getGradeBadgeColor } from '@/lib/utils';
+import { formatPercentage, formatTime, getGradeBadgeColor, courseCodeSlug } from '@/lib/utils';
 import { renderMarkdownTables } from '@/lib/markdown';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
@@ -254,7 +254,7 @@ export default function ResultsPage() {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-4 justify-center">
-        <Link href={`/courses/${test.course?.course_code.toLowerCase()}`}>
+        <Link href={`/courses/${test.course ? courseCodeSlug(test.course.course_code) : ''}`}>
           <Button><RotateCcw className="w-4 h-4 mr-2" />Practice Again</Button>
         </Link>
         <Link href="/courses">
