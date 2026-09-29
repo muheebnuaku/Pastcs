@@ -8,7 +8,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Card, Button, Badge, Modal, Progress, QuestionContent } from '@/components/ui';
-import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam } from '@/lib/utils';
+import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
 import { courseCountForProgram } from '@/lib/programs';
@@ -132,7 +132,7 @@ export default function ExamPage() {
 
       // Access check
       if (!isPaid && !isFree) {
-        router.push(`/courses/${courseCode.toLowerCase()}`);
+        router.push(`/courses/${courseCodeSlug(courseCode)}`);
         return;
       }
 

@@ -20,6 +20,19 @@ export function decodeRouteParam(value: string): string {
   }
 }
 
+// A course_code can contain characters that are valid in a URL but change
+// its structure if left raw — a "/" (a real course this session: a
+// cross-listed "DCIT414/422") turns `/courses/${code}` into two path
+// segments instead of one, which the single [courseCode] dynamic route
+// can't match, so the page 404s. encodeURIComponent turns it into
+// "dcit414%2F422" — one segment again — and decodeRouteParam's
+// decodeURIComponent on the receiving end turns it back into "DCIT414/422"
+// for the DB lookup. Always build a course link through this, not a raw
+// `.toLowerCase()`.
+export function courseCodeSlug(courseCode: string): string {
+  return encodeURIComponent(courseCode.toLowerCase());
+}
+
 // For very large documents (slides, lecture notes), sample intelligently
 // instead of silently truncating: keep the start, middle, and end so the
 // model sees how the material opens, develops, and concludes rather than
