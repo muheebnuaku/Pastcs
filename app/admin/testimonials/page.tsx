@@ -133,55 +133,55 @@ export default function AdminTestimonialsPage() {
                       <p className="mt-2 text-gray-700 text-sm leading-relaxed dark:text-gray-300">&ldquo;{r.quote}&rdquo;</p>
                     )}
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    {isEditing ? (
-                      <>
-                        <button
-                          onClick={() => saveEdit(r.id)}
-                          disabled={acting === r.id || !editText.trim()}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          Save
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          disabled={acting === r.id}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => startEdit(r)}
-                          disabled={acting === r.id}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => approve(r.id)}
-                          disabled={acting === r.id}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => reject(r.id)}
-                          disabled={acting === r.id}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Reject
-                        </button>
-                      </>
-                    )}
-                  </div>
+                </div>
+                <div className={`grid gap-2 mt-3 sm:max-w-sm sm:ml-auto ${isEditing ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={cancelEdit}
+                        disabled={acting === r.id}
+                        className="flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium rounded-lg disabled:opacity-50 transition-colors dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => saveEdit(r.id)}
+                        disabled={acting === r.id || !editText.trim()}
+                        className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => reject(r.id)}
+                        disabled={acting === r.id}
+                        className="flex items-center justify-center gap-1 px-3 py-2 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => startEdit(r)}
+                        disabled={acting === r.id}
+                        className="flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium rounded-lg disabled:opacity-50 transition-colors dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => approve(r.id)}
+                        disabled={acting === r.id}
+                        className="flex items-center justify-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Approve
+                      </button>
+                    </>
+                  )}
                 </div>
               </Card>
             );

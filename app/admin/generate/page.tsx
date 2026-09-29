@@ -71,6 +71,15 @@ interface GenerationHistoryRow {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+function StepLabel({ n, text }: { n: number; text: string }) {
+  return (
+    <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-1">
+      <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] flex items-center justify-center flex-shrink-0">{n}</span>
+      {text}
+    </p>
+  );
+}
+
 export default function AdminGeneratePage() {
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -644,6 +653,7 @@ export default function AdminGeneratePage() {
             </h2>
           </div>
           <CardContent className="space-y-4">
+            <StepLabel n={1} text="Choose the course" />
             {/* Program selector — hidden while only one program exists */}
             {programs.length > 1 && (
               <Select
@@ -694,6 +704,8 @@ export default function AdminGeneratePage() {
               ))}
             </Select>
 
+            {selectedCourse && <StepLabel n={2} text="Add slides, text, or pick a topic" />}
+
             {/* Topic selector */}
             {selectedCourse && (
               <div>
@@ -727,7 +739,7 @@ export default function AdminGeneratePage() {
                 {!pdfFile ? (
                   <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-colors dark:border-white/15 dark:bg-white/[0.03] dark:hover:bg-blue-500/10 dark:hover:border-blue-500/40">
                     <FileUp className="w-7 h-7 text-gray-400 mb-1 dark:text-gray-500" />
-                    <span className="text-sm text-gray-500 dark:text-gray-400">Click to upload PDF, PPTX, or DOCX</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Tap to upload PDF, PPTX, or DOCX</span>
                     <span className="text-xs text-gray-400 dark:text-gray-500">AI will scan and extract topic &amp; content</span>
                     <input
                       ref={fileInputRef}
@@ -810,6 +822,8 @@ Binary Number System
                 </ul>
               </div>
             )}
+
+            {selectedCourse && <StepLabel n={3} text="Generate, then review below" />}
 
             {(() => {
               const preview = slideContent.trim() ? chunkContent(slideContent.trim(), BATCH_TARGET_CHARS) : [];
@@ -953,7 +967,7 @@ Binary Number System
               </span>
             )}
           </div>
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {batchStatuses.length > 1 && (
               <div className="mb-4 p-3 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10">
                 <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
@@ -999,9 +1013,9 @@ Binary Number System
             )}
 
             {error && (
-              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-4 rounded-lg mb-4">
-                <AlertCircle className="w-5 h-5" />
-                {error}
+              <div className="flex items-start gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-4 rounded-lg mb-4">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span className="min-w-0 break-words">{error}</span>
               </div>
             )}
 

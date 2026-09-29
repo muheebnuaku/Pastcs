@@ -63,11 +63,6 @@ function csvEscape(value: string) {
   return value;
 }
 
-const roleTabs: { key: RoleFilter; label: string; icon: typeof UsersIcon }[] = [
-  { key: 'all', label: 'All', icon: UsersIcon },
-  { key: 'student', label: 'Students', icon: GraduationCap },
-  { key: 'admin', label: 'Admins', icon: Shield },
-];
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -407,7 +402,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Stat summary — each is a filter shortcut into the table below */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <button
           onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
           className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-gray-300 dark:ring-white/20' : ''}`}
@@ -527,44 +522,70 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <Card>
-        <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-          <div className="relative sm:max-w-sm w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-            <Input
-              placeholder="Search by name, email, or student ID..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-10"
-            />
-          </div>
+      {/* Search — role filtering is done by the stat cards above */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+        <Input
+          placeholder="Search by name or email..."
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+          className="pl-10"
+        />
+      </div>
 
-          <div className="inline-flex p-1 bg-gray-100 rounded-lg self-start sm:self-auto dark:bg-white/10">
-            {roleTabs.map(tab => {
-              const active = roleFilter === tab.key;
-              const count = tab.key === 'all' ? stats.total : tab.key === 'student' ? stats.students : stats.admins;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => { setRoleFilter(tab.key); setCurrentPage(1); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    active ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  }`}
-                >
-                  <tab.icon className="w-3.5 h-3.5" />
-                  {tab.label}
-                  <span className="text-xs text-gray-400 dark:text-gray-500">{count}</span>
-                </button>
-              );
-            })}
-          </div>
+      {/* Users */}
+      <Card>
+        {/* Phones: tappable list — each row opens the same Manage panel */}
+        <div className="md:hidden divide-y divide-gray-100 dark:divide-white/10">
+          {loading ? (
+            <p className="px-4 py-10 text-center text-gray-400 text-sm dark:text-gray-500">Loading users…</p>
+          ) : paginatedUsers.map((user) => {
+            const subs = subsMap[user.id] ?? [];
+            const isAdmin = isAdminRole(user.role);
+            return (
+              <button
+                key={user.id}
+                onClick={() => openManageModal(user)}
+                className="w-full text-left p-4 flex items-start gap-3 active:bg-gray-50 dark:active:bg-white/5"
+              >
+                <Avatar src={user.avatar_url} name={user.full_name || user.email} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-full">{user.full_name || 'No Name'}</p>
+                    {isAdmin && <Badge variant="info" size="sm">{user.role === 'super_admin' ? 'Super Admin' : 'Admin'}</Badge>}
+                    {user.is_suspended && <Badge variant="danger" size="sm">Suspended</Badge>}
+                    {!user.is_suspended && sharedIpUserIds.has(user.id) && <Badge variant="warning" size="sm">Shared IP</Badge>}
+                    {unreadReplyUserIds.has(user.id) && <Badge variant="info" size="sm">New reply</Badge>}
+                  </div>
+                  <p className="text-sm text-gray-500 truncate dark:text-gray-400">{user.email}</p>
+                  <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">
+                    {[user.program, `${user.total_tests_taken ?? 0} tests`, timeAgo(lastActiveMap[user.id])].filter(Boolean).join(' · ')}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {subs.length === 0 ? (
+                      <span className="text-xs text-gray-400 italic dark:text-gray-500">No access</span>
+                    ) : subs.map(sub => (
+                      <span
+                        key={sub.id}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          isFreePass(sub)
+                            ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400'
+                            : 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400'
+                        }`}
+                      >
+                        {isFreePass(sub) ? <Gift className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                        {levelLabel(sub.level, sub.semester)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0 mt-1" />
+              </button>
+            );
+          })}
         </div>
-      </Card>
 
-      {/* Users Table */}
-      <Card>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 dark:border-white/10">
