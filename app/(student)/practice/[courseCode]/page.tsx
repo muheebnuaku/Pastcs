@@ -502,21 +502,20 @@ function PracticeContent() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <button onClick={handlePause} className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 text-sm dark:text-gray-400 dark:hover:text-gray-100">
-          <ArrowLeft className="w-4 h-4" /> Exit
-        </button>
-        <Badge variant="info">Question {currentIndex + 1} of {questions.length}</Badge>
+      <div className="flex items-center justify-between gap-3">
         <button onClick={handlePause}
-          className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-500/15 transition-colors">
-          <PauseCircle className="w-4 h-4" /> Pause
+          className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
+          <PauseCircle className="w-4 h-4" /> Pause &amp; exit
         </button>
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 tabular-nums">
+          {currentIndex + 1} <span className="text-gray-400 dark:text-gray-500 font-normal">/ {questions.length}</span>
+        </span>
       </div>
 
       <Progress value={checkedQuestions.size} max={questions.length} color="blue" size="md" />
 
       {/* Question Card */}
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <Badge variant={
             currentQuestion.question_type === 'single_choice' ? 'default' :
@@ -657,36 +656,57 @@ function PracticeContent() {
       )}
 
       {/* Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button variant="outline" size="sm" onClick={() => goTo(currentIndex - 1)} disabled={currentIndex === 0}>
-          <ArrowLeft className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Previous</span>
-        </Button>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {!showFeedback && isAnswered && !isFillChecking && (
-            <span className="text-xs text-gray-500 mr-1 hidden md:inline dark:text-gray-400">How sure are you?</span>
-          )}
-          {!showFeedback && isAnswered && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => handleCheckAnswer('unsure')} disabled={isFillChecking}>
-                {isFillChecking
-                  ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">Checking…</span></>
-                  : <><HelpCircle className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Not Sure</span></>}
+      <div className="space-y-2">
+        {!showFeedback && isAnswered && !isFillChecking && (
+          <p className="text-xs font-medium text-center text-gray-500 dark:text-gray-400">How sure are you?</p>
+        )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => goTo(currentIndex - 1)}
+            disabled={currentIndex === 0}
+            aria-label="Previous question"
+            className="px-3.5 flex-shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          {!showFeedback ? (
+            isFillChecking ? (
+              <Button size="lg" disabled className="flex-1">
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking…
               </Button>
-              <Button size="sm" onClick={() => handleCheckAnswer('sure')} disabled={isFillChecking}>
-                {isFillChecking
-                  ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">Checking…</span></>
-                  : <><ShieldCheck className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Sure</span></>}
+            ) : isAnswered ? (
+              <div className="grid grid-cols-2 gap-2 flex-1">
+                <Button variant="outline" size="lg" onClick={() => handleCheckAnswer('unsure')}>
+                  <HelpCircle className="w-4 h-4 mr-2" /> Not sure
+                </Button>
+                <Button size="lg" onClick={() => handleCheckAnswer('sure')}>
+                  <ShieldCheck className="w-4 h-4 mr-2" /> I&rsquo;m sure
+                </Button>
+              </div>
+            ) : (
+              <Button size="lg" disabled className="flex-1">
+                {currentQuestion.question_type === 'fill_in_blank' ? 'Type your answer above' : 'Choose an answer above'}
               </Button>
-            </>
-          )}
-          {showFeedback && currentIndex < questions.length - 1 && (
-            <Button size="sm" onClick={() => goTo(currentIndex + 1)}>
-              <span className="hidden sm:inline">Next</span> <ArrowRight className="w-4 h-4 sm:ml-2" />
+            )
+          ) : allChecked ? (
+            <Button size="lg" onClick={handleFinish} isLoading={isSubmitting} className="flex-1 bg-green-600 hover:bg-green-700">
+              <Flag className="w-4 h-4 mr-2" /> Finish &amp; see results
             </Button>
-          )}
-          {allChecked && (
-            <Button size="sm" onClick={handleFinish} isLoading={isSubmitting} className="bg-green-600 hover:bg-green-700">
-              <Flag className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Finish Practice</span>
+          ) : (
+            <Button
+              size="lg"
+              className="flex-1"
+              onClick={() => {
+                const next = currentIndex < questions.length - 1
+                  ? currentIndex + 1
+                  : questions.findIndex(q => !checkedQuestions.has(q.id));
+                goTo(next);
+              }}
+            >
+              {currentIndex < questions.length - 1 ? 'Next question' : 'Go to unanswered'}
+              <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           )}
         </div>

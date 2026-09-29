@@ -5,13 +5,13 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Badge, QuestionContent } from '@/components/ui';
-import { formatPercentage, formatTime, getGradeBadgeColor, courseCodeSlug } from '@/lib/utils';
+import { formatPercentage, formatTime, courseCodeSlug } from '@/lib/utils';
 import { renderMarkdownTables } from '@/lib/markdown';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import type { Test, TestAnswer, Question } from '@/types';
 import {
-  Trophy, Target, Clock, CheckCircle, XCircle,
+  Clock, CheckCircle, XCircle,
   ArrowLeft, RotateCcw, BookOpen, BotMessageSquare, Loader2,
   Volume2, VolumeX, HelpCircle,
 } from 'lucide-react';
@@ -48,6 +48,7 @@ export default function ResultsPage() {
 
   const [test, setTest] = useState<Test | null>(null);
   const [answers, setAnswers] = useState<(TestAnswer & { question: Question })[]>([]);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'wrong' | 'correct'>('all');
 
   // AI explain state per question
   const [aiPanels, setAiPanels] = useState<Record<string, string>>({});
@@ -190,96 +191,127 @@ export default function ResultsPage() {
 
   const correctCount = answers.filter(a => a.is_correct).length;
   const wrongCount = answers.filter(a => !a.is_correct).length;
+  const courseSlug = test.course ? courseCodeSlug(test.course.course_code) : '';
+  const reviewItems = answers
+    .map((answer, index) => ({ answer, index }))
+    .filter(({ answer }) =>
+      reviewFilter === 'all' ? true : reviewFilter === 'wrong' ? !answer.is_correct : answer.is_correct
+    );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-5 animate-fade-in">
       {/* Back */}
-      <Link href="/dashboard" className="inline-flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
+      <Link href="/dashboard" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+        <ArrowLeft className="w-4 h-4 mr-1.5" />
+        Dashboard
       </Link>
 
       {/* Score header */}
       <Card className="overflow-hidden">
-        <div className={`p-8 text-center ${
+        <div className={`px-6 py-7 sm:p-8 text-center ${
           test.percentage >= 70
-            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+            ? 'bg-gradient-to-br from-green-500 to-emerald-600'
             : test.percentage >= 50
-              ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
-              : 'bg-gradient-to-r from-red-500 to-pink-500'
+              ? 'bg-gradient-to-br from-yellow-500 to-orange-500'
+              : 'bg-gradient-to-br from-red-500 to-pink-500'
         } text-white`}>
-          <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Trophy className="w-10 h-10" />
-          </div>
-          <h1 className="text-3xl font-bold mb-2">
-            {test.percentage >= 70 ? 'Great Job!' : test.percentage >= 50 ? 'Good Effort!' : 'Keep Practicing!'}
-          </h1>
-          <p className="text-white/90">
-            {test.course?.course_code} — {test.test_type === 'exam_simulation' ? 'Exam Simulation' : 'Practice Test'}
+          <p className="text-sm text-white/85">
+            {test.course?.course_code} · {test.test_type === 'exam_simulation' ? 'Mock exam' : 'Practice'}
           </p>
+          <p className="text-5xl sm:text-6xl font-extrabold tracking-tight mt-2 tabular-nums">
+            {formatPercentage(test.percentage)}
+          </p>
+          <h1 className="text-lg sm:text-xl font-semibold mt-1">
+            {test.percentage >= 70 ? 'Great job — keep it up!' : test.percentage >= 50 ? 'Good effort — you’re getting there.' : 'Keep practising — every attempt counts.'}
+          </h1>
         </div>
 
-        <CardContent className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-xl dark:bg-white/[0.03]">
-              <Target className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{test.score}/{test.total_questions}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Score</p>
-            </div>
-            <div className="text-center p-4 bg-gray-50 rounded-xl dark:bg-white/[0.03]">
-              <div className={`text-2xl font-bold ${getGradeBadgeColor(test.percentage).split(' ')[1]}`}>
-                {formatPercentage(test.percentage)}
-              </div>
-              <p className="text-sm text-gray-600 mt-1 dark:text-gray-400">Percentage</p>
-            </div>
-            <div className="text-center p-4 bg-green-50 dark:bg-green-500/10 rounded-xl">
-              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 mx-auto mb-2" />
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="text-center p-3 sm:p-4 bg-green-50 dark:bg-green-500/10 rounded-xl">
               <p className="text-2xl font-bold text-green-700 dark:text-green-400">{correctCount}</p>
-              <p className="text-sm text-green-600 dark:text-green-400">Correct</p>
+              <p className="text-xs sm:text-sm text-green-600 dark:text-green-400">Correct</p>
             </div>
-            <div className="text-center p-4 bg-red-50 dark:bg-red-500/10 rounded-xl">
-              <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 mx-auto mb-2" />
+            <div className="text-center p-3 sm:p-4 bg-red-50 dark:bg-red-500/10 rounded-xl">
               <p className="text-2xl font-bold text-red-700 dark:text-red-400">{wrongCount}</p>
-              <p className="text-sm text-red-600 dark:text-red-400">Wrong</p>
+              <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">Wrong</p>
+            </div>
+            <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-xl dark:bg-white/[0.03]">
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                {test.time_taken ? formatTime(test.time_taken) : `${test.score}/${test.total_questions}`}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{test.time_taken ? 'Time' : 'Score'}</p>
             </div>
           </div>
-          {test.time_taken && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
-              <Clock className="w-4 h-4" />
-              <span>Completed in {formatTime(test.time_taken)}</span>
-            </div>
-          )}
         </CardContent>
       </Card>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-4 justify-center">
-        <Link href={`/courses/${test.course ? courseCodeSlug(test.course.course_code) : ''}`}>
-          <Button><RotateCcw className="w-4 h-4 mr-2" />Practice Again</Button>
-        </Link>
-        <Link href="/courses">
-          <Button variant="outline"><BookOpen className="w-4 h-4 mr-2" />Other Courses</Button>
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        {wrongCount > 0 ? (
+          <Link href={`/practice/${courseSlug}?mode=mistakes`}>
+            <Button size="lg" className="w-full bg-amber-600 hover:bg-amber-700">
+              <RotateCcw className="w-4 h-4 mr-2" />Fix my mistakes
+            </Button>
+          </Link>
+        ) : (
+          <Link href={`/exam/${courseSlug}`}>
+            <Button size="lg" className="w-full bg-purple-600 hover:bg-purple-700">
+              <Clock className="w-4 h-4 mr-2" />Try a mock exam
+            </Button>
+          </Link>
+        )}
+        <Link href={`/courses/${courseSlug}`}>
+          <Button size="lg" variant="outline" className="w-full">
+            <BookOpen className="w-4 h-4 mr-2" />Practise more
+          </Button>
         </Link>
       </div>
 
       {/* Question Review */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1 dark:border-white/10">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Question Review</h2>
-          <p className="text-xs text-gray-500 flex items-center gap-1 dark:text-gray-400">
-            <BotMessageSquare className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-            Click &ldquo;Ask AI&rdquo; on any question for a detailed explanation
-          </p>
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 space-y-3 dark:border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Question review</h2>
+            <p className="text-xs text-gray-500 flex items-center gap-1 dark:text-gray-400">
+              <BotMessageSquare className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
+              Tap &ldquo;Ask AI to explain&rdquo; on any question
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-1 p-1 bg-gray-100 dark:bg-white/10 rounded-lg">
+            {([
+              ['all', `All (${answers.length})`],
+              ['wrong', `Wrong (${wrongCount})`],
+              ['correct', `Right (${correctCount})`],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setReviewFilter(key)}
+                className={`py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                  reviewFilter === key
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-white/15 dark:text-gray-100'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        {reviewItems.length === 0 && (
+          <p className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            {reviewFilter === 'wrong' ? 'No wrong answers — nice work!' : 'Nothing to show here.'}
+          </p>
+        )}
         <div className="divide-y divide-gray-100 dark:divide-white/10">
-          {answers.map((answer, index) => {
+          {reviewItems.map(({ answer, index }) => {
             const qId = answer.question.id;
             const isAIOpen = openAI.has(qId);
             const isAILoading = loadingAI.has(qId);
 
             return (
-              <div key={answer.id} className="p-6">
-                <div className="flex items-start gap-4">
+              <div key={answer.id} className="p-4 sm:p-6">
+                <div className="flex items-start gap-3 sm:gap-4">
                   {/* Correct / wrong indicator */}
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                     answer.is_correct ? 'bg-green-100 dark:bg-green-500/15' : 'bg-red-100 dark:bg-red-500/15'
@@ -291,7 +323,7 @@ export default function ResultsPage() {
 
                   <div className="flex-1 min-w-0">
                     {/* Header */}
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Question {index + 1}</span>
                       <Badge variant={
                         answer.question.question_type === 'single_choice' ? 'default' :

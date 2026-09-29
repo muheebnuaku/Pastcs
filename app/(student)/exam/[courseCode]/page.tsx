@@ -278,26 +278,28 @@ export default function ExamPage() {
           lg:px-8) at every breakpoint to cancel out cleanly; a flat -mx-6
           px-6 only lined up at the sm: breakpoint and bled past the real
           content edge on mobile (px-4) and large screens (lg:px-8). */}
-      <div className="sticky top-0 z-10 bg-gray-50 py-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:bg-white/[0.03]">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-          <Badge variant="info">{course?.course_code}</Badge>
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-semibold ${
-            timeRemaining <= 300 ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400' : 'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300'
+      <div className="sticky top-0 z-10 bg-gray-50 py-3 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:bg-[#16140f] border-b border-gray-200/70 dark:border-white/10">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full font-mono font-semibold ${
+            timeRemaining <= 300 ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400' : 'bg-white border border-gray-200 dark:bg-white/10 dark:border-white/10 text-gray-700 dark:text-gray-300'
           }`}>
             <Clock className="w-4 h-4" />
             {formatTime(timeRemaining)}
           </div>
-          <Badge variant={answeredCount === questions.length ? 'success' : 'default'}>
-            {answeredCount}/{questions.length} answered
-          </Badge>
+          <span className="text-sm text-gray-600 dark:text-gray-400 tabular-nums">
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{answeredCount}</span>/{questions.length} answered
+          </span>
+          <Button size="sm" onClick={() => setShowSubmitModal(true)} className="bg-green-600 hover:bg-green-700">
+            <Flag className="w-4 h-4 mr-1.5" /> Submit
+          </Button>
         </div>
         <Progress value={answeredCount} max={questions.length} color="blue" size="sm" />
       </div>
 
       {/* Question Card */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <Badge variant="default">Question {currentIndex + 1}</Badge>
+      <Card className="p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <Badge variant="default">Q{currentIndex + 1} · {course?.course_code}</Badge>
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant={
               currentQuestion.question_type === 'single_choice' ? 'default' :
@@ -367,41 +369,47 @@ export default function ExamPage() {
             }`}
           />
         )}
+
+        {!lockedQuestions.has(currentQuestion.id) && (answers[currentQuestion.id]?.length ?? 0) > 0 && currentIndex < questions.length - 1 && (
+          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+            <Lock className="w-3 h-3 flex-shrink-0" /> Your answer locks when you tap Next.
+          </p>
+        )}
       </Card>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex gap-2">
         <Button
           variant="outline"
+          size="lg"
           onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
           disabled={currentIndex === 0}
+          aria-label="Previous question"
+          className="px-3.5 flex-shrink-0"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Previous
+          <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div className="flex gap-3">
-          {currentIndex < questions.length - 1 ? (
-            <Button onClick={() => {
-              // Lock current question when moving forward
-              if (answers[currentQuestion.id]?.length > 0) {
-                setLockedQuestions(prev => new Set([...prev, currentQuestion.id]));
-              }
-              setCurrentIndex(currentIndex + 1);
-            }}>
-              Next <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          ) : (
-            <Button onClick={() => setShowSubmitModal(true)} className="bg-green-600 hover:bg-green-700">
-              <Flag className="w-4 h-4 mr-2" />
-              Submit Exam
-            </Button>
-          )}
-        </div>
+        {currentIndex < questions.length - 1 ? (
+          <Button size="lg" className="flex-1" onClick={() => {
+            // Lock current question when moving forward
+            if (answers[currentQuestion.id]?.length > 0) {
+              setLockedQuestions(prev => new Set([...prev, currentQuestion.id]));
+            }
+            setCurrentIndex(currentIndex + 1);
+          }}>
+            Next question <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        ) : (
+          <Button size="lg" onClick={() => setShowSubmitModal(true)} className="flex-1 bg-green-600 hover:bg-green-700">
+            <Flag className="w-4 h-4 mr-2" />
+            Submit exam
+          </Button>
+        )}
       </div>
 
       {/* Question Navigator */}
       <Card className="p-4">
-        <p className="text-sm text-gray-600 mb-3 dark:text-gray-400">Question Navigator:</p>
+        <p className="text-sm font-medium text-gray-600 mb-3 dark:text-gray-400">Jump to question</p>
         <div className="flex flex-wrap gap-2">
           {questions.map((q, idx) => {
             const hasAnswer = answers[q.id]?.length > 0;
@@ -440,12 +448,12 @@ export default function ExamPage() {
               </p>
             </div>
           )}
-          <div className="flex gap-3 pt-4">
-            <Button variant="outline" className="flex-1" onClick={() => setShowSubmitModal(false)}>
-              Continue Exam
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowSubmitModal(false)}>
+              Keep going
             </Button>
-            <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => submitExam()} isLoading={isSubmitting}>
-              Submit Exam
+            <Button className="bg-green-600 hover:bg-green-700" onClick={() => submitExam()} isLoading={isSubmitting}>
+              Submit now
             </Button>
           </div>
         </div>
