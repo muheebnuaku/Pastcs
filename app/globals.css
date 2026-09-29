@@ -31,6 +31,17 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* iOS Safari auto-zooms into any focused field whose text is under 16px
+   and never zooms back out, leaving the page cut off on the right. Left
+   unlayered on purpose so it outranks Tailwind's (layered) text-* classes. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
