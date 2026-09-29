@@ -1,15 +1,43 @@
 'use client';
 
+// pdf.js's modern build targets only the newest browsers — on iOS Safari
+// before 18.x it crashed every upload with "undefined is not a function
+// (near '...t of e...')". The legacy build polyfills most of that (via
+// core-js), but page.getTextContent() still does `for await (... of
+// readableStream)`, and Safari's ReadableStream isn't async-iterable,
+// so that one gets polyfilled here.
+async function loadPdfjs() {
+  const proto = ReadableStream.prototype as unknown as Record<PropertyKey, unknown>;
+  if (typeof proto[Symbol.asyncIterator] !== 'function') {
+    const iterate = async function* (this: ReadableStream) {
+      const reader = this.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return;
+          yield value;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    };
+    proto[Symbol.asyncIterator] = iterate;
+    if (typeof proto.values !== 'function') proto.values = iterate;
+  }
+
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  // Use unpkg to serve the matching worker — avoids local worker bundling complexity
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
+  return pdfjs;
+}
+
 // ── PDF ────────────────────────────────────────────────────────────────────
 export async function extractPdfText(
   file: File,
   onProgress?: (page: number, total: number) => void
 ): Promise<{ text: string; pageCount: number }> {
-  const pdfjs = await import('pdfjs-dist');
-
-  // Use unpkg to serve the matching worker — avoids local worker bundling complexity
-  pdfjs.GlobalWorkerOptions.workerSrc =
-    `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  const pdfjs = await loadPdfjs();
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
@@ -148,9 +176,7 @@ export async function extractPdfPageImages(
   file: File,
   onProgress?: (page: number, total: number) => void
 ): Promise<ExtractedImage[]> {
-  const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc =
-    `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  const pdfjs = await loadPdfjs();
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;

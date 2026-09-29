@@ -1183,7 +1183,7 @@ export default function AssistantPage() {
                     <BotMessageSquare className="w-5 h-5 text-white" />
                   </div>
                 )}
-                <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                <div className={`min-w-0 max-w-[80%] rounded-2xl px-4 py-3 [overflow-wrap:anywhere] ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-tr-sm'
                     : 'bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 rounded-tl-sm shadow-sm'

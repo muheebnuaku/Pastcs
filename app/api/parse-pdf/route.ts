@@ -258,6 +258,18 @@ async function extractPptxText(buffer: Buffer): Promise<{ text: string; slideCou
   return { text: parts.join('\n\n'), slideCount: slideFiles.length, sparseSlideCount, images };
 }
 
+// The model sometimes answers with a refusal ("I'm unable to access
+// external content…", e.g. when the text is just a pasted link) instead of
+// a topic; that string then showed up as the student's topic. A real topic
+// is a short noun phrase, so anything long or refusal-shaped is dropped.
+function cleanTopic(topic: unknown): string {
+  if (typeof topic !== 'string') return '';
+  const t = topic.trim();
+  if (!t || t.length > 80) return '';
+  if (/^(i'?m|i am|i can|i cannot|sorry|unfortunately|as an ai)\b|unable to|can(?:no|')t (?:access|read|open)/i.test(t)) return '';
+  return t;
+}
+
 export async function POST(request: Request) {
   try {
     const contentType = request.headers.get('content-type') ?? '';
@@ -281,7 +293,7 @@ export async function POST(request: Request) {
         logAiUsage('parse_pdf_topic', 'gpt-4o', r.usage).catch(() => {});
         detectedTopic = JSON.parse(r.choices[0].message.content || '{}').topic || '';
       } catch { /* topic detection optional */ }
-      return Response.json({ text, detectedTopic, pageCount });
+      return Response.json({ text, detectedTopic: cleanTopic(detectedTopic), pageCount });
     }
 
     // ── FormData path: file upload (PPTX / DOCX) ───────────────────────────
@@ -458,7 +470,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Could not extract text from this file' }, { status: 422 });
     }
 
-    return Response.json({ text, detectedTopic });
+    return Response.json({ text, detectedTopic: cleanTopic(detectedTopic) });
   } catch (err: unknown) {
     console.error('Slide parse error:', err);
     return Response.json(
