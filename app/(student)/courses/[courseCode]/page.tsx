@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
-import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { Card, CardContent, Button } from '@/components/ui';
 import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
 import { courseCountForProgram } from '@/lib/programs';
@@ -15,14 +15,14 @@ import type { Course, Topic } from '@/types';
 import {
   ArrowLeft,
   BookOpen,
-  Clock,
   Target,
   FileQuestion,
-  Play,
   Zap,
   Lock,
   RotateCcw,
   CalendarClock,
+  ChevronRight,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function CourseDetailPage() {
@@ -117,248 +117,186 @@ export default function CourseDetailPage() {
     return null;
   }
 
-  // Locked course
-  if (!hasAccess && user?.free_course_code) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Courses
-        </Link>
+  const slug = courseCodeSlug(course.course_code);
+  const icon = course.icon || COURSE_ICONS[course.course_code] || '📚';
 
-        <div className="relative">
-          {/* Blurred preview */}
-          <div className="pointer-events-none select-none blur-sm opacity-50">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
-              <div className="flex items-start gap-6">
-                <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20">
-                  {course.icon || COURSE_ICONS[course.course_code] || '📚'}
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold mb-2">{course.course_code}</h1>
-                  <p className="text-blue-100 text-lg">{course.course_name}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Lock overlay */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-[#16140f]/90 rounded-2xl">
-            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-3 dark:bg-white/10">
-              <Lock className="w-7 h-7 text-gray-400 dark:text-gray-500" />
-            </div>
-            <p className="font-semibold text-gray-900 mb-1 dark:text-gray-100">This course is locked</p>
-            <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">Unlock all courses for just {priceLabel} this semester</p>
-            <button
-              onClick={() => setShowPaywall(true)}
-              className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
-            >
-              Unlock Now — {priceLabel}
-            </button>
+  const header = (
+    <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl p-5 sm:p-8 text-white">
+      <div className="flex items-start gap-4 sm:gap-6">
+        <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl bg-white/20 flex-shrink-0">
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold break-words">{course.course_code}</h1>
+          <p className="text-blue-100 sm:text-lg">{course.course_name}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-xs sm:text-sm font-medium">
+              <FileQuestion className="w-3.5 h-3.5" />
+              {course.total_questions} questions
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-xs sm:text-sm font-medium">
+              <BookOpen className="w-3.5 h-3.5" />
+              {topics.length} topics
+            </span>
+            {!hasAccess && (
+              <span className="inline-flex items-center gap-1.5 bg-black/20 rounded-full px-3 py-1 text-xs sm:text-sm font-medium">
+                <Lock className="w-3.5 h-3.5" />
+                Locked
+              </span>
+            )}
           </div>
         </div>
+      </div>
+      {hasAccess && course.description && (
+        <p className="text-blue-100/90 text-sm mt-4">{course.description}</p>
+      )}
+    </div>
+  );
 
-        {showPaywall && (
-          <PaywallModal
-            courseName={course.course_name}
-            courseCode={course.course_code}
-            totalCourses={allLevelCourses}
-            onClose={() => setShowPaywall(false)}
-            onSuccess={() => {
-              setShowPaywall(false);
-              router.refresh();
-            }}
-          />
-        )}
+  const backLink = (
+    <Link href="/courses" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+      <ArrowLeft className="w-4 h-4 mr-1.5" />
+      All courses
+    </Link>
+  );
+
+  const paywall = showPaywall && (
+    <PaywallModal
+      courseName={course.course_name}
+      courseCode={course.course_code}
+      totalCourses={allLevelCourses}
+      onClose={() => setShowPaywall(false)}
+      onSuccess={() => {
+        setShowPaywall(false);
+        router.refresh();
+      }}
+    />
+  );
+
+  // Locked course — sell what's behind the lock instead of just blurring it.
+  if (!hasAccess && user?.free_course_code) {
+    const perks = [
+      `${course.total_questions} practice questions across ${topics.length} topics`,
+      `Timed mock exams — ${QUESTIONS_PER_EXAM} questions in ${EXAM_DURATION_MINUTES} minutes`,
+      'Mistake review and spaced repetition so answers stick',
+      allLevelCourses > 1
+        ? `Every other course this semester too — ${allLevelCourses} in total`
+        : 'Access for the whole semester',
+    ];
+    return (
+      <div className="space-y-5 animate-fade-in">
+        {backLink}
+        {header}
+
+        <Card>
+          <CardContent className="p-5 sm:p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Unlock {course.course_code}</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              You&rsquo;ve used your free course. One payment opens everything for this semester.
+            </p>
+            <ul className="mt-4 space-y-2.5">
+              {perks.map(perk => (
+                <li key={perk} className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
+                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <span>{perk}</span>
+                </li>
+              ))}
+            </ul>
+            <Button size="lg" onClick={() => setShowPaywall(true)} className="w-full sm:w-auto mt-5">
+              <Lock className="w-4 h-4 mr-2" />
+              Unlock all courses — {priceLabel}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {paywall}
       </div>
     );
   }
 
+  // Full class strings (not interpolated fragments) so Tailwind picks them up.
+  const tiles = [
+    { href: `/practice/${slug}?mode=quick`, icon: Zap, title: 'Quick Practice', sub: `${QUESTIONS_PER_PRACTICE} questions · no timer`, iconBox: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400', hover: 'hover:border-blue-300 dark:hover:border-blue-500/40' },
+    { href: `/exam/${slug}`, icon: Target, title: 'Mock Exam', sub: `${QUESTIONS_PER_EXAM} questions · ${EXAM_DURATION_MINUTES} min`, iconBox: 'bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400', hover: 'hover:border-purple-300 dark:hover:border-purple-500/40' },
+    { href: `/practice/${slug}?mode=mistakes`, icon: RotateCcw, title: 'My Mistakes', sub: 'Redo what you got wrong', iconBox: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400', hover: 'hover:border-amber-300 dark:hover:border-amber-500/40' },
+    { href: `/practice/${slug}?mode=due`, icon: CalendarClock, title: 'Due for Review', sub: 'Lock in what you learned', iconBox: 'bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', hover: 'hover:border-violet-300 dark:hover:border-violet-500/40' },
+  ];
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Upgrade banner for free-course users */}
+    <div className="space-y-5 animate-fade-in">
+      {backLink}
+
       {isFree && !isPaid && allLevelCourses > 1 && (
-        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-sm text-blue-800 dark:text-blue-300">
-            <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
-            Unlock {allLevelCourses - 1} more for just {priceLabel} this semester.
+            <span className="font-semibold">This is your free course.</span>{' '}
+            Unlock the other {allLevelCourses - 1} for {priceLabel} this semester.
           </p>
-          <button
-            onClick={() => setShowPaywall(true)}
-            className="flex-shrink-0 text-sm font-medium text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors"
-          >
-            Unlock All →
-          </button>
+          <Button size="sm" onClick={() => setShowPaywall(true)} className="w-full sm:w-auto flex-shrink-0">
+            Unlock all
+          </Button>
         </div>
       )}
 
-      <Link href="/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Courses
-      </Link>
+      {header}
 
-      {/* Course Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
-        <div className="flex items-start gap-6">
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl bg-white/20">
-            {course.icon || COURSE_ICONS[course.course_code] || '📚'}
-          </div>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2">{course.course_code}</h1>
-            <p className="text-blue-100 text-lg">{course.course_name}</p>
-            {course.description && (
-              <p className="text-blue-200 mt-2">{course.description}</p>
-            )}
-            <div className="flex items-center gap-4 mt-4">
-              <Badge variant="default" className="bg-white/20 text-white">
-                <FileQuestion className="w-4 h-4 mr-1" />
-                {course.total_questions} Questions
-              </Badge>
-              <Badge variant="default" className="bg-white/20 text-white">
-                <BookOpen className="w-4 h-4 mr-1" />
-                {topics.length} Topics
-              </Badge>
-            </div>
-          </div>
+      <section>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">How do you want to study?</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {tiles.map(({ href, icon: Icon, title, sub, iconBox, hover }) => (
+            <Link
+              key={title}
+              href={href}
+              className={`group flex flex-col gap-3 p-4 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-md active:scale-[0.98] transition-all dark:bg-white/[0.04] dark:border-white/10 ${hover}`}
+            >
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconBox}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base leading-tight">{title}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</p>
+              </div>
+              <span className="inline-flex items-center text-xs font-semibold text-gray-400 group-hover:text-gray-700 dark:text-gray-500 dark:group-hover:text-gray-200 transition-colors">
+                Start <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </Link>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* Practice Options */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4 flex flex-col h-full">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-9 h-9 bg-blue-50 dark:bg-blue-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Zap className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" style={{ width: '1.125rem', height: '1.125rem' }} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">Quick Practice</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{QUESTIONS_PER_PRACTICE} random questions</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
-              No time limit, instant feedback.
+      <section>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Practice by topic</h2>
+        {topics.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {topics.map((topic, idx) => (
+              <Link
+                key={topic.id}
+                href={`/practice/${slug}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
+                className="group flex items-center gap-3 p-4 rounded-xl bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm active:scale-[0.99] transition-all dark:bg-white/[0.04] dark:border-white/10 dark:hover:border-blue-500/40"
+              >
+                <span className="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 text-sm font-semibold flex items-center justify-center flex-shrink-0 dark:bg-white/10 dark:text-gray-300">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base">{topic.topic_name}</h3>
+                  {topic.description && (
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1 dark:text-gray-400">{topic.description}</p>
+                  )}
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 dark:text-gray-600 transition-colors" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <p className="text-gray-500 text-center py-8 text-sm dark:text-gray-400">
+              Topics for this course are coming soon.
             </p>
-            <Link href={`/practice/${courseCodeSlug(course.course_code)}?mode=quick`}>
-              <Button size="sm" className="w-full">
-                <Play className="w-3.5 h-3.5 mr-1.5" />
-                Start
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+          </Card>
+        )}
+      </section>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4 flex flex-col h-full">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-9 h-9 bg-purple-50 dark:bg-purple-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Clock className="w-4.5 h-4.5 text-purple-600 dark:text-purple-400" style={{ width: '1.125rem', height: '1.125rem' }} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">Exam Simulation</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{QUESTIONS_PER_EXAM} questions • {EXAM_DURATION_MINUTES} min</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
-              Timed, with auto-submit — like the real thing.
-            </p>
-            <Link href={`/exam/${courseCodeSlug(course.course_code)}`}>
-              <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-                <Target className="w-3.5 h-3.5 mr-1.5" />
-                Start
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4 flex flex-col h-full">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-9 h-9 bg-amber-50 dark:bg-amber-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                <RotateCcw className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400" style={{ width: '1.125rem', height: '1.125rem' }} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">My Mistakes</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Only what you got wrong</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
-              Revisit missed questions until they stick.
-            </p>
-            <Link href={`/practice/${courseCodeSlug(course.course_code)}?mode=mistakes`}>
-              <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                Review
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4 flex flex-col h-full">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-9 h-9 bg-violet-50 dark:bg-violet-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                <CalendarClock className="w-4.5 h-4.5 text-violet-600 dark:text-violet-400" style={{ width: '1.125rem', height: '1.125rem' }} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">Due for Review</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Spaced repetition</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3 flex-1">
-              Resurfaces on a schedule as it sticks.
-            </p>
-            <Link href={`/practice/${courseCodeSlug(course.course_code)}?mode=due`}>
-              <Button size="sm" className="w-full bg-violet-600 hover:bg-violet-700 text-white">
-                <CalendarClock className="w-3.5 h-3.5 mr-1.5" />
-                Start
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Topics */}
-      <Card>
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Practice by Topic</h2>
-        </div>
-        <CardContent>
-          {topics.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {topics.map((topic, idx) => (
-                <Link
-                  key={topic.id}
-                  href={`/practice/${courseCodeSlug(course.course_code)}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors dark:bg-white/[0.03] dark:hover:bg-white/10"
-                >
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-gray-100">{topic.topic_name}</h3>
-                    {topic.description && (
-                      <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">{topic.description}</p>
-                    )}
-                  </div>
-                  <ArrowLeft className="w-5 h-5 text-gray-400 rotate-180 dark:text-gray-500" />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8 dark:text-gray-400">
-              No topics available yet for this course.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {showPaywall && (
-        <PaywallModal
-          courseName={course.course_name}
-          courseCode={course.course_code}
-          totalCourses={allLevelCourses}
-          onClose={() => setShowPaywall(false)}
-          onSuccess={() => setShowPaywall(false)}
-        />
-      )}
+      {paywall}
     </div>
   );
 }
