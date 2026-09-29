@@ -58,16 +58,18 @@ export default function AchievementsPage() {
       </div>
 
       {/* Progress Card */}
-      <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-        <CardContent className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center">
-            <Trophy className="w-8 h-8 text-yellow-600" />
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {earnedCount}/{achievements.length}
-            </p>
-            <p className="text-gray-600 dark:text-gray-400">Achievements Earned</p>
+      <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-500/10 dark:to-orange-500/10 border-yellow-200 dark:border-yellow-500/20">
+        <CardContent className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-4 sm:contents">
+            <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-500/15 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <Trophy className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                {earnedCount}/{achievements.length}
+              </p>
+              <p className="text-gray-600 dark:text-gray-400">Achievements Earned</p>
+            </div>
           </div>
           <div className="flex-1">
             <div className="bg-white rounded-full h-4 overflow-hidden dark:bg-white/10">
