@@ -1012,12 +1012,10 @@ Binary Number System
                   <span>{successMessage}</span>
                 </div>
                 {selectedCourse && (() => {
-                  const courseObj = allCourses.find(c => c.id === selectedCourse);
                   const params = new URLSearchParams({ course: selectedCourse, pending: '1' });
-                  if (courseObj) {
-                    params.set('level', String(courseObj.level));
-                    params.set('semester', String(courseObj.semester));
-                  }
+                  // The question bank is program-scoped; without this it
+                  // opens on the first program and can't find the course.
+                  if (selectedProgram) params.set('program', selectedProgram);
                   return (
                     <Link
                       href={`/admin/questions?${params.toString()}`}

@@ -95,7 +95,7 @@ export function AdminSidebar() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-white/[0.06] rounded-lg shadow-md border border-gray-200 dark:border-white/10"
+          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-[#1c1a15] rounded-lg shadow-md border border-gray-200 dark:border-white/10"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5 dark:text-gray-200" />

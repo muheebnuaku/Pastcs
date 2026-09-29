@@ -97,7 +97,10 @@ function AdminQuestionsContent() {
     // (the filterCourse branch doesn't touch level/semester at all) — the
     // level requirement only matters for the "every course at this level"
     // fallback, so a course-only deep link shouldn't be blocked by it.
-    if (!filterLevel && !filterCourse) { setQuestions([]); setSelectedIds(new Set()); return; }
+    // With no level/course picked, the pending / needs-review toggles act
+    // as a review queue across every course in the selected program.
+    const reviewQueue = !filterLevel && !filterCourse && (pendingOnly || flaggedOnly);
+    if (!filterLevel && !filterCourse && !reviewQueue) { setQuestions([]); setSelectedIds(new Set()); return; }
     const supabase = createClient();
     let query = supabase
       .from('questions')
@@ -109,14 +112,19 @@ function AdminQuestionsContent() {
     } else {
       const ids = courses
         .filter(c => {
+          if (reviewQueue) return true;
           if (c.level !== Number(filterLevel)) return false;
           if (filterSemester && c.semester !== Number(filterSemester)) return false;
           return true;
         })
         .map(c => c.id);
-      if (ids.length > 0) query = query.in('course_id', ids);
+      // No matching courses means no questions — an unfiltered query here
+      // would return the entire bank across every level and program.
+      if (ids.length === 0) { setQuestions([]); setSelectedIds(new Set()); return; }
+      query = query.in('course_id', ids);
     }
 
+    if (reviewQueue && pendingOnly && !flaggedOnly) query = query.eq('is_approved', false);
     if (filterTopic) query = query.eq('topic_id', filterTopic);
     if (filterType) query = query.eq('question_type', filterType);
 
@@ -146,14 +154,20 @@ function AdminQuestionsContent() {
   // courses have actually loaded — setting filterCourse any earlier
   // races the [selectedProgram] effect below, which resets it.
   useEffect(() => {
-    if (urlCourseFilterAppliedRef.current) return;
+    if (urlCourseFilterAppliedRef.current || courses.length === 0) return;
     const courseId = searchParams.get('course');
-    if (!courseId) { urlCourseFilterAppliedRef.current = true; return; }
-    if (courses.some(c => c.id === courseId)) {
-      setFilterCourse(courseId);
-      if (searchParams.get('pending') === '1') setPendingOnly(true);
-      urlCourseFilterAppliedRef.current = true;
+    const course = courseId ? courses.find(c => c.id === courseId) : undefined;
+    if (courseId && !course) return;
+    if (course) {
+      // Level/semester too — the list only renders once a level is set,
+      // and the course dropdown is scoped to it.
+      setFilterLevel(String(course.level));
+      setFilterSemester(String(course.semester));
+      setFilterCourse(course.id);
     }
+    if (searchParams.get('pending') === '1') setPendingOnly(true);
+    if (searchParams.get('flagged') === '1') setFlaggedOnly(true);
+    urlCourseFilterAppliedRef.current = true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courses]);
 
@@ -169,16 +183,16 @@ function AdminQuestionsContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProgram]);
 
+  const reviewQueue = !filterLevel && !filterCourse && (pendingOnly || flaggedOnly);
+  // Review-queue mode refetches when its toggles or the program's courses
+  // change; otherwise those toggles only filter what's already loaded.
+  const reviewQueueKey = reviewQueue ? `${pendingOnly}|${flaggedOnly}|${courses.map(c => c.id).join(',')}` : '';
+
   useEffect(() => {
     fetchQuestions();
     setCurrentPage(1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterLevel, filterSemester, filterCourse, filterTopic, filterType]);
-
-  useEffect(() => {
-    setFilterCourse('');
-    setFilterTopic('');
-  }, [filterLevel, filterSemester]);
+  }, [filterLevel, filterSemester, filterCourse, filterTopic, filterType, reviewQueueKey]);
 
   // Filter bar topics — keyed to filterCourse
   useEffect(() => {
@@ -391,7 +405,7 @@ function AdminQuestionsContent() {
       <Card>
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}>
+            <Select value={filterLevel} onChange={(e) => { setFilterLevel(e.target.value); setFilterSemester(''); setFilterCourse(''); setFilterTopic(''); }}>
               <option value="">All Levels</option>
               <option value="100">Level 100</option>
               <option value="200">Level 200</option>
@@ -400,7 +414,7 @@ function AdminQuestionsContent() {
             </Select>
             <Select
               value={filterSemester}
-              onChange={(e) => setFilterSemester(e.target.value)}
+              onChange={(e) => { setFilterSemester(e.target.value); setFilterCourse(''); setFilterTopic(''); }}
               disabled={!filterLevel}
             >
               <option value="">All Semesters</option>
@@ -447,7 +461,7 @@ function AdminQuestionsContent() {
             </Select>
           </div>
 
-          {filterLevel && (
+          {(filterLevel || filterCourse || reviewQueue) && (
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <Select
                 value={sortBy}
@@ -485,12 +499,20 @@ function AdminQuestionsContent() {
       </Card>
 
       {/* Questions List */}
-      {!filterLevel ? (
+      {!filterLevel && !filterCourse && !reviewQueue ? (
         <Card>
-          <div className="py-16 text-center text-gray-500 dark:text-gray-400">
+          <div className="py-12 px-4 text-center text-gray-500 dark:text-gray-400">
             <Filter className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-white/10" />
-            <p className="font-medium text-gray-700 mb-1 dark:text-gray-300">Select a Level to view questions</p>
-            <p className="text-sm">Use the Level filter above to load questions for a specific year</p>
+            <p className="font-medium text-gray-700 mb-1 dark:text-gray-300">Pick a level to browse questions</p>
+            <p className="text-sm mb-5">Or jump straight to what needs your attention across all courses:</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md mx-auto">
+              <Button variant="outline" onClick={() => setPendingOnly(true)} className="border-amber-300 text-amber-700 dark:border-amber-500/30 dark:text-amber-400">
+                <Clock className="w-4 h-4 mr-2" /> Pending approval
+              </Button>
+              <Button variant="outline" onClick={() => setFlaggedOnly(true)} className="border-red-300 text-red-700 dark:border-red-500/30 dark:text-red-400">
+                <AlertTriangle className="w-4 h-4 mr-2" /> Needs review
+              </Button>
+            </div>
           </div>
         </Card>
       ) : (

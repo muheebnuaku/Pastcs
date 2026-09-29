@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers';
-import { AdminSidebar, AdminHeader } from '@/components/layout';
+import { AdminSidebar } from '@/components/layout';
 import { isAdminRole } from '@/lib/utils';
 
 export default function AdminLayout({
@@ -26,8 +26,7 @@ export default function AdminLayout({
     <div className="font-jakarta min-h-screen bg-gray-100 dark:bg-[#16140f]">
       <AdminSidebar />
       <main className="lg:ml-64 min-h-screen">
-        <div className="pt-16 lg:pt-0 p-6 lg:p-8">
-          <AdminHeader />
+        <div className="pt-16 pb-8 px-4 sm:px-6 lg:p-8">
           {children}
         </div>
       </main>
