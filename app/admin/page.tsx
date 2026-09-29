@@ -17,6 +17,8 @@ import {
   ArrowRight,
   UserPlus,
   Clock,
+  Sparkles,
+  DollarSign,
 } from 'lucide-react';
 
 interface ProgramSummary {
@@ -181,8 +183,30 @@ export default function AdminOverviewPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Admin Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400">Overview of the platform statistics</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Overview</h1>
+        <p className="text-gray-600 dark:text-gray-400">The platform at a glance</p>
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {[
+          { href: '/admin/generate', label: 'Generate questions', icon: Sparkles, box: 'bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400' },
+          { href: '/admin/questions', label: 'Question bank', icon: FileQuestion, box: 'bg-green-50 text-green-600 dark:bg-green-500/15 dark:text-green-400' },
+          { href: '/admin/courses', label: 'Courses & topics', icon: BookOpen, box: 'bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-400' },
+          { href: '/admin/users', label: 'Students', icon: Users, box: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' },
+          { href: '/admin/pricing', label: 'Prices & dates', icon: DollarSign, box: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' },
+        ].map(({ href, label, icon: Icon, box }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex flex-col items-start gap-2.5 p-3.5 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 active:scale-[0.98] transition-all dark:bg-white/[0.04] dark:border-white/10 dark:hover:border-white/20"
+          >
+            <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${box}`}>
+              <Icon className="w-4.5 h-4.5" style={{ width: '1.125rem', height: '1.125rem' }} />
+            </span>
+            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">{label}</span>
+          </Link>
+        ))}
       </div>
 
       {/* Stats Cards */}
@@ -245,7 +269,7 @@ export default function AdminOverviewPage() {
       {(pendingQuestions > 0 || flaggedCount > 0 || pendingTestimonials > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pendingQuestions > 0 && (
-            <Link href="/admin/questions" className="block">
+            <Link href="/admin/questions?pending=1" className="block">
               <Card className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="w-10 h-10 bg-amber-100 dark:bg-amber-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -261,7 +285,7 @@ export default function AdminOverviewPage() {
             </Link>
           )}
           {flaggedCount > 0 && (
-            <Link href="/admin/questions" className="block">
+            <Link href="/admin/questions?flagged=1" className="block">
               <Card className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="w-10 h-10 bg-red-100 dark:bg-red-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
