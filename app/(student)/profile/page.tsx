@@ -307,7 +307,7 @@ export default function ProfilePage() {
               )}
             </div>
             <CardContent className="space-y-6">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4 sm:gap-6">
                 <AvatarUpload
                   supabase={createClient()}
                   userId={user.id}
@@ -315,11 +315,11 @@ export default function ProfilePage() {
                   name={user.full_name || user.email}
                   onChange={() => refreshUser()}
                 />
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
                     {user.full_name || 'No Name Set'}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400">{user.email}</p>
+                  <p className="text-gray-600 dark:text-gray-400 truncate">{user.email}</p>
                   <Badge variant="info" className="mt-2">
                     {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Administrator' : 'Student'}
                   </Badge>
