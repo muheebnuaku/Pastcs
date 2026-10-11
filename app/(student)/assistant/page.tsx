@@ -9,15 +9,17 @@ import { useAuth } from '@/components/providers';
 import { TutorPricingModal } from './components/TutorPricingModal';
 import { PasteTextModal } from './components/PasteTextModal';
 import { coursesForProgram } from '@/lib/programs';
-import { chunkContent } from '@/lib/utils';
+import { chunkContent, courseCodeSlug } from '@/lib/utils';
+import { Modal } from '@/components/ui';
+import Link from 'next/link';
 import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
 import type { Course } from '@/types';
 import type { TutorQuota } from '@/lib/tutorCredits';
 import type { TutorAction } from '@/lib/tutorContext';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
-  User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle, PauseCircle,
-  ChevronLeft, ChevronRight, X, Lock, ClipboardPaste,
+  Volume2, VolumeX, Paperclip, FileText, Play, StopCircle, PauseCircle,
+  ChevronLeft, ChevronRight, X, Lock, ClipboardPaste, Library, MessageSquare,
 } from 'lucide-react';
 
 // A document longer than this is split into sequential batches (see
@@ -68,6 +70,14 @@ interface LessonJob {
   // Practice Review + Summary call (multi-part lessons only).
   nextIndex: number;
   imageTopic: string;
+  title: string;
+}
+
+interface LibraryItem {
+  id: string;
+  title: string;
+  course_id: string | null;
+  created_at: string;
 }
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -153,42 +163,106 @@ function parsePracticeQA(content: string): PracticeQA[] {
   return pairs;
 }
 
-function PracticeReviewPanel({ content }: { content: string }) {
+function PracticeReviewPanel({ content, practiseHref, practiseLabel }: { content: string; practiseHref?: string; practiseLabel?: string }) {
   const pairs = parsePracticeQA(content);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const [results, setResults] = useState<Record<number, 'got' | 'missed'>>({});
 
-  useEffect(() => { setRevealed(new Set()); }, [content]);
+  useEffect(() => { setRevealed(new Set()); setResults({}); }, [content]);
 
   if (pairs.length === 0) {
     // The model didn't follow the Q/A format — fall back to raw rendering
     // rather than showing nothing.
-    return <div className="text-sm text-gray-800 leading-relaxed break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
+    return <div className="text-[15px] text-gray-800 leading-7 break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(content) }} />;
   }
+
+  const marked = Object.keys(results).length;
+  const got = Object.values(results).filter(r => r === 'got').length;
+  const missed = pairs.map((_, i) => i).filter(i => results[i] === 'missed');
+  const done = marked === pairs.length;
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2.5 dark:bg-blue-500/10">
+        <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-300">
+          Answer in your head, reveal it, then mark yourself honestly.
+        </p>
+        <span className="text-sm font-bold text-blue-700 tabular-nums flex-shrink-0 dark:text-blue-300">{got}/{marked || 0}</span>
+      </div>
+
       {pairs.map((pair, i) => {
         const isRevealed = revealed.has(i);
+        const result = results[i];
         return (
-          <div key={i} className="rounded-xl border border-gray-200 p-3 dark:border-white/10">
-            <p className="text-sm font-semibold text-gray-900 mb-2 break-words dark:text-gray-100">
-              <span className="text-blue-600">Q{i + 1}.</span>{' '}
+          <div key={i} className={`rounded-xl border p-3 sm:p-4 ${
+            result === 'got' ? 'border-green-200 dark:border-green-500/30'
+              : result === 'missed' ? 'border-red-200 dark:border-red-500/30'
+              : 'border-gray-200 dark:border-white/10'
+          }`}>
+            <p className="text-sm font-semibold text-gray-900 mb-2.5 break-words dark:text-gray-100">
+              <span className="text-blue-600 dark:text-blue-400">Q{i + 1}.</span>{' '}
               <span dangerouslySetInnerHTML={{ __html: mdToHtml(pair.question) }} />
             </p>
-            {isRevealed ? (
-              <div className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg px-3 py-2 break-words"
-                dangerouslySetInnerHTML={{ __html: mdToHtml(pair.answer) }} />
-            ) : (
+            {!isRevealed ? (
               <button
                 onClick={() => setRevealed(prev => new Set([...prev, i]))}
-                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/15 px-3 py-1.5 rounded-lg transition-colors"
+                className="w-full sm:w-auto text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/15 px-4 py-2 rounded-lg transition-colors"
               >
-                Think it through, then show answer
+                Show answer
               </button>
+            ) : (
+              <>
+                <div className="text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 break-words"
+                  dangerouslySetInnerHTML={{ __html: mdToHtml(pair.answer) }} />
+                {result ? (
+                  <p className={`mt-2 text-xs font-semibold ${result === 'got' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {result === 'got' ? '✓ You got this one' : '✗ Worth another look'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 mt-2.5">
+                    <button
+                      onClick={() => setResults(prev => ({ ...prev, [i]: 'missed' }))}
+                      className="text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 py-2 rounded-lg transition-colors dark:text-red-300 dark:bg-red-500/10 dark:hover:bg-red-500/15"
+                    >
+                      ✗ I missed it
+                    </button>
+                    <button
+                      onClick={() => setResults(prev => ({ ...prev, [i]: 'got' }))}
+                      className="text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 py-2 rounded-lg transition-colors dark:text-green-300 dark:bg-green-500/10 dark:hover:bg-green-500/15"
+                    >
+                      ✓ I got it
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         );
       })}
+
+      {done && (
+        <div className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-4">
+          <p className="text-lg font-bold">You got {got} of {pairs.length}</p>
+          <p className="text-sm text-blue-100 mt-0.5">
+            {missed.length === 0
+              ? 'Excellent — you know this lesson. Lock it in with real exam questions.'
+              : `Re-read the parts behind question${missed.length === 1 ? '' : 's'} ${missed.map(i => i + 1).join(', ')}, then try real exam questions.`}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {practiseHref && (
+              <Link href={practiseHref} className="text-sm font-semibold bg-white text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50">
+                Practise {practiseLabel ?? 'this course'} questions →
+              </Link>
+            )}
+            <button
+              onClick={() => { setRevealed(new Set()); setResults({}); }}
+              className="text-sm font-semibold bg-white/15 hover:bg-white/25 px-3 py-2 rounded-lg"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -270,6 +344,11 @@ export default function AssistantPage() {
   // at the newly selected section instead of restarting from the top.
   const [hasStartedTeaching, setHasStartedTeaching] = useState(false);
   const [keywordImages, setKeywordImages] = useState<Record<string, { url: string; caption: string; pageUrl: string }>>({});
+  // Phones show the lesson OR the chat (switch at the top); desktop shows both.
+  const [view, setView] = useState<'lesson' | 'chat'>('chat');
+  const [libraryAvailable, setLibraryAvailable] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
 
   // Lesson balance — computed and enforced server-side (/api/tutor/quota)
   const [quota, setQuota] = useState<TutorQuota | null>(null);
@@ -399,6 +478,7 @@ export default function AssistantPage() {
       setKeywordImages(saved.images ?? {});
       setTeachIdx(Math.min(Math.max(0, saved.teachIdx ?? 0), saved.sections.length - 1));
       setDocStage('ready');
+      setView('lesson');
     } catch { /* corrupt or unavailable storage — start fresh */ }
   }, [lessonStorageKey]);
 
@@ -535,7 +615,7 @@ export default function AssistantPage() {
     return data.token;
   };
 
-  const newLessonJob = (token: string, text: string, imageTopic: string): LessonJob => {
+  const newLessonJob = (token: string, text: string, imageTopic: string, title: string): LessonJob => {
     const chunks = chunkContent(text, LESSON_BATCH_TARGET_CHARS);
     return {
       token,
@@ -545,6 +625,7 @@ export default function AssistantPage() {
       priorTitles: [],
       nextIndex: 0,
       imageTopic,
+      title,
     };
   };
 
@@ -613,6 +694,7 @@ export default function AssistantPage() {
       setLessonSections(parseSections(job.full));
       setDocStage('ready');
       loadQuota();
+      const savedId = await saveLessonToLibrary(job.full, job.title);
 
       // Fetch keyword images for the whole lesson in the background
       setFetchingImages(true);
@@ -622,7 +704,13 @@ export default function AssistantPage() {
         body: JSON.stringify({ lessonText: job.full, topic: job.imageTopic }),
       })
         .then(r => r.json())
-        .then(({ images }) => setKeywordImages((images ?? {}) as Record<string, { url: string; caption: string; pageUrl: string }>))
+        .then(({ images }) => {
+          const found = (images ?? {}) as Record<string, { url: string; caption: string; pageUrl: string }>;
+          setKeywordImages(found);
+          if (savedId && Object.keys(found).length > 0) {
+            createClient().from('tutor_lessons').update({ images: found }).eq('id', savedId).then(() => {}, () => {});
+          }
+        })
         .catch(() => {})
         .finally(() => setFetchingImages(false));
     } catch (e) {
@@ -654,6 +742,8 @@ export default function AssistantPage() {
     stopTeaching();
     clearStoredLesson();
     lessonJobRef.current = null;
+    savedLessonIdRef.current = null;
+    setView('lesson');
     setLessonRetry(null);
     setDocStage('uploading');
     setDocProgress('');
@@ -749,7 +839,7 @@ export default function AssistantPage() {
       if (!parseRes.ok || !parseData.text) throw new Error(parseData.error || 'Could not read the document');
 
       if (parseData.detectedTopic) setTopic(parseData.detectedTopic);
-      await runLessonJob(newLessonJob(token, parseData.text, parseData.detectedTopic || file.name));
+      await runLessonJob(newLessonJob(token, parseData.text, parseData.detectedTopic || file.name, parseData.detectedTopic || file.name));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
@@ -795,10 +885,84 @@ export default function AssistantPage() {
       if (detectedTopic) setTopic(detectedTopic);
     } catch { /* topic detection optional */ }
 
-    await runLessonJob(newLessonJob(token, text, detectedTopic || 'Pasted text'));
+    await runLessonJob(newLessonJob(token, text, detectedTopic || 'Pasted text', detectedTopic || 'Pasted notes'));
+  };
+
+  // ── Lesson reader view + "My lessons" library ────────────────────────────
+
+  const savedLessonIdRef = useRef<string | null>(null);
+
+  // Hidden until the tutor_lessons table exists (migration 027) — the
+  // query errors before then, and students never see a broken button.
+  const loadLibrary = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await createClient()
+      .from('tutor_lessons')
+      .select('id, title, course_id, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) { setLibraryAvailable(false); return; }
+    setLibraryAvailable(true);
+    setLibraryItems((data ?? []) as LibraryItem[]);
+  }, [user?.id]);
+
+  useEffect(() => { loadLibrary(); }, [loadLibrary]);
+
+  const saveLessonToLibrary = async (content: string, title: string): Promise<string | null> => {
+    if (!user?.id) return null;
+    const { data, error } = await createClient()
+      .from('tutor_lessons')
+      .insert({ user_id: user.id, course_id: selectedCourse || null, title: title.slice(0, 200), content })
+      .select('id')
+      .single();
+    if (error || !data) return null;
+    savedLessonIdRef.current = (data as { id: string }).id;
+    loadLibrary();
+    return savedLessonIdRef.current;
+  };
+
+  const openLibraryLesson = async (id: string) => {
+    const { data } = await createClient()
+      .from('tutor_lessons')
+      .select('title, content, images')
+      .eq('id', id)
+      .single();
+    if (!data) return;
+    const lesson = data as { title: string; content: string; images: Record<string, { url: string; caption: string; pageUrl: string }> | null };
+    stopTeaching();
+    lessonAbortRef.current?.abort();
+    lessonJobRef.current = null;
+    setLessonRetry(null);
+    savedLessonIdRef.current = id;
+    setLessonFileName(lesson.title);
+    setLessonText(lesson.content);
+    setLessonSections(parseSections(lesson.content));
+    setKeywordImages(lesson.images ?? {});
+    setTeachIdx(0);
+    setHasStartedTeaching(false);
+    setDocError('');
+    setDocStage('ready');
+    setView('lesson');
+    setShowLibrary(false);
+  };
+
+  const deleteLibraryLesson = async (id: string) => {
+    if (!window.confirm('Delete this saved lesson? This can\'t be undone.')) return;
+    await createClient().from('tutor_lessons').delete().eq('id', id);
+    if (savedLessonIdRef.current === id) savedLessonIdRef.current = null;
+    setLibraryItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const askAboutSection = (title: string) => {
+    setInput(`Explain "${title}" from my lesson again in simpler words, with a different example.`);
+    setView('chat');
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const dismissLesson = () => {
+    setView('chat');
+    savedLessonIdRef.current = null;
     stopTeaching();
     lessonAbortRef.current?.abort();
     clearStoredLesson();
@@ -833,6 +997,7 @@ export default function AssistantPage() {
   const sendMessage = async (text: string, action?: TutorAction) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
+    setView('chat');
     stop();
     if (messages.length === 0) trackEvent('ai_chat', { course: selectedCourseObj?.course_code });
 
@@ -938,6 +1103,10 @@ export default function AssistantPage() {
     },
   ];
 
+  const hasLesson = docStage !== 'idle';
+  const currentSection = docStage === 'ready' ? lessonSections[teachIdx] : undefined;
+  const practiseHref = selectedCourseObj ? `/courses/${courseCodeSlug(selectedCourseObj.course_code)}` : undefined;
+
   return (
     // The parent (student) layout pads every page with pt-16 on top and
     // 5rem + the safe-area inset at the bottom below lg (room for the
@@ -968,6 +1137,46 @@ export default function AssistantPage() {
         />
       )}
 
+      <Modal isOpen={showLibrary} onClose={() => setShowLibrary(false)} title="My lessons" size="lg">
+        {libraryItems.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
+            Lessons you create are saved here so you can reopen them any time, on any device, without using another lesson.
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-white/10 -my-2">
+            {libraryItems.map(item => {
+              const itemCourse = courses.find(c => c.id === item.course_id);
+              return (
+                <li key={item.id} className="flex items-center gap-3 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 dark:bg-blue-500/15 dark:text-blue-400">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <button onClick={() => openLibraryLesson(item.id)} className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-medium text-gray-900 truncate dark:text-gray-100">{item.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {[itemCourse?.course_code, new Date(item.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => openLibraryLesson(item.id)}
+                    className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg flex-shrink-0"
+                  >
+                    Open
+                  </button>
+                  <button
+                    onClick={() => deleteLibraryLesson(item.id)}
+                    aria-label={`Delete ${item.title}`}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Modal>
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -987,15 +1196,15 @@ export default function AssistantPage() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">
               <BotMessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 flex-shrink-0" />
-              <span className="truncate">AI Study Assistant</span>
+              <span className="truncate">AI Tutor</span>
             </h1>
-            <p className="text-gray-500 text-xs sm:text-sm mt-0.5 dark:text-gray-400">Ask anything, or upload a document (or paste text) to get a full lesson.</p>
+            <p className="hidden sm:block text-gray-500 text-sm mt-0.5 dark:text-gray-400">Ask anything, or turn your slides and notes into a full lesson.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {voiceSupported && (
               <button
                 onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) { trackEvent('voice_enabled'); primeSpeech(); } setVoiceEnabled(v => !v); }}
-                title={voiceEnabled ? 'Voice on — click to turn off' : 'Voice off — click to turn on'}
+                title={voiceEnabled ? 'Replies are read aloud — tap to turn off' : 'Tap to have replies read aloud'}
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   voiceEnabled
                     ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/15'
@@ -1008,9 +1217,9 @@ export default function AssistantPage() {
                 <span className="hidden sm:inline">{voiceEnabled ? 'Voice on' : 'Voice off'}</span>
               </button>
             )}
-            {!isEmpty && (
-              <button onClick={clearChat} className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors dark:text-gray-400">
-                <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Clear</span>
+            {!isEmpty && (!hasLesson || view === 'chat') && (
+              <button onClick={clearChat} title="Clear this conversation" className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors dark:text-gray-400 dark:hover:bg-red-500/10">
+                <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Clear chat</span>
               </button>
             )}
           </div>
@@ -1025,15 +1234,15 @@ export default function AssistantPage() {
               className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
               <BookOpen className="w-4 h-4 text-blue-500" />
-              <span className="max-w-[160px] truncate">{selectedCourseObj ? selectedCourseObj.course_code : 'Select course'}</span>
+              <span className="max-w-[160px] truncate">{selectedCourseObj ? selectedCourseObj.course_code : 'Pick a course'}</span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
             </button>
             {showCourseMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowCourseMenu(false)} />
-                <div className="absolute top-full left-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-64 overflow-y-auto dark:bg-white/[0.04] dark:border-white/10">
+                <div className="absolute top-full left-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-64 overflow-y-auto dark:bg-[#1c1a15] dark:border-white/10">
                   <button onClick={() => { setSelectedCourse(''); setShowCourseMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:border-white/10">
-                    No specific course
+                    General (no specific course)
                   </button>
                   {[100, 200, 300, 400].map(level => {
                     const lc = courses.filter(c => c.level === level);
@@ -1059,10 +1268,10 @@ export default function AssistantPage() {
           {/* Topic */}
           <input
             type="text"
-            placeholder="Topic (e.g. Binary Trees, TCP/IP...)"
+            placeholder="Topic (optional)"
             value={topic}
             onChange={e => setTopic(e.target.value)}
-            className="flex-1 min-w-[160px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
+            className="flex-1 min-w-[140px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
           />
 
           {/* Upload doc button */}
@@ -1070,10 +1279,10 @@ export default function AssistantPage() {
             <button
               onClick={() => setShowTutorPricing(true)}
               className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/15 transition-colors shadow-sm whitespace-nowrap"
-              title="Upload limit reached — get more credits"
+              title="No lessons left — top up to make more"
             >
               <Lock className="w-4 h-4" />
-              <span>Get more uploads</span>
+              <span>Get more lessons</span>
             </button>
           ) : (
             <button
@@ -1086,7 +1295,7 @@ export default function AssistantPage() {
                 ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                 : <Paperclip className="w-4 h-4" />}
               <span>
-                {docStage === 'uploading' ? 'Reading…' : docStage === 'generating' ? 'Building lesson…' : 'Upload Doc'}
+                {docStage === 'uploading' ? 'Reading…' : docStage === 'generating' ? 'Building lesson…' : 'Upload slides'}
               </span>
               {uploadChecked && (
                 <span className={`text-xs font-medium tabular-nums ${
@@ -1107,353 +1316,390 @@ export default function AssistantPage() {
               className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
               <ClipboardPaste className="w-4 h-4" />
-              <span>Paste Text</span>
+              <span>Paste text</span>
+            </button>
+          )}
+
+          {libraryAvailable && (
+            <button
+              onClick={() => { loadLibrary(); setShowLibrary(true); }}
+              title="Reopen lessons you've already made — free"
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+            >
+              <Library className="w-4 h-4" />
+              <span>My lessons{libraryItems.length > 0 ? ` (${libraryItems.length})` : ''}</span>
             </button>
           )}
         </div>
 
         {/* Upload error */}
         {docError && (
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-            <X className="w-3 h-3" />{docError}
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400 flex items-start gap-1">
+            <X className="w-3 h-3 mt-0.5 flex-shrink-0" /><span>{docError}</span>
           </p>
         )}
       </div>
 
-      {/* ── Lesson Panel ── */}
-      {docStage !== 'idle' && (
-        <div className="flex-shrink-0 mb-3 rounded-2xl border border-blue-200 bg-white overflow-hidden shadow-sm dark:bg-white/[0.04]">
-
-          {/* Panel header — icon-only status/controls below sm so a long
-              filename doesn't get crushed to a handful of characters when
-              several of these render at once (e.g. ready + fetching images
-              + teach controls, all at the same time). */}
-          <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-            <FileText className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-semibold flex-1 truncate min-w-0">{lessonFileName}</span>
-
-            {docStage === 'uploading' && (
-              <span className="flex items-center gap-1.5 text-blue-200 text-xs flex-shrink-0">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">{docProgress || 'Reading…'}</span>
-              </span>
-            )}
-            {docStage === 'generating' && (
-              <span className="flex items-center gap-1.5 text-blue-200 text-xs flex-shrink-0">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">{docProgress || 'Building your lesson…'}</span>
-              </span>
-            )}
-            {docStage === 'ready' && fetchingImages && (
-              <span className="flex items-center gap-1 text-blue-200 text-xs flex-shrink-0">
-                <Loader2 className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">Finding images…</span>
-              </span>
-            )}
-
-            {docStage === 'ready' && voiceSupported && (
-              teaching ? (
-                <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => (isPaused ? resume() : pause())}
-                    title={isPaused ? 'Resume' : 'Pause'}
-                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors"
-                  >
-                    {isPaused ? <Play className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
-                    <span className="hidden sm:inline">{isPaused ? 'Resume' : 'Pause'}</span>
-                  </button>
-                  <button onClick={stopTeaching} title="Stop" className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors">
-                    <StopCircle className="w-3.5 h-3.5" /><span className="hidden sm:inline">Stop</span>
-                  </button>
-                </div>
-              ) : (
-                <button onClick={startTeaching} title={hasStartedTeaching ? 'Resume' : 'Teach Me'} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors flex-shrink-0">
-                  <Play className="w-3.5 h-3.5" /><span className="hidden sm:inline">{hasStartedTeaching ? 'Resume' : 'Teach Me'}</span>
-                </button>
-              )
-            )}
-
-            <button onClick={dismissLesson} className="p-1 hover:bg-white/20 rounded-lg transition-colors ml-1 flex-shrink-0">
-              <X className="w-4 h-4" />
+      {/* Lesson / Chat switch — phones and tablets; side by side on desktop */}
+      {hasLesson && (
+        <div className="lg:hidden flex-shrink-0 grid grid-cols-2 gap-1 p-1 mb-3 bg-gray-100 rounded-xl dark:bg-white/10">
+          {([
+            ['lesson', 'Lesson', BookOpen],
+            ['chat', 'Ask questions', MessageSquare],
+          ] as const).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              onClick={() => setView(key)}
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                view === key
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-white/15 dark:text-gray-100'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              <Icon className="w-4 h-4" />{label}
             </button>
-          </div>
-
-          {lessonRetry && docStage === 'ready' && (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20">
-              <p className="flex-1 text-xs text-amber-800 dark:text-amber-300">
-                {lessonRetry} What&rsquo;s below is saved — retrying won&rsquo;t use another lesson credit.
-              </p>
-              <button
-                onClick={retryLesson}
-                className="self-start sm:self-auto flex-shrink-0 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Retry the rest
-              </button>
-            </div>
-          )}
-
-          {/* Section tabs */}
-          {docStage === 'ready' && lessonSections.length > 0 && (
-            <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
-              {lessonSections.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => jumpToSection(i)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
-                    i === teachIdx
-                      ? 'bg-blue-600 text-white font-semibold'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-400'
-                  }`}
-                >
-                  <span>{sectionIcon(s.title)}</span>
-                  <span>{s.title}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Section content — more room to read on taller/wider screens
-              instead of a fixed 256px on every size */}
-          <div className="max-h-64 sm:max-h-80 lg:max-h-[28rem] overflow-y-auto p-4">
-            {/* Still generating — show streaming text */}
-            {docStage === 'generating' && (
-              lessonText
-                ? <div className="text-sm text-gray-700 leading-relaxed break-words dark:text-gray-300" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonText) }} />
-                : <p className="text-sm text-blue-500 italic flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating your lesson…</p>
-            )}
-
-            {/* Ready — show current section */}
-            {docStage === 'ready' && lessonSections[teachIdx] && (
-              <>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">{sectionIcon(lessonSections[teachIdx].title)}</span>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">{lessonSections[teachIdx].title}</h3>
-                  {teaching && isSpeaking && !isPaused && (
-                    <span className="ml-auto flex gap-1">
-                      {[0, 1, 2].map(i => (
-                        <span key={i} className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                      ))}
-                    </span>
-                  )}
-                  {teaching && isPaused && (
-                    <span className="ml-auto text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full">
-                      Paused
-                    </span>
-                  )}
-                </div>
-
-                {teaching && teachParas.length > 0 ? (
-                  <div className="space-y-3">
-                    {teachParas.map((para, i) => {
-                      const isActive = i === teachParaIdx;
-                      const isPast = i < teachParaIdx;
-                      return (
-                        <div key={i} className={`rounded-xl transition-all duration-300 ${
-                          isActive ? 'ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-500/10 px-3 py-2'
-                            : isPast ? 'opacity-40 px-1' : 'px-1'
-                        }`}>
-                          {isActive && isSpeaking && speakingText
-                            ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
-                            : <div className="text-sm text-gray-800 leading-relaxed break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
-                          }
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : lessonSections[teachIdx].title.toLowerCase() === 'practice review' ? (
-                  <PracticeReviewPanel content={lessonSections[teachIdx].content} />
-                ) : (
-                  <div className="text-sm text-gray-800 leading-relaxed break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonSections[teachIdx].content) }} />
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Keyword image panel — appears when AI speaks a visual term */}
-          {currentImage && (
-            <div className="flex-shrink-0 border-t border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 flex items-center gap-4"
-              key={currentImage.keyword}>
-              <img
-                src={currentImage.url}
-                alt={currentImage.caption}
-                className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 dark:border-indigo-500/20 shadow-sm flex-shrink-0 dark:bg-white/[0.04]"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">{currentImage.keyword}</span>
-                  <span className="text-[10px] bg-indigo-100 dark:bg-indigo-500/15 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded-full font-medium">visual</span>
-                </div>
-                <p className="text-xs text-gray-500 leading-snug line-clamp-2 dark:text-gray-400">{currentImage.caption}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Progress + navigation */}
-          {docStage === 'ready' && lessonSections.length > 0 && (
-            <div className="flex items-center gap-3 px-4 py-2.5 border-t border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
-              <button
-                onClick={() => jumpToSection(Math.max(0, teachIdx - 1))}
-                disabled={teachIdx === 0}
-                className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors dark:hover:bg-white/15"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </button>
-              <div className="flex-1 bg-gray-200 rounded-full h-1.5 dark:bg-white/15">
-                <div
-                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${((teachIdx + 1) / lessonSections.length) * 100}%` }}
-                />
-              </div>
-              <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">{teachIdx + 1} / {lessonSections.length}</span>
-              <button
-                onClick={() => jumpToSection(Math.min(lessonSections.length - 1, teachIdx + 1))}
-                disabled={teachIdx === lessonSections.length - 1}
-                className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors dark:hover:bg-white/15"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </button>
-            </div>
-          )}
+          ))}
         </div>
       )}
 
-      {/* ── Chat area ── */}
-      <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 relative dark:border-white/10 dark:bg-white/[0.03]">
-        {isEmpty ? (
-          <div className="flex flex-col items-center justify-center min-h-full px-4 sm:px-6 py-6 text-center gap-5">
-            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/15 rounded-2xl flex items-center justify-center">
-              <BotMessageSquare className="w-9 h-9 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">Ready to help you learn</h2>
-              <p className="text-gray-500 text-sm max-w-sm dark:text-gray-400">
-                Ask me anything, or upload a <strong>PDF, Word, or PowerPoint</strong> file — or just paste text — to instantly generate a full beginner lesson with voice reading.
-              </p>
-            </div>
-            <div className={`grid grid-cols-1 gap-2.5 w-full max-w-2xl ${quickActions.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
-              {quickActions.map(a => (
-                <button
-                  key={a.action}
-                  onClick={() => sendMessage(a.message, a.action)}
-                  className="flex sm:flex-col items-center sm:items-start gap-3 sm:gap-2 p-3.5 text-left bg-white border border-gray-200 rounded-2xl shadow-sm hover:border-blue-400 hover:shadow-md active:scale-[0.98] transition-all dark:bg-white/[0.04] dark:border-white/10 dark:hover:border-blue-500/40"
-                >
-                  <span className="text-2xl flex-shrink-0">{a.icon}</span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">{a.label}</span>
-                    <span className="block text-xs text-gray-500 mt-0.5 dark:text-gray-400">{a.hint}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            {!courseCode && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm">
-                Tip: pick your course at the top so I can use your own test results and weak topics.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2 justify-center max-w-md">
-              {SUGGESTIONS.map(s => (
-                <button key={s} onClick={() => sendMessage(s)}
-                  className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-400">
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 space-y-4">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'assistant' && (
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <BotMessageSquare className="w-5 h-5 text-white" />
-                  </div>
-                )}
-                <div className={`min-w-0 max-w-[80%] rounded-2xl px-4 py-3 [overflow-wrap:anywhere] ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-sm'
-                    : 'bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 rounded-tl-sm shadow-sm'
-                }`}>
-                  {msg.role === 'user' ? (
-                    <p className="text-sm leading-relaxed break-words">{msg.content}</p>
-                  ) : msg.content === '' ? (
-                    <div className="flex items-center gap-2 py-1">
-                      <div className="flex gap-1">
-                        {[0, 1, 2].map(n => (
-                          <span key={n} className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: `${n * 150}ms` }} />
-                        ))}
-                      </div>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">Thinking...</span>
-                    </div>
-                  ) : (
-                    isSpeaking && voiceEnabled && i === messages.length - 1 && speakingText
-                      ? <SpeechHighlight text={speakingText} charIndex={charIndex} />
-                      : <MessageContent content={msg.content} />
-                  )}
-                </div>
-                {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5 dark:bg-white/15">
-                    <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                  </div>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
+      <div className={`flex-1 min-h-0 flex flex-col ${hasLesson ? 'lg:grid lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-4' : ''}`}>
+        {/* ── Lesson reader ── */}
+        {hasLesson && (
+          <div className={`${view === 'lesson' ? 'flex' : 'hidden'} lg:flex flex-1 min-h-0 flex-col rounded-2xl border border-blue-200 bg-white overflow-hidden shadow-sm dark:bg-[#1c1a15] dark:border-blue-500/20`}>
 
-      {/* ── Input area ── */}
-      <div className="flex-shrink-0 pt-3">
-        {!isEmpty && !isStreaming && (
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-            {quickActions.map(a => (
-              <button
-                key={a.action}
-                onClick={() => sendMessage(a.message, a.action)}
-                className="flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
-              >
-                <span>{a.icon}</span>{a.label}
+            <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              <FileText className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-semibold flex-1 truncate min-w-0">{lessonFileName}</span>
+              {(docStage === 'uploading' || docStage === 'generating') && (
+                <Loader2 className="w-4 h-4 animate-spin text-blue-100 flex-shrink-0" />
+              )}
+              {docStage === 'ready' && fetchingImages && (
+                <span className="flex items-center gap-1 text-blue-100 text-xs flex-shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">Finding pictures…</span>
+                </span>
+              )}
+              <button onClick={dismissLesson} title="Close lesson" aria-label="Close lesson" className="p-1 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0">
+                <X className="w-4 h-4" />
               </button>
-            ))}
+            </div>
+
+            {lessonRetry && docStage === 'ready' && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20">
+                <p className="flex-1 text-xs text-amber-800 dark:text-amber-300">
+                  {lessonRetry} What&rsquo;s below is saved — retrying won&rsquo;t use another lesson.
+                </p>
+                <button
+                  onClick={retryLesson}
+                  className="self-start sm:self-auto flex-shrink-0 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Retry the rest
+                </button>
+              </div>
+            )}
+
+            {docStage === 'ready' && lessonSections.length > 0 && (
+              <div className="flex gap-1.5 px-3 py-2 overflow-x-auto border-b border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
+                {lessonSections.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => jumpToSection(i)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
+                      i === teachIdx
+                        ? 'bg-blue-600 text-white font-semibold'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-400'
+                    }`}
+                  >
+                    <span>{sectionIcon(s.title)}</span>
+                    <span>{s.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
+              {(docStage === 'uploading' || docStage === 'generating') && (
+                <>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-2 mb-3">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                    {docProgress || (docStage === 'uploading' ? 'Reading your document…' : 'Writing your lesson…')}
+                  </p>
+                  {lessonText && (
+                    <div className="text-[15px] text-gray-700 leading-7 break-words dark:text-gray-300" dangerouslySetInnerHTML={{ __html: mdToHtml(lessonText) }} />
+                  )}
+                </>
+              )}
+
+              {currentSection && (
+                <>
+                  <div className="flex items-start gap-2 mb-3">
+                    <span className="text-xl leading-none mt-0.5">{sectionIcon(currentSection.title)}</span>
+                    <h3 className="flex-1 font-bold text-gray-900 text-base sm:text-lg leading-snug dark:text-gray-100">{currentSection.title}</h3>
+                    {teaching && isPaused && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
+                        Paused
+                      </span>
+                    )}
+                  </div>
+
+                  {teaching && teachParas.length > 0 ? (
+                    <div className="space-y-3">
+                      {teachParas.map((para, i) => {
+                        const isActive = i === teachParaIdx;
+                        const isPast = i < teachParaIdx;
+                        return (
+                          <div key={i} className={`rounded-xl transition-all duration-300 ${
+                            isActive ? 'ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-500/10 px-3 py-2'
+                              : isPast ? 'opacity-40 px-1' : 'px-1'
+                          }`}>
+                            {isActive && isSpeaking && speakingText
+                              ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
+                              : <div className="text-[15px] text-gray-800 leading-7 break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
+                            }
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : currentSection.title.toLowerCase() === 'practice review' ? (
+                    <PracticeReviewPanel content={currentSection.content} practiseHref={practiseHref} practiseLabel={selectedCourseObj?.course_code} />
+                  ) : (
+                    <div className="text-[15px] text-gray-800 leading-7 break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(currentSection.content) }} />
+                  )}
+
+                  {currentSection.title.toLowerCase() !== 'practice review' && (
+                    <button
+                      onClick={() => askAboutSection(currentSection.title)}
+                      className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/15 px-3 py-2 rounded-lg transition-colors"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Still confused? Ask about this part
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Keyword image panel — appears when the voice reaches a visual term */}
+            {currentImage && (
+              <div className="flex-shrink-0 border-t border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 flex items-center gap-4 dark:border-indigo-500/20 dark:from-indigo-500/10 dark:to-blue-500/10"
+                key={currentImage.keyword}>
+                <img
+                  src={currentImage.url}
+                  alt={currentImage.caption}
+                  className="w-28 h-20 object-contain rounded-xl bg-white border border-indigo-100 dark:border-indigo-500/20 shadow-sm flex-shrink-0 dark:bg-white/[0.04]"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">{currentImage.keyword}</span>
+                    <span className="text-[10px] bg-indigo-100 dark:bg-indigo-500/15 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded-full font-medium">visual</span>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-snug line-clamp-2 dark:text-gray-400">{currentImage.caption}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Reader controls */}
+            {docStage === 'ready' && lessonSections.length > 0 && (
+              <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="h-1 bg-gray-200 dark:bg-white/10">
+                  <div
+                    className="h-1 bg-blue-600 transition-all duration-500"
+                    style={{ width: `${((teachIdx + 1) / lessonSections.length) * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                  <button
+                    onClick={() => jumpToSection(Math.max(0, teachIdx - 1))}
+                    disabled={teachIdx === 0}
+                    className="flex items-center gap-1 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 disabled:opacity-40 hover:bg-gray-100 transition-colors dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/10"
+                  >
+                    <ChevronLeft className="w-4 h-4" /><span className="hidden sm:inline">Back</span>
+                  </button>
+
+                  <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
+                    {voiceSupported && (teaching ? (
+                      <>
+                        <button
+                          onClick={() => (isPaused ? resume() : pause())}
+                          className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition-colors dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/15"
+                        >
+                          {isPaused ? <Play className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
+                          {isPaused ? 'Resume' : 'Pause'}
+                        </button>
+                        <button
+                          onClick={stopTeaching}
+                          aria-label="Stop reading"
+                          className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-100 transition-colors dark:text-gray-400 dark:hover:bg-white/10"
+                        >
+                          <StopCircle className="w-4 h-4" /><span className="hidden sm:inline">Stop</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={startTeaching}
+                        className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition-colors dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/15"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                        {hasStartedTeaching ? 'Resume' : 'Listen'}
+                      </button>
+                    ))}
+                    <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">{teachIdx + 1}/{lessonSections.length}</span>
+                  </div>
+
+                  <button
+                    onClick={() => jumpToSection(Math.min(lessonSections.length - 1, teachIdx + 1))}
+                    disabled={teachIdx === lessonSections.length - 1}
+                    className="flex items-center gap-1 h-9 px-3 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-40 hover:bg-blue-700 transition-colors"
+                  >
+                    <span className="hidden sm:inline">Next</span><ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
-        <div className="flex gap-2 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all dark:bg-white/[0.04] dark:border-white/10">
-          <textarea
-            ref={inputRef}
-            rows={1}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-            placeholder={docStage === 'ready' ? `Ask anything about "${lessonFileName}"…` : 'Ask anything… (Enter to send, Shift+Enter for new line)'}
-            className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent px-2 py-1.5 max-h-32 overflow-y-auto dark:text-gray-200 dark:placeholder-gray-500"
-            style={{ height: 'auto', minHeight: '38px' }}
-            onInput={e => {
-              const t = e.currentTarget;
-              t.style.height = 'auto';
-              t.style.height = Math.min(t.scrollHeight, 128) + 'px';
-            }}
-          />
-          {isStreaming ? (
-            <button
-              onClick={() => abortRef.current?.abort()}
-              title="Stop answering"
-              aria-label="Stop answering"
-              className="w-9 h-9 rounded-xl bg-gray-900 hover:bg-gray-700 dark:bg-white/15 dark:hover:bg-white/25 flex items-center justify-center flex-shrink-0 transition-colors"
-            >
-              <StopCircle className="w-4 h-4 text-white" />
-            </button>
-          ) : (
-            <button
-              onClick={() => sendMessage(input)}
-              disabled={!input.trim()}
-              aria-label="Send"
-              className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0 transition-colors"
-            >
-              <Send className="w-4 h-4 text-white" />
-            </button>
-          )}
+
+        {/* ── Chat ── */}
+        <div className={`${hasLesson && view === 'lesson' ? 'hidden' : 'flex'} lg:flex flex-1 min-h-0 flex-col`}>
+          <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 relative dark:border-white/10 dark:bg-white/[0.03]">
+            {isEmpty ? (
+              <div className="flex flex-col items-center justify-center min-h-full px-4 sm:px-6 py-6 text-center gap-5">
+                <div className="w-14 h-14 bg-blue-100 dark:bg-blue-500/15 rounded-2xl flex items-center justify-center">
+                  <BotMessageSquare className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">
+                    {courseCode ? `Your ${courseCode} tutor` : 'Ready to help you learn'}
+                  </h2>
+                  <p className="text-gray-500 text-sm max-w-sm dark:text-gray-400">
+                    {courseCode
+                      ? 'I know your weak topics and recent test results for this course. Pick one to start, or ask anything.'
+                      : 'Ask anything, or upload your slides for a full lesson you can listen to.'}
+                  </p>
+                </div>
+                <div className={`grid grid-cols-1 gap-2.5 w-full max-w-2xl ${quickActions.length === 3 && !hasLesson ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                  {quickActions.map(a => (
+                    <button
+                      key={a.action}
+                      onClick={() => sendMessage(a.message, a.action)}
+                      className="flex sm:flex-col items-center sm:items-start gap-3 sm:gap-2 p-3.5 text-left bg-white border border-gray-200 rounded-2xl shadow-sm hover:border-blue-400 hover:shadow-md active:scale-[0.98] transition-all dark:bg-white/[0.04] dark:border-white/10 dark:hover:border-blue-500/40"
+                    >
+                      <span className="text-2xl flex-shrink-0">{a.icon}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">{a.label}</span>
+                        <span className="block text-xs text-gray-500 mt-0.5 dark:text-gray-400">{a.hint}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {!courseCode && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm">
+                    Tip: pick your course at the top so I can use your own test results and weak topics.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 justify-center max-w-md">
+                  {SUGGESTIONS.map(s => (
+                    <button key={s} onClick={() => sendMessage(s)}
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-400">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 sm:p-4 space-y-4">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex gap-2.5 sm:gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role === 'assistant' && (
+                      <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <BotMessageSquare className="w-5 h-5 text-white" />
+                      </div>
+                    )}
+                    <div className={`min-w-0 max-w-[85%] rounded-2xl px-4 py-3 [overflow-wrap:anywhere] ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white rounded-tr-sm'
+                        : 'bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 rounded-tl-sm shadow-sm'
+                    }`}>
+                      {msg.role === 'user' ? (
+                        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
+                      ) : msg.content === '' ? (
+                        <div className="flex items-center gap-2 py-1">
+                          <div className="flex gap-1">
+                            {[0, 1, 2].map(n => (
+                              <span key={n} className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: `${n * 150}ms` }} />
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">Thinking…</span>
+                        </div>
+                      ) : (
+                        isSpeaking && voiceEnabled && !teaching && i === messages.length - 1 && speakingText
+                          ? <SpeechHighlight text={speakingText} charIndex={charIndex} />
+                          : <MessageContent content={msg.content} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* ── Input area ── */}
+          <div className="flex-shrink-0 pt-3">
+            {!isEmpty && !isStreaming && (
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+                {quickActions.map(a => (
+                  <button
+                    key={a.action}
+                    onClick={() => sendMessage(a.message, a.action)}
+                    className="flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+                  >
+                    <span>{a.icon}</span>{a.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all dark:bg-white/[0.04] dark:border-white/10 dark:focus-within:ring-blue-500/20">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isStreaming}
+                placeholder={docStage === 'ready' ? 'Ask anything about this lesson…' : courseCode ? `Ask anything about ${courseCode}…` : 'Ask anything…'}
+                className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent px-2 py-1.5 max-h-32 overflow-y-auto dark:text-gray-200 dark:placeholder-gray-500"
+                style={{ height: 'auto', minHeight: '38px' }}
+                onInput={e => {
+                  const t = e.currentTarget;
+                  t.style.height = 'auto';
+                  t.style.height = Math.min(t.scrollHeight, 128) + 'px';
+                }}
+              />
+              {isStreaming ? (
+                <button
+                  onClick={() => abortRef.current?.abort()}
+                  title="Stop answering"
+                  aria-label="Stop answering"
+                  className="w-9 h-9 rounded-xl bg-gray-900 hover:bg-gray-700 dark:bg-white/15 dark:hover:bg-white/25 flex items-center justify-center flex-shrink-0 transition-colors"
+                >
+                  <StopCircle className="w-4 h-4 text-white" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={!input.trim()}
+                  aria-label="Send"
+                  className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0 transition-colors"
+                >
+                  <Send className="w-4 h-4 text-white" />
+                </button>
+              )}
+            </div>
+            <p className="text-center text-xs text-gray-400 mt-2 dark:text-gray-500">
+              AI can make mistakes — check important answers against your course materials.
+            </p>
+          </div>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-2 dark:text-gray-500">
-          AI can make mistakes — always verify with your course materials.
-        </p>
       </div>
     </div>
   );
