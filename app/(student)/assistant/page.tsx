@@ -354,6 +354,64 @@ export default function AssistantPage() {
 
   useEffect(() => { loadUploadCount(); }, [loadUploadCount]);
 
+  // ── Lesson persistence ─────────────────────────────────────────────────────
+  // A finished lesson survives a refresh until the student closes it or
+  // starts a new one — otherwise a reload threw away a lesson that took
+  // minutes and an upload credit to produce. Per-user key so a shared
+  // device never shows one student another's lesson.
+  const lessonStorageKey = user?.id ? `pastcs_lesson_${user.id}` : null;
+  const restoredLessonRef = useRef(false);
+
+  const clearStoredLesson = useCallback(() => {
+    if (!lessonStorageKey) return;
+    try { localStorage.removeItem(lessonStorageKey); } catch { /* storage unavailable */ }
+  }, [lessonStorageKey]);
+
+  useEffect(() => {
+    if (!lessonStorageKey || restoredLessonRef.current) return;
+    restoredLessonRef.current = true;
+    try {
+      const raw = localStorage.getItem(lessonStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        fileName?: string;
+        text?: string;
+        sections?: LessonSection[];
+        images?: Record<string, { url: string; caption: string; pageUrl: string }>;
+        teachIdx?: number;
+      };
+      if (!Array.isArray(saved.sections) || saved.sections.length === 0) return;
+      setLessonFileName(saved.fileName ?? 'Lesson');
+      setLessonText(saved.text ?? '');
+      setLessonSections(saved.sections);
+      setKeywordImages(saved.images ?? {});
+      setTeachIdx(Math.min(Math.max(0, saved.teachIdx ?? 0), saved.sections.length - 1));
+      setDocStage('ready');
+    } catch { /* corrupt or unavailable storage — start fresh */ }
+  }, [lessonStorageKey]);
+
+  useEffect(() => {
+    if (!lessonStorageKey || docStage !== 'ready' || lessonSections.length === 0) return;
+    try {
+      localStorage.setItem(lessonStorageKey, JSON.stringify({
+        fileName: lessonFileName,
+        text: lessonText,
+        sections: lessonSections,
+        images: keywordImages,
+        teachIdx,
+      }));
+    } catch { /* quota exceeded or storage unavailable */ }
+  }, [lessonStorageKey, docStage, lessonFileName, lessonText, lessonSections, keywordImages, teachIdx]);
+
+  // A lesson still being written can't survive a reload (the stream dies
+  // with the page), so warn before leaving mid-generation.
+  useEffect(() => {
+    if (docStage !== 'uploading' && docStage !== 'generating') return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [docStage]);
+
   // Detect spoken keyword and update the image panel
   useEffect(() => {
     if (!isSpeaking || !speakingText || charIndex === 0 || Object.keys(keywordImages).length === 0) return;
@@ -563,6 +621,8 @@ export default function AssistantPage() {
 
     trackEvent('document_upload', { fileName: file.name, fileType: file.type });
     setUploadCount(prev => prev + 1);
+    stopTeaching();
+    clearStoredLesson();
     setDocStage('uploading');
     setDocProgress('');
     setDocError('');
@@ -662,6 +722,8 @@ export default function AssistantPage() {
     }
     trackEvent('document_upload', { fileName: 'pasted-text', fileType: 'text/plain' });
     setUploadCount(prev => prev + 1);
+    stopTeaching();
+    clearStoredLesson();
     setDocStage('uploading');
     setDocError('');
     setLessonFileName('Pasted text');
@@ -696,6 +758,7 @@ export default function AssistantPage() {
   const dismissLesson = () => {
     stopTeaching();
     lessonAbortRef.current?.abort();
+    clearStoredLesson();
     setDocStage('idle');
     setLessonText('');
     setLessonSections([]);
