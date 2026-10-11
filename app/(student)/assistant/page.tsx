@@ -6,21 +6,18 @@ import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import { trackEvent } from '@/lib/track';
 import { useAuth } from '@/components/providers';
-import { useSubscriptionStore } from '@/lib/store';
 import { TutorPricingModal } from './components/TutorPricingModal';
 import { PasteTextModal } from './components/PasteTextModal';
 import { coursesForProgram } from '@/lib/programs';
 import { chunkContent } from '@/lib/utils';
 import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
 import type { Course } from '@/types';
+import type { TutorQuota } from '@/lib/tutorCredits';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
   User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle, PauseCircle,
   ChevronLeft, ChevronRight, X, Lock, ClipboardPaste,
 } from 'lucide-react';
-
-const FREE_UPLOAD_LIMIT = 5;
-const PAID_UPLOAD_LIMIT = 100;
 
 // A document longer than this is split into sequential batches (see
 // runLessonPipeline) instead of one single generate-lesson call — same
@@ -55,6 +52,21 @@ interface Message {
 interface LessonSection {
   title: string;
   content: string;
+}
+
+// One lesson's progress, kept so a failed part can be retried from where
+// it stopped instead of starting over. The credit is charged by the first
+// delivered part, so retrying the rest is free.
+interface LessonJob {
+  token: string;
+  chunks: string[];
+  context: string;
+  full: string;
+  priorTitles: string[];
+  // 0..chunks.length-1 = lesson parts; chunks.length = the closing
+  // Practice Review + Summary call (multi-part lessons only).
+  nextIndex: number;
+  imageTopic: string;
 }
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -227,8 +239,6 @@ function extractSectionTitles(markdown: string): string[] {
 
 export default function AssistantPage() {
   const { user } = useAuth();
-  const { hasActiveSub } = useSubscriptionStore();
-  const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
 
   // Chat state
   const [courses, setCourses] = useState<Course[]>([]);
@@ -260,23 +270,16 @@ export default function AssistantPage() {
   const [hasStartedTeaching, setHasStartedTeaching] = useState(false);
   const [keywordImages, setKeywordImages] = useState<Record<string, { url: string; caption: string; pageUrl: string }>>({});
 
-  // Upload quota
-  const [uploadCount, setUploadCount] = useState(0);
-  const [tutorCreditsPurchased, setTutorCreditsPurchased] = useState(0);
-  const [uploadChecked, setUploadChecked] = useState(false);
+  // Lesson balance — computed and enforced server-side (/api/tutor/quota)
+  const [quota, setQuota] = useState<TutorQuota | null>(null);
   const [showTutorPricing, setShowTutorPricing] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [currentImage, setCurrentImage] = useState<{ url: string; caption: string; keyword: string } | null>(null);
   const [fetchingImages, setFetchingImages] = useState(false);
 
-  // Effective limit: course sub → 100, tutor credits → purchased amount, free → 5
-  const uploadLimit = isPaid
-    ? PAID_UPLOAD_LIMIT
-    : tutorCreditsPurchased > 0
-      ? tutorCreditsPurchased
-      : FREE_UPLOAD_LIMIT;
-  const uploadRemaining = Math.max(0, uploadLimit - uploadCount);
-  const limitReached = uploadChecked && uploadCount >= uploadLimit;
+  const uploadChecked = quota !== null;
+  const uploadRemaining = quota?.remaining ?? 0;
+  const limitReached = !!quota && quota.remaining <= 0;
 
   const { speak, stop, pause, resume, isSpeaking, isPaused, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
@@ -320,39 +323,13 @@ export default function AssistantPage() {
   // Keep sections ref in sync so teaching callbacks don't go stale
   useEffect(() => { lessonSectionsRef.current = lessonSections; }, [lessonSections]);
 
-  // Load upload count + purchased AI Tutor credits
-  const loadUploadCount = useCallback(async () => {
-    const supabase = createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return;
-
-    // How many uploads they've done
-    let used = 0;
+  const loadQuota = useCallback(async () => {
     try {
-      const { count } = await supabase
-        .from('feature_events')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', authUser.id)
-        .eq('event', 'document_upload');
-      used = count ?? 0;
-    } catch { /* feature_events table not created yet */ }
-
-    // How many tutor credits they've purchased
-    let purchased = 0;
-    try {
-      const { data } = await supabase
-        .from('ai_tutor_credits')
-        .select('total_credits')
-        .eq('user_id', authUser.id);
-      purchased = (data ?? []).reduce((sum: number, r: { total_credits: number }) => sum + r.total_credits, 0);
-    } catch { /* ai_tutor_credits table not created yet */ }
-
-    setUploadCount(used);
-    setTutorCreditsPurchased(purchased);
-    setUploadChecked(true);
+      const res = await fetch('/api/tutor/quota');
+      if (res.ok) setQuota(await res.json() as TutorQuota);
+    } catch { /* keep the last known balance */ }
   }, []);
-
-  useEffect(() => { loadUploadCount(); }, [loadUploadCount]);
+  useEffect(() => { loadQuota(); }, [loadQuota]);
 
   // ── Lesson persistence ─────────────────────────────────────────────────────
   // A finished lesson survives a refresh until the student closes it or
@@ -506,105 +483,152 @@ export default function AssistantPage() {
 
   // ── Document upload / pasted text → lesson ──────────────────────────────────
 
-  // Shared by both source paths below: once we have the raw text (extracted
-  // server-side from a file, or typed/pasted directly), the rest of the
-  // pipeline — stream the lesson, then fetch keyword images — is identical.
-  const runLessonPipeline = async (text: string, detectedTopic: string, imageLookupLabel: string) => {
+  const lessonJobRef = useRef<LessonJob | null>(null);
+  const [lessonRetry, setLessonRetry] = useState<string | null>(null);
+
+  // Gets a lesson pass from the server. Returns null (and opens the top-up
+  // modal) when the student has no lessons left.
+  const startLessonSession = async (): Promise<string | null> => {
+    const res = await fetch('/api/tutor/lesson-start', { method: 'POST' });
+    const data = await res.json().catch(() => ({})) as { token?: string; error?: string; code?: string; quota?: TutorQuota };
+    if (data.quota) setQuota(data.quota);
+    if (res.status === 402 || data.code === 'no_credits') {
+      setShowTutorPricing(true);
+      return null;
+    }
+    if (!res.ok || !data.token) throw new Error(data.error || 'Could not start the lesson. Please try again.');
+    return data.token;
+  };
+
+  const newLessonJob = (token: string, text: string, imageTopic: string): LessonJob => {
+    const chunks = chunkContent(text, LESSON_BATCH_TARGET_CHARS);
+    return {
+      token,
+      chunks: chunks.length > 0 ? chunks : [text],
+      context: getContext(),
+      full: '',
+      priorTitles: [],
+      nextIndex: 0,
+      imageTopic,
+    };
+  };
+
+  const postLessonCall = async (job: LessonJob, payload: Record<string, unknown>) => {
+    const res = await fetch('/api/generate-lesson', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, context: job.context, lessonToken: job.token }),
+      signal: lessonAbortRef.current?.signal,
+    });
+    if (!res.ok || !res.body) {
+      const e = await res.json().catch(() => ({})) as { error?: string; code?: string };
+      if (e.code === 'no_credits') setShowTutorPricing(true);
+      throw new Error(e.error || 'Failed to create lesson');
+    }
+    return res.body;
+  };
+
+  // Runs (or resumes) a lesson from job.nextIndex. Small documents are one
+  // call; long ones are written in parts, then a closing call adds the
+  // Practice Review + Summary once every part is covered.
+  const runLessonJob = async (job: LessonJob) => {
+    lessonJobRef.current = job;
+    setLessonRetry(null);
+    setDocError('');
+    setDocStage('generating');
+    setDocProgress('');
+    lessonAbortRef.current = new AbortController();
+    const multi = job.chunks.length > 1;
+    const totalParts = multi ? job.chunks.length + 1 : 1;
+
     try {
-      setDocStage('generating');
-      setDocProgress('');
-      lessonAbortRef.current = new AbortController();
-
-      const chunks = chunkContent(text, LESSON_BATCH_TARGET_CHARS);
-      let full = '';
-
-      if (chunks.length <= 1) {
-        // Small enough for one call — unchanged from before.
-        const lessonRes = await fetch('/api/generate-lesson', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, context: getContext() }),
-          signal: lessonAbortRef.current.signal,
-        });
-
-        if (!lessonRes.ok || !lessonRes.body) {
-          const e = await lessonRes.json().catch(() => ({ error: 'Failed to create lesson' })) as { error?: string };
-          throw new Error(e.error);
+      if (!multi) {
+        if (job.nextIndex === 0) {
+          job.full = await streamToText(await postLessonCall(job, { text: job.chunks[0] }), setLessonText);
+          job.nextIndex = 1;
         }
-
-        full = await streamToText(lessonRes.body, setLessonText);
       } else {
-        // Long document — write it as sequential batches (Intro + concepts
-        // per batch, no Practice Review/Summary yet), then one final call
-        // to add Practice Review + Summary once everything's been covered.
-        const priorTitles: string[] = [];
-
-        for (let i = 0; i < chunks.length; i++) {
-          setDocProgress(`Writing lesson — part ${i + 1} of ${chunks.length}…`);
-          const res = await fetch('/api/generate-lesson', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: chunks[i],
-              context: getContext(),
-              mode: i === 0 ? 'first' : 'continue',
-              batchIndex: i,
-              batchTotal: chunks.length,
-              priorConceptTitles: priorTitles,
-            }),
-            signal: lessonAbortRef.current.signal,
+        for (let i = job.nextIndex; i < job.chunks.length; i++) {
+          setDocProgress(`Writing lesson — part ${i + 1} of ${totalParts}…`);
+          const base = job.full;
+          const body = await postLessonCall(job, {
+            text: job.chunks[i],
+            mode: i === 0 ? 'first' : 'continue',
+            batchIndex: i,
+            batchTotal: job.chunks.length,
+            priorConceptTitles: job.priorTitles,
           });
-
-          if (!res.ok || !res.body) {
-            const e = await res.json().catch(() => ({ error: 'Failed to create lesson' })) as { error?: string };
-            throw new Error(e.error);
-          }
-
-          const base = full;
-          const batchText = await streamToText(res.body, (partial) => setLessonText(base ? `${base}\n\n${partial}` : partial));
-          full = full ? `${full}\n\n${batchText}` : batchText;
-          priorTitles.push(...extractSectionTitles(batchText));
+          const batchText = await streamToText(body, partial => setLessonText(base ? `${base}\n\n${partial}` : partial));
+          job.full = base ? `${base}\n\n${batchText}` : batchText;
+          job.priorTitles.push(...extractSectionTitles(batchText));
+          job.nextIndex = i + 1;
         }
-
-        setDocProgress('Adding practice questions and a summary…');
-        const synthRes = await fetch('/api/generate-lesson', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'synthesize', conceptSections: full, context: getContext() }),
-          signal: lessonAbortRef.current.signal,
-        });
-
-        if (!synthRes.ok || !synthRes.body) {
-          const e = await synthRes.json().catch(() => ({ error: 'Failed to finish lesson' })) as { error?: string };
-          throw new Error(e.error);
+        if (job.nextIndex === job.chunks.length) {
+          setDocProgress('Adding practice questions and a summary…');
+          const base = job.full;
+          const body = await postLessonCall(job, { mode: 'synthesize', conceptSections: base });
+          const synthText = await streamToText(body, partial => setLessonText(`${base}\n\n${partial}`));
+          job.full = `${base}\n\n${synthText}`;
+          job.nextIndex = job.chunks.length + 1;
         }
-
-        const base = full;
-        const synthText = await streamToText(synthRes.body, (partial) => setLessonText(`${base}\n\n${partial}`));
-        full = `${full}\n\n${synthText}`;
       }
 
-      const sections = parseSections(full);
-      setLessonSections(sections);
+      lessonJobRef.current = null;
+      setLessonText(job.full);
+      setLessonSections(parseSections(job.full));
       setDocStage('ready');
-      setDocProgress('');
+      loadQuota();
 
       // Fetch keyword images for the whole lesson in the background
       setFetchingImages(true);
       fetch('/api/lesson-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lessonText: full, topic: detectedTopic || imageLookupLabel }),
+        body: JSON.stringify({ lessonText: job.full, topic: job.imageTopic }),
       })
         .then(r => r.json())
-        .then(({ images }) => setKeywordImages(images as Record<string, { url: string; caption: string; pageUrl: string }>))
+        .then(({ images }) => setKeywordImages((images ?? {}) as Record<string, { url: string; caption: string; pageUrl: string }>))
         .catch(() => {})
         .finally(() => setFetchingImages(false));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
-      setDocError(e instanceof Error ? e.message : 'Something went wrong');
-      setDocStage('idle');
+      const msg = e instanceof Error ? e.message : 'Something went wrong';
+      loadQuota();
+      if (job.full.trim()) {
+        // Keep everything already written and offer to carry on from the
+        // part that failed.
+        setLessonText(job.full);
+        setLessonSections(parseSections(job.full));
+        setDocStage('ready');
+        setLessonRetry(`Part ${Math.min(job.nextIndex + 1, totalParts)} of ${totalParts} didn't finish — ${msg}`);
+      } else {
+        lessonJobRef.current = null;
+        setDocError(msg);
+        setDocStage('idle');
+      }
+    } finally {
+      setDocProgress('');
     }
+  };
+
+  const retryLesson = () => {
+    if (lessonJobRef.current) runLessonJob(lessonJobRef.current);
+  };
+
+  const resetLessonState = (fileName: string) => {
+    stopTeaching();
+    clearStoredLesson();
+    lessonJobRef.current = null;
+    setLessonRetry(null);
+    setDocStage('uploading');
+    setDocProgress('');
+    setDocError('');
+    setLessonFileName(fileName);
+    setLessonText('');
+    setLessonSections([]);
+    setKeywordImages({});
+    setTeachIdx(0);
+    setHasStartedTeaching(false);
   };
 
   const handleFileUpload = async (file: File) => {
@@ -619,26 +643,23 @@ export default function AssistantPage() {
     if (isOldPpt) { setDocError('Old .ppt format isn’t supported — open it in PowerPoint and use Save As → .pptx, then upload that instead. Slides that are mostly images convert fine and will still be read correctly.'); return; }
     if (isOldDoc) { setDocError('Old .doc format is not supported. Please save as .docx in Word and try again.'); return; }
 
-    trackEvent('document_upload', { fileName: file.name, fileType: file.type });
-    setUploadCount(prev => prev + 1);
-    stopTeaching();
-    clearStoredLesson();
-    setDocStage('uploading');
-    setDocProgress('');
-    setDocError('');
-    setLessonFileName(file.name);
-    setLessonText('');
-    setLessonSections([]);
-    setTeachIdx(0);
-    setHasStartedTeaching(false);
+    let token: string | null;
+    try {
+      token = await startLessonSession();
+    } catch (e) {
+      setDocError(e instanceof Error ? e.message : 'Something went wrong');
+      return;
+    }
+    if (!token) return;
+
+    trackEvent('tutor_lesson_started', { fileName: file.name, fileType: file.type });
+    resetLessonState(file.name);
 
     try {
       // Extraction happens entirely in the browser — sending the raw file
-      // straight to the server (the old approach here) blows past a
-      // serverless request-body limit for anything but a tiny deck,
-      // which is exactly what shows up client-side as a bare "Failed to
-      // fetch" with no useful error from the server at all. See
-      // admin/generate/page.tsx's handlePdfParse for the same pipeline.
+      // straight to the server blows past a serverless request-body limit
+      // for anything but a tiny deck. See admin/generate/page.tsx's
+      // handlePdfParse for the same pipeline.
       const { extractFileText } = await import('@/lib/extractPdfText');
       const { text, pageCount } = await extractFileText(file, (page, total) => {
         setDocProgress(`Extracting page ${page} of ${total}…`);
@@ -649,10 +670,9 @@ export default function AssistantPage() {
       const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
 
       // A page/slide whose content was flattened into a picture has
-      // essentially no extractable text — not a parsing failure, there's
-      // genuinely none there. Caught by a low whole-file average rather
-      // than "is it empty", since a repeated footer or slide number
-      // alone can make text technically non-empty.
+      // essentially no extractable text. Caught by a low whole-file
+      // average rather than "is it empty", since a repeated footer or
+      // slide number alone can make text technically non-empty.
       const avgCharsPerUnit = pageCount > 0 ? text.length / pageCount : text.length;
       const looksImageOnly = avgCharsPerUnit < 80;
 
@@ -674,7 +694,7 @@ export default function AssistantPage() {
         } else {
           const visionText = await visionOcrImages(images, (done, total) => {
             setDocProgress(`Reading slide images with AI vision (${done}/${total})…`);
-          });
+          }, token);
           if (!visionText.trim() && !text.trim()) {
             throw new Error('AI vision could not read any content from these slide images.');
           }
@@ -684,12 +704,7 @@ export default function AssistantPage() {
 
       if (!finalText.trim()) throw new Error('Could not extract text. If this is a scanned PDF, it must be text-based.');
 
-      // Visible so a report like "I uploaded 100+ pages and didn't see
-      // batching" is verifiable instead of guessed at — a sparse slide
-      // deck's actual extracted text is often far smaller than its page
-      // count implies (see LESSON_BATCH_TARGET_CHARS above).
-      console.log(`[AI Tutor] Extracted ${finalText.length.toLocaleString()} characters from ${pageCount} pages/slides`);
-      setDocProgress(`Extracted ${finalText.length.toLocaleString()} characters from ${pageCount} pages — detecting topic…`);
+      setDocProgress(`Read ${finalText.length.toLocaleString()} characters from ${pageCount} pages — detecting topic…`);
       const parseRes = await fetch('/api/parse-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -699,7 +714,7 @@ export default function AssistantPage() {
       if (!parseRes.ok || !parseData.text) throw new Error(parseData.error || 'Could not read the document');
 
       if (parseData.detectedTopic) setTopic(parseData.detectedTopic);
-      await runLessonPipeline(parseData.text, parseData.detectedTopic || '', file.name);
+      await runLessonJob(newLessonJob(token, parseData.text, parseData.detectedTopic || file.name));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
@@ -720,45 +735,40 @@ export default function AssistantPage() {
       setShowTutorPricing(true);
       return;
     }
-    trackEvent('document_upload', { fileName: 'pasted-text', fileType: 'text/plain' });
-    setUploadCount(prev => prev + 1);
-    stopTeaching();
-    clearStoredLesson();
-    setDocStage('uploading');
-    setDocError('');
-    setLessonFileName('Pasted text');
-    setLessonText('');
-    setLessonSections([]);
-    setTeachIdx(0);
-    setHasStartedTeaching(false);
 
+    let token: string | null;
     try {
-      // Reuses the same topic-detection call a file upload gets, just via
-      // the JSON branch (there's no file here, so nothing to extract).
-      let detectedTopic = '';
-      try {
-        const topicRes = await fetch('/api/parse-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-        const topicData = await topicRes.json() as { detectedTopic?: string };
-        detectedTopic = topicData.detectedTopic || '';
-        if (detectedTopic) setTopic(detectedTopic);
-      } catch { /* topic detection optional */ }
-
-      await runLessonPipeline(text, detectedTopic, 'Pasted text');
+      token = await startLessonSession();
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') return;
       setDocError(e instanceof Error ? e.message : 'Something went wrong');
-      setDocStage('idle');
+      return;
     }
+    if (!token) return;
+
+    trackEvent('tutor_lesson_started', { fileName: 'pasted-text', fileType: 'text/plain' });
+    resetLessonState('Pasted text');
+
+    let detectedTopic = '';
+    try {
+      const topicRes = await fetch('/api/parse-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const topicData = await topicRes.json() as { detectedTopic?: string };
+      detectedTopic = topicData.detectedTopic || '';
+      if (detectedTopic) setTopic(detectedTopic);
+    } catch { /* topic detection optional */ }
+
+    await runLessonJob(newLessonJob(token, text, detectedTopic || 'Pasted text'));
   };
 
   const dismissLesson = () => {
     stopTeaching();
     lessonAbortRef.current?.abort();
     clearStoredLesson();
+    lessonJobRef.current = null;
+    setLessonRetry(null);
     setDocStage('idle');
     setLessonText('');
     setLessonSections([]);
@@ -866,11 +876,11 @@ export default function AssistantPage() {
 
       {showTutorPricing && (
         <TutorPricingModal
-          usedCredits={uploadCount}
-          purchasedCredits={tutorCreditsPurchased}
+          remaining={uploadRemaining}
+          hasPurchased={(quota?.purchased ?? 0) > 0}
           onClose={() => setShowTutorPricing(false)}
-          onSuccess={(newCredits) => {
-            setTutorCreditsPurchased(prev => prev + newCredits);
+          onSuccess={() => {
+            loadQuota();
             setShowTutorPricing(false);
           }}
         />
@@ -1007,7 +1017,7 @@ export default function AssistantPage() {
                 <span className={`text-xs font-medium tabular-nums ${
                   uploadRemaining <= 2 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'
                 }`}>
-                  {uploadRemaining} left
+                  {uploadRemaining} {uploadRemaining === 1 ? 'lesson' : 'lessons'} left
                 </span>
               )}
             </button>
@@ -1089,6 +1099,20 @@ export default function AssistantPage() {
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          {lessonRetry && docStage === 'ready' && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20">
+              <p className="flex-1 text-xs text-amber-800 dark:text-amber-300">
+                {lessonRetry} What&rsquo;s below is saved — retrying won&rsquo;t use another lesson credit.
+              </p>
+              <button
+                onClick={retryLesson}
+                className="self-start sm:self-auto flex-shrink-0 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Retry the rest
+              </button>
+            </div>
+          )}
 
           {/* Section tabs */}
           {docStage === 'ready' && lessonSections.length > 0 && (
