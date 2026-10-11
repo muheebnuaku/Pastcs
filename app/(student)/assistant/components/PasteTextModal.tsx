@@ -22,7 +22,7 @@ export function PasteTextModal({ onClose, onSubmit }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 py-8 sm:py-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto dark:bg-white/[0.04]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto dark:bg-[#1c1a15] dark:border dark:border-white/10">
         <div className="flex items-start justify-between p-6 pb-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">

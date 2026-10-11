@@ -62,6 +62,7 @@ const FORMAT_RULES = `FORMATTING RULES (the renderer only understands these — 
 - "**bold**" for key terms and emphasis, "*italic*" sparingly.
 - "- " for bullet lists, "1. " for ordered steps. Never nest a list inside another list.
 - Use a Markdown table (| col | col | with a |---|---| header separator row) when comparing multiple items across attributes, or presenting a dataset/record set the reader needs to see — the renderer now supports these.
+- Write every formula or equation in LaTeX: \\( ... \\) for inline maths and \\[ ... \\] for a formula on its own line — the renderer draws these properly. Never use $ signs as maths delimiters.
 - Keep paragraphs short: 2–4 sentences before a break.`;
 
 function depthGuidance(context?: string): string {
