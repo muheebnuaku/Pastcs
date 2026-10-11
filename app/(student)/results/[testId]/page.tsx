@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Badge, QuestionContent } from '@/components/ui';
 import { formatPercentage, formatTime, courseCodeSlug } from '@/lib/utils';
 import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
+import { extractMath, restoreMath } from '@/lib/math';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import type { Test, TestAnswer, Question } from '@/types';
@@ -17,14 +18,16 @@ import {
 } from 'lucide-react';
 
 // Lightweight markdown → HTML for AI panel
-function mdToHtml(text: string): string {
+function mdToHtml(source: string): string {
+  // Formulas out first (KaTeX), back in at the end — see lib/math.ts.
+  const { text, rendered } = extractMath(source);
   // Code fences first (before table detection could misfire on pipe
   // characters inside an example), then tables (before the header/list/
   // paragraph steps below, which depend on the original newlines a
   // table's rows need to stay intact).
   const withCodeBlocks = escapeHtml(text).replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre class="bg-gray-900 text-green-300 rounded-lg p-3 text-xs overflow-x-auto my-2 font-mono"><code>$1</code></pre>');
 
-  return renderMarkdownTables(withCodeBlocks)
+  return restoreMath(renderMarkdownTables(withCodeBlocks)
     .replace(/`([^`\n]+)`/g, '<code class="bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 px-1 py-0.5 rounded text-xs font-mono">$1</code>')
     .replace(/^## (.+)$/gm, '<h3 class="text-sm font-bold text-purple-900 dark:text-purple-300 mt-3 mb-1">$1</h3>')
     .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-purple-800 dark:text-purple-400 mt-2 mb-1">$1</h4>')
@@ -39,7 +42,7 @@ function mdToHtml(text: string): string {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-sm">$1</a>')
     .replace(/\n{2,}/g, '</p><p class="text-sm text-gray-800 dark:text-gray-200 leading-relaxed mb-2">')
-    .replace(/\n/g, '<br />');
+    .replace(/\n/g, '<br />'), rendered);
 }
 
 export default function ResultsPage() {

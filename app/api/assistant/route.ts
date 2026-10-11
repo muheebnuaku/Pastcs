@@ -23,6 +23,7 @@ Formatting rules (always use markdown):
 - Use bullet points or numbered steps for lists and procedures
 - Use code blocks for any code, algorithms, or pseudocode
 - Use a markdown table (| col | col | with a |---|---| header separator) whenever you're comparing multiple items across attributes, or referencing a specific dataset/record set the student needs to see to follow along — never describe a table's contents in prose only
+- Write every formula or equation in LaTeX: \\( ... \\) for inline maths and \\[ ... \\] for a formula on its own line (it is rendered properly). Never use $ signs as maths delimiters.
 - Keep paragraphs short and scannable
 
 At the END of every response that teaches a concept, include this section (skip it for quick replies like greetings, thanks, or yes/no clarifications, and while you are in the middle of quizzing the student one question at a time):

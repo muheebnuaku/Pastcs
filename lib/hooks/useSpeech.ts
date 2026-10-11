@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { buildUnitMap, charAtUnits } from './spokenLength';
+import { speakableMath } from '@/lib/mathSpeech';
 
 export const VOICE_PREF_KEY = 'pastcs_voice_gender';
 
@@ -24,7 +25,9 @@ function pickVoice(gender: 'female' | 'male'): SpeechSynthesisVoice | null {
 }
 
 export function stripMarkdown(text: string): string {
-  return text
+  // Formulas first, as words ("f equals c over lambda"), before the
+  // symbol-stripping below can eat their backslashes and braces.
+  return speakableMath(text)
     // The trailing "📚 Resources" block is links for reading, not for
     // listening to.
     .replace(/(^|\n)(-{3,}\s*\n)?#{1,6}\s*📚[^\n]*[\s\S]*$/, '')
@@ -117,12 +120,19 @@ export type SpeechPosition = {
   subscribe: (listener: () => void) => () => void;
 };
 
+const subscribeNever = () => () => {};
+const hasSpeechSynthesis = () => 'speechSynthesis' in window;
+const notOnServer = () => false;
+
 export function useSpeech() {
   const [isSpeaking, setIsSpeaking]     = useState(false);
   const [isPaused, setIsPaused]         = useState(false);
   const [position] = useState(createPositionStore);
   const [speakingText, setSpeakingText] = useState('');
-  const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  // false on the server and during hydration, then the real answer — a plain
+  // `typeof window` check rendered the voice controls on the client only,
+  // so React hit a hydration mismatch and re-rendered the whole page.
+  const isSupported = useSyncExternalStore(subscribeNever, hasSpeechSynthesis, notOnServer);
   // Bumped on every speak/stop. speechSynthesis.cancel() fires onend /
   // onerror on the utterance it kills; without this, stopping one reading
   // would trigger the next chunk (or the caller's onEnd) of the old one.

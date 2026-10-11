@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { AuthProvider, ServiceWorkerRegister, ThemeProvider } from "@/components/providers";
 
@@ -65,7 +64,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${plusJakarta.variable} font-sans antialiased bg-gray-50`}>
-        <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
+        {/* Paystack's inline.js is NOT loaded globally: on every page it threw
+            "put your Paystack Inline javascript file inside of a form element"
+            and pulled in Paystack's checkout frame for every visitor. The two
+            payment modals (PaywallModal, TutorPricingModal) load it on demand. */}
         <ServiceWorkerRegister />
         <ThemeProvider>
           <AuthProvider>

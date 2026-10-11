@@ -13,6 +13,7 @@ import { chunkContent, courseCodeSlug } from '@/lib/utils';
 import { Modal } from '@/components/ui';
 import Link from 'next/link';
 import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
+import { extractMath, restoreMath } from '@/lib/math';
 import type { Course } from '@/types';
 import type { TutorQuota } from '@/lib/tutorCredits';
 import type { TutorAction } from '@/lib/tutorContext';
@@ -82,7 +83,10 @@ interface LibraryItem {
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
 
-function mdToHtml(text: string): string {
+function mdToHtml(source: string): string {
+  // Formulas come out first (rendered by KaTeX) so the markdown steps below
+  // can't mangle them, and go back in at the very end.
+  const { text, rendered } = extractMath(source);
   // Code fences first (before table detection could misfire on pipe
   // characters inside an example), then tables (before the header/list/
   // paragraph steps below, which depend on the original newlines a
@@ -90,7 +94,7 @@ function mdToHtml(text: string): string {
   const withCodeBlocks = escapeHtml(text).replace(/```(\w*)\n?([\s\S]*?)```/g,
     '<pre class="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-3 font-mono"><code>$2</code></pre>');
 
-  return (
+  return restoreMath(
     renderMarkdownTables(withCodeBlocks)
       .replace(/`([^`\n]+)`/g, '<code class="bg-gray-100 dark:bg-white/10 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>')
       .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 dark:text-gray-100 mt-4 mb-1.5">$1</h2>')
@@ -106,7 +110,8 @@ function mdToHtml(text: string): string {
       .replace(/^(\d+)\. (.+)$/gm, '<li class="flex gap-2"><span class="font-semibold text-blue-600 flex-shrink-0">$1.</span><span>$2</span></li>')
       .replace(/(<li[\s\S]*?<\/li>\n?)+/g, '<ul class="space-y-1.5 my-2">$&</ul>')
       .replace(/\n{2,}/g, '</p><p class="mb-2 leading-relaxed">')
-      .replace(/\n/g, '<br />')
+      .replace(/\n/g, '<br />'),
+    rendered
   );
 }
 
@@ -413,7 +418,8 @@ export default function AssistantPage() {
   useEffect(() => {
     if (!user?.id) return;
     abortRef.current?.abort();
-    stop();
+    // Only the chat's own reading — a lesson being read keeps going.
+    if (!teachingRef.current) stop();
     setIsStreaming(false);
     setMessages([]);
     let cancelled = false;
@@ -592,6 +598,21 @@ export default function AssistantPage() {
     setParaReady(false);
     if (paras.length > 0) speak(paras[0], () => setParaReady(true));
   }, [voiceSupported, lessonSections, teachIdx, speak]);
+
+  // Safety net: if speech stops while the lesson still thinks it's reading
+  // (another tab or app took over the voice, the OS interrupted it), reset
+  // the reader so Listen works again instead of showing a dead Pause.
+  useEffect(() => {
+    if (!teaching || isSpeaking || isPaused) return;
+    const timer = window.setTimeout(() => {
+      if (teachingRef.current && !window.speechSynthesis?.speaking) {
+        teachingRef.current = false;
+        setTeaching(false);
+        setParaReady(false);
+      }
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [teaching, isSpeaking, isPaused]);
 
   const stopTeaching = useCallback(() => {
     teachingRef.current = false;
@@ -1009,7 +1030,11 @@ export default function AssistantPage() {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
     setView('chat');
-    stop();
+    // Asking a question while a lesson is being read used to call stop(),
+    // which silenced the lesson but left it "playing" (dead Pause button
+    // until a refresh). The lesson now keeps reading; only a previous chat
+    // reply being read aloud is stopped.
+    if (!teachingRef.current) stop();
     if (messages.length === 0) trackEvent('ai_chat', { course: selectedCourseObj?.course_code });
 
     const userMsg: Message = { role: 'user', content: trimmed };
@@ -1048,7 +1073,8 @@ export default function AssistantPage() {
         setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: full }]);
       }
       if (full) saveMessage('assistant', full);
-      if (voiceEnabled && full) speak(full);
+      // Don't talk over a lesson that's being read.
+      if (voiceEnabled && full && !teachingRef.current) speak(full);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Stopped by the student (or by switching course): keep whatever
@@ -1061,7 +1087,9 @@ export default function AssistantPage() {
         return;
       }
       const msg = err instanceof Error ? err.message : 'Something went wrong';
-      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: `Sorry — ${msg}. Please try again.` }]);
+      // A limit message already says what to do; others get a retry nudge.
+      const reply = /limit/i.test(msg) ? msg : `Sorry — ${msg.replace(/[.!\s]+$/, '')}. Please try again.`;
+      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: reply }]);
     } finally {
       setIsStreaming(false);
     }
@@ -1073,7 +1101,7 @@ export default function AssistantPage() {
 
   const clearChat = () => {
     abortRef.current?.abort();
-    stop();
+    if (!teachingRef.current) stop();
     setMessages([]);
     setIsStreaming(false);
     if (user?.id) {
@@ -1214,7 +1242,7 @@ export default function AssistantPage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             {voiceSupported && (
               <button
-                onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) { trackEvent('voice_enabled'); primeSpeech(); } setVoiceEnabled(v => !v); }}
+                onClick={() => { if (isSpeaking && !teachingRef.current) stop(); if (!voiceEnabled) { trackEvent('voice_enabled'); primeSpeech(); } setVoiceEnabled(v => !v); }}
                 title={voiceEnabled ? 'Replies are read aloud — tap to turn off' : 'Tap to have replies read aloud'}
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   voiceEnabled
@@ -1282,7 +1310,7 @@ export default function AssistantPage() {
             placeholder="Topic (optional)"
             value={topic}
             onChange={e => setTopic(e.target.value)}
-            className="flex-1 min-w-[140px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
+            className="hidden sm:block flex-1 min-w-[140px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
           />
 
           {/* Upload doc button */}
@@ -1656,6 +1684,29 @@ export default function AssistantPage() {
 
           {/* ── Input area ── */}
           <div className="flex-shrink-0 pt-3">
+            {teaching && (
+              <div className="lg:hidden flex items-center gap-2 mb-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20">
+                <Volume2 className={`w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 ${isPaused ? '' : 'animate-pulse'}`} />
+                <button
+                  onClick={() => setView('lesson')}
+                  className="flex-1 min-w-0 text-left text-xs font-medium text-blue-800 truncate dark:text-blue-300"
+                >
+                  {isPaused ? 'Paused' : 'Reading'}: {lessonSections[teachIdx]?.title ?? 'your lesson'}
+                </button>
+                <button
+                  onClick={() => (isPaused ? resume() : pause())}
+                  className="text-xs font-semibold text-blue-700 bg-white px-2.5 py-1 rounded-lg border border-blue-100 dark:text-blue-300 dark:bg-white/10 dark:border-white/10"
+                >
+                  {isPaused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  onClick={stopTeaching}
+                  className="text-xs font-medium text-gray-600 px-2 py-1 rounded-lg hover:bg-white dark:text-gray-400 dark:hover:bg-white/10"
+                >
+                  Stop
+                </button>
+              </div>
+            )}
             {!isEmpty && !isStreaming && (
               <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                 {quickActions.map(a => (
