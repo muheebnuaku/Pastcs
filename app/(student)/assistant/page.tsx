@@ -13,6 +13,7 @@ import { chunkContent } from '@/lib/utils';
 import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
 import type { Course } from '@/types';
 import type { TutorQuota } from '@/lib/tutorCredits';
+import type { TutorAction } from '@/lib/tutorContext';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
   User, Volume2, VolumeX, Paperclip, FileText, Play, StopCircle, PauseCircle,
@@ -303,10 +304,20 @@ export default function AssistantPage() {
   const courseKey = user?.id ? `pastcs_tutor_course_${user.id}` : null;
   useEffect(() => {
     if (!courseKey) return;
-    try {
-      const saved = localStorage.getItem(courseKey);
-      if (saved) setSelectedCourse(saved);
-    } catch { /* storage unavailable */ }
+    // A link from elsewhere (e.g. a results page's "Continue in AI Tutor")
+    // can pick the course and pre-type a question.
+    const params = new URLSearchParams(window.location.search);
+    const linkedCourse = params.get('course');
+    const linkedQuestion = params.get('q');
+    let saved: string | null = null;
+    try { saved = localStorage.getItem(courseKey); } catch { /* storage unavailable */ }
+    const course = linkedCourse || saved;
+    if (course) setSelectedCourse(course);
+    if (linkedQuestion) {
+      setInput(linkedQuestion.slice(0, 4000));
+      inputRef.current?.focus();
+    }
+    if (linkedCourse || linkedQuestion) window.history.replaceState(null, '', window.location.pathname);
   }, [courseKey]);
   useEffect(() => {
     if (!courseKey) return;
@@ -819,7 +830,7 @@ export default function AssistantPage() {
     }).then(() => {}).catch(() => {}); // chat_messages not migrated on this environment yet
   };
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, action?: TutorAction) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
     stop();
@@ -840,6 +851,8 @@ export default function AssistantPage() {
         signal: abortRef.current.signal,
         body: JSON.stringify({
           message: trimmed,
+          courseId: selectedCourse || undefined,
+          action,
           context: getContext() || undefined,
           history: messages.slice(-10),
         }),
@@ -897,6 +910,33 @@ export default function AssistantPage() {
 
   const isEmpty = messages.length === 0;
   const isProcessing = docStage === 'uploading' || docStage === 'generating';
+
+  // One-tap personal actions — the server fills in the student's own data
+  // (latest test mistakes, weak topics, exam date) for each of these.
+  const courseCode = selectedCourseObj?.course_code;
+  const quickActions: { label: string; hint: string; icon: string; message: string; action: TutorAction }[] = [
+    ...(courseCode ? [{
+      label: "Explain my last test's mistakes",
+      hint: `Goes through what you got wrong in ${courseCode}`,
+      icon: '📝',
+      message: `Explain the mistakes from my last ${courseCode} test.`,
+      action: 'explain_mistakes' as const,
+    }] : []),
+    {
+      label: 'Quiz me on my weak topics',
+      hint: 'One question at a time, with feedback',
+      icon: '🎯',
+      message: courseCode ? `Quiz me on my weak topics in ${courseCode}.` : 'Quiz me on my weak topics.',
+      action: 'quiz_weak',
+    },
+    {
+      label: 'Make me a revision plan',
+      hint: 'Day by day, up to your exam date',
+      icon: '🗓️',
+      message: courseCode ? `Make me a revision plan for ${courseCode} before my exam.` : 'Make me a revision plan before my exams.',
+      action: 'revision_plan',
+    },
+  ];
 
   return (
     // The parent (student) layout pads every page with pt-16 on top and
@@ -1277,7 +1317,7 @@ export default function AssistantPage() {
       {/* ── Chat area ── */}
       <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 relative dark:border-white/10 dark:bg-white/[0.03]">
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full px-6 text-center gap-6">
+          <div className="flex flex-col items-center justify-center min-h-full px-4 sm:px-6 py-6 text-center gap-5">
             <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/15 rounded-2xl flex items-center justify-center">
               <BotMessageSquare className="w-9 h-9 text-blue-600 dark:text-blue-400" />
             </div>
@@ -1287,6 +1327,26 @@ export default function AssistantPage() {
                 Ask me anything, or upload a <strong>PDF, Word, or PowerPoint</strong> file — or just paste text — to instantly generate a full beginner lesson with voice reading.
               </p>
             </div>
+            <div className={`grid grid-cols-1 gap-2.5 w-full max-w-2xl ${quickActions.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+              {quickActions.map(a => (
+                <button
+                  key={a.action}
+                  onClick={() => sendMessage(a.message, a.action)}
+                  className="flex sm:flex-col items-center sm:items-start gap-3 sm:gap-2 p-3.5 text-left bg-white border border-gray-200 rounded-2xl shadow-sm hover:border-blue-400 hover:shadow-md active:scale-[0.98] transition-all dark:bg-white/[0.04] dark:border-white/10 dark:hover:border-blue-500/40"
+                >
+                  <span className="text-2xl flex-shrink-0">{a.icon}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">{a.label}</span>
+                    <span className="block text-xs text-gray-500 mt-0.5 dark:text-gray-400">{a.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {!courseCode && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm">
+                Tip: pick your course at the top so I can use your own test results and weak topics.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
               {SUGGESTIONS.map(s => (
                 <button key={s} onClick={() => sendMessage(s)}
@@ -1341,6 +1401,19 @@ export default function AssistantPage() {
 
       {/* ── Input area ── */}
       <div className="flex-shrink-0 pt-3">
+        {!isEmpty && !isStreaming && (
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+            {quickActions.map(a => (
+              <button
+                key={a.action}
+                onClick={() => sendMessage(a.message, a.action)}
+                className="flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+              >
+                <span>{a.icon}</span>{a.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex gap-2 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all dark:bg-white/[0.04] dark:border-white/10">
           <textarea
             ref={inputRef}

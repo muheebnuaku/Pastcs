@@ -395,6 +395,7 @@ export default function ResultsPage() {
                     )}
 
                     {/* ── AI Explain button ── */}
+                    <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleAskAI(answer)}
                       disabled={isAILoading}
@@ -421,6 +422,18 @@ export default function ResultsPage() {
                         </>
                       )}
                     </button>
+                    {/* Opens the full tutor on this course, with a follow-up
+                        about this question already typed in. */}
+                    <Link
+                      href={`/assistant?${new URLSearchParams({
+                        ...(test.course_id ? { course: test.course_id } : {}),
+                        q: `Help me understand this question I got ${answer.is_correct ? 'right' : 'wrong'}: "${answer.question.question_text.slice(0, 400)}"`,
+                      }).toString()}`}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-purple-600 dark:text-gray-400 dark:hover:text-purple-400 px-2 py-1.5"
+                    >
+                      Continue in AI Tutor →
+                    </Link>
+                    </div>
 
                     {/* ── Streaming AI panel ── */}
                     {isAIOpen && (

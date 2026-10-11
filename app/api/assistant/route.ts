@@ -3,6 +3,7 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
 import { requireUser, aiCallsToday } from '@/lib/apiAuth';
+import { buildTutorContext, TUTOR_ACTIONS, type TutorAction } from '@/lib/tutorContext';
 
 const SYSTEM_PROMPT = `You are an expert AI tutor for university students — equally comfortable introducing a first-year student to a brand-new topic and engaging a graduate student critically on advanced material. You don't apply one fixed register by default; you read the sophistication of the question in front of you and match it.
 
@@ -24,7 +25,7 @@ Formatting rules (always use markdown):
 - Use a markdown table (| col | col | with a |---|---| header separator) whenever you're comparing multiple items across attributes, or referencing a specific dataset/record set the student needs to see to follow along — never describe a table's contents in prose only
 - Keep paragraphs short and scannable
 
-At the END of every response that teaches a concept, include this section (skip it only for quick replies like greetings, thanks, or yes/no clarifications):
+At the END of every response that teaches a concept, include this section (skip it for quick replies like greetings, thanks, or yes/no clarifications, and while you are in the middle of quizzing the student one question at a time):
 
 ---
 ## 📚 Resources
@@ -56,11 +57,15 @@ export async function POST(request: Request) {
     const auth = await requireUser();
     if (auth instanceof Response) return auth;
 
-    const { message, context, history } = await request.json() as {
+    const { message, context, history, courseId, action } = await request.json() as {
       message?: unknown;
       context?: unknown;
       history?: unknown;
+      courseId?: unknown;
+      action?: unknown;
     };
+    const tutorAction: TutorAction | null =
+      typeof action === 'string' && (TUTOR_ACTIONS as string[]).includes(action) ? action as TutorAction : null;
 
     if (typeof message !== 'string' || !message.trim()) {
       return Response.json({ error: 'Message is required' }, { status: 400 });
@@ -96,10 +101,17 @@ export async function POST(request: Request) {
       }));
     const safeContext = typeof context === 'string' ? context.slice(0, MAX_CONTEXT_CHARS) : '';
 
+    // What we know about this student (course syllabus, weak topics, exam
+    // date, latest test mistakes) — built server-side from their own data
+    // so it can't be spoofed and doesn't have to be sent by the browser.
+    const studentNotes = await buildTutorContext(auth.supabase, auth.userId, courseId, tutorAction)
+      .catch(() => '');
+
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
+      ...(studentNotes ? [{ role: 'system' as const, content: studentNotes }] : []),
       ...(safeContext ? [{ role: 'system' as const, content: `Study context: ${safeContext}` }] : []),
       ...safeHistory,
       { role: 'user', content: message },
