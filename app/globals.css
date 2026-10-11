@@ -31,6 +31,19 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Read-along highlight (lib/hooks/SpeechHighlight.tsx). Box-shadow rather
+   than padding so the highlight never shifts the surrounding text, and a
+   short colour-only transition so it keeps pace with the voice. */
+.speech-word {
+  border-radius: 4px;
+  transition: background-color 70ms linear, box-shadow 70ms linear, color 70ms linear;
+}
+.speech-word-active {
+  background-color: #fde047;
+  box-shadow: 0 0 0 2px #fde047;
+  color: #1c1917;
+}
+
 /* iOS Safari auto-zooms into any focused field whose text is under 16px
    and never zooms back out, leaving the page cut off on the right. Left
    unlayered on purpose so it outranks Tailwind's (layered) text-* classes. */

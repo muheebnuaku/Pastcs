@@ -57,7 +57,7 @@ export default function ResultsPage() {
   const abortControllers = useRef<Record<string, AbortController>>({});
 
   // Voice
-  const { speak, stop, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
+  const { speak, stop, position, speakingText, isSupported: voiceSupported } = useSpeech();
   const [speakingQId, setSpeakingQId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -475,7 +475,7 @@ export default function ResultsPage() {
                         <div className="p-4">
                           {aiPanels[qId] ? (
                             speakingQId === qId && speakingText ? (
-                              <SpeechHighlight text={speakingText} charIndex={charIndex} />
+                              <SpeechHighlight text={speakingText} position={position} />
                             ) : (
                               <div
                                 className="text-sm text-gray-800 leading-relaxed dark:text-gray-200"

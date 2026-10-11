@@ -91,10 +91,35 @@ function splitForSpeech(text: string): { text: string; offset: number }[] {
   return pieces;
 }
 
+// The spoken position changes on every word, so it lives outside React
+// state: subscribers (SpeechHighlight, keyword-picture lookup) read it
+// directly instead of every word re-rendering the whole page.
+function createPositionStore() {
+  let value = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (next: number) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach(l => l());
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
+}
+
+export type SpeechPosition = {
+  get: () => number;
+  subscribe: (listener: () => void) => () => void;
+};
+
 export function useSpeech() {
   const [isSpeaking, setIsSpeaking]     = useState(false);
   const [isPaused, setIsPaused]         = useState(false);
-  const [charIndex, setCharIndex]       = useState(0);
+  const [position] = useState(createPositionStore);
   const [speakingText, setSpeakingText] = useState('');
   const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   // Bumped on every speak/stop. speechSynthesis.cancel() fires onend /
@@ -108,13 +133,13 @@ export function useSpeech() {
   // When a piece gets no boundary events, the position is estimated from
   // elapsed speaking time instead, recalibrated from each finished piece.
   const estimatorRef = useRef<number | null>(null);
-  const charsPerSecRef = useRef(14);
+  const charsPerSecRef = useRef(15);
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
 
   const clearEstimator = useCallback(() => {
     if (estimatorRef.current !== null) {
-      window.clearInterval(estimatorRef.current);
+      window.cancelAnimationFrame(estimatorRef.current);
       estimatorRef.current = null;
     }
   }, []);
@@ -126,9 +151,9 @@ export function useSpeech() {
     window.speechSynthesis.cancel();
     setIsSpeaking(false);
     setIsPaused(false);
-    setCharIndex(0);
+    position.set(0);
     setSpeakingText('');
-  }, [clearEstimator]);
+  }, [clearEstimator, position]);
 
   // Pauses in place — the same utterance resumes from where it left off.
   const pause = useCallback(() => {
@@ -170,7 +195,7 @@ export function useSpeech() {
     const voice = pickVoice(storedGender);
 
     setSpeakingText(plain);
-    setCharIndex(0);
+    position.set(0);
     setIsSpeaking(true);
     setIsPaused(false);
 
@@ -179,7 +204,7 @@ export function useSpeech() {
       clearEstimator();
       setIsSpeaking(false);
       setIsPaused(false);
-      setCharIndex(0);
+      position.set(0);
       setSpeakingText('');
       onEnd?.();
     };
@@ -205,26 +230,32 @@ export function useSpeech() {
         startedAt = performance.now();
         pausedTotalRef.current = 0;
         pausedAtRef.current = null;
-        setCharIndex(offset);
+        position.set(offset);
         clearEstimator();
-        estimatorRef.current = window.setInterval(() => {
-          if (session !== sessionRef.current || gotBoundary) { clearEstimator(); return; }
-          if (pausedAtRef.current !== null) return;
-          const pos = Math.min(pieceText.length - 1, Math.floor(spokenSeconds() * charsPerSecRef.current));
-          setCharIndex(offset + Math.max(0, pos));
-        }, 120);
+        // Every animation frame — cheap now that it only touches two spans.
+        const tick = () => {
+          if (session !== sessionRef.current || gotBoundary) { estimatorRef.current = null; return; }
+          if (pausedAtRef.current === null) {
+            const pos = Math.min(pieceText.length - 1, Math.floor(spokenSeconds() * charsPerSecRef.current));
+            position.set(offset + Math.max(0, pos));
+          }
+          estimatorRef.current = window.requestAnimationFrame(tick);
+        };
+        estimatorRef.current = window.requestAnimationFrame(tick);
       };
       utterance.onboundary = (e) => {
         if (session !== sessionRef.current || e.name !== 'word') return;
         gotBoundary = true;
-        setCharIndex(offset + e.charIndex);
+        position.set(offset + e.charIndex);
       };
       utterance.onend = () => {
         if (session !== sessionRef.current) return;
         clearEstimator();
         // Learn this voice's real speed so the next estimate lines up better.
         if (!gotBoundary && startedAt) {
-          const seconds = spokenSeconds();
+          // The end event lands after a short trailing silence, which would
+          // otherwise read as slower speech and make the highlight lag.
+          const seconds = spokenSeconds() - 0.25;
           if (seconds > 0.6) {
             const measured = Math.min(30, Math.max(6, pieceText.length / seconds));
             charsPerSecRef.current = charsPerSecRef.current * 0.4 + measured * 0.6;
@@ -244,17 +275,17 @@ export function useSpeech() {
     };
 
     speakPiece(0);
-  }, [isSupported, clearEstimator]);
+  }, [isSupported, clearEstimator, position]);
 
   useEffect(() => {
     const sessions = sessionRef;
     const estimator = estimatorRef;
     return () => {
       sessions.current++;
-      if (estimator.current !== null) window.clearInterval(estimator.current);
+      if (estimator.current !== null) window.cancelAnimationFrame(estimator.current);
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
     };
   }, []);
 
-  return { speak, stop, pause, resume, primeSpeech, isSpeaking, isPaused, charIndex, speakingText, isSupported };
+  return { speak, stop, pause, resume, primeSpeech, isSpeaking, isPaused, position, speakingText, isSupported };
 }
