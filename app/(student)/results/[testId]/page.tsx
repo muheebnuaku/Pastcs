@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button, Badge, QuestionContent } from '@/components/ui';
 import { formatPercentage, formatTime, courseCodeSlug } from '@/lib/utils';
-import { renderMarkdownTables } from '@/lib/markdown';
+import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import type { Test, TestAnswer, Question } from '@/types';
@@ -22,7 +22,7 @@ function mdToHtml(text: string): string {
   // characters inside an example), then tables (before the header/list/
   // paragraph steps below, which depend on the original newlines a
   // table's rows need to stay intact).
-  const withCodeBlocks = text.replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre class="bg-gray-900 text-green-300 rounded-lg p-3 text-xs overflow-x-auto my-2 font-mono"><code>$1</code></pre>');
+  const withCodeBlocks = escapeHtml(text).replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre class="bg-gray-900 text-green-300 rounded-lg p-3 text-xs overflow-x-auto my-2 font-mono"><code>$1</code></pre>');
 
   return renderMarkdownTables(withCodeBlocks)
     .replace(/`([^`\n]+)`/g, '<code class="bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 px-1 py-0.5 rounded text-xs font-mono">$1</code>')

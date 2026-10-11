@@ -5,6 +5,21 @@
 // gap the question-rendering fix (components/ui/QuestionContent.tsx)
 // closed for generated questions.
 //
+// AI output is rendered with dangerouslySetInnerHTML, so it must be
+// escaped BEFORE any markdown → HTML step: otherwise a document or pasted
+// text could steer the model into emitting real tags (e.g. an <img
+// onerror=…>) that would run in the student's logged-in session. The
+// markdown syntax the converters look for (*, `, #, |, [](), -) is
+// untouched by this, and URLs keep working since &amp; is valid in href.
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Call this FIRST, before any other line-based transform (headers,
 // lists, the `\n{2,}` / `\n` paragraph-collapsing steps) — it depends on
 // the original newline structure between a table's rows, which those
