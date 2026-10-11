@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { buildUnitMap, charAtUnits } from './spokenLength';
 
 export const VOICE_PREF_KEY = 'pastcs_voice_gender';
 
@@ -133,7 +134,9 @@ export function useSpeech() {
   // When a piece gets no boundary events, the position is estimated from
   // elapsed speaking time instead, recalibrated from each finished piece.
   const estimatorRef = useRef<number | null>(null);
-  const charsPerSecRef = useRef(15);
+  // Speaking speed in letter-equivalents per second (see spokenLength.ts),
+  // learned from each finished sentence.
+  const unitsPerSecRef = useRef(16);
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
 
@@ -218,6 +221,10 @@ export function useSpeech() {
       utterance.pitch = 1;
       if (voice) utterance.voice = voice;
 
+      // Spoken length of each word, so numbers ("1998"), acronyms ("CPU")
+      // and symbols ("%") — short to write, long to say — don't make the
+      // estimated highlight fall behind the voice.
+      const unitMap = buildUnitMap(pieceText);
       let gotBoundary = false;
       let startedAt = 0;
       const spokenSeconds = () => {
@@ -236,8 +243,7 @@ export function useSpeech() {
         const tick = () => {
           if (session !== sessionRef.current || gotBoundary) { estimatorRef.current = null; return; }
           if (pausedAtRef.current === null) {
-            const pos = Math.min(pieceText.length - 1, Math.floor(spokenSeconds() * charsPerSecRef.current));
-            position.set(offset + Math.max(0, pos));
+            position.set(offset + charAtUnits(unitMap, spokenSeconds() * unitsPerSecRef.current));
           }
           estimatorRef.current = window.requestAnimationFrame(tick);
         };
@@ -257,8 +263,8 @@ export function useSpeech() {
           // otherwise read as slower speech and make the highlight lag.
           const seconds = spokenSeconds() - 0.25;
           if (seconds > 0.6) {
-            const measured = Math.min(30, Math.max(6, pieceText.length / seconds));
-            charsPerSecRef.current = charsPerSecRef.current * 0.4 + measured * 0.6;
+            const measured = Math.min(32, Math.max(6, unitMap.total / seconds));
+            unitsPerSecRef.current = unitsPerSecRef.current * 0.4 + measured * 0.6;
           }
         }
         speakPiece(i + 1);
