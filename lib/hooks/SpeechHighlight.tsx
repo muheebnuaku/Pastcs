@@ -15,7 +15,7 @@ export function SpeechHighlight({ text, charIndex, className = '' }: Props) {
   while ((match = regex.exec(text)) !== null) {
     const [, word, space] = match;
     const wordStart = match.index;
-    const isActive = charIndex > 0 && charIndex >= wordStart && charIndex < wordStart + word.length;
+    const isActive = charIndex >= wordStart && charIndex < wordStart + word.length + space.length;
     parts.push(
       <Fragment key={i++}>
         <span
