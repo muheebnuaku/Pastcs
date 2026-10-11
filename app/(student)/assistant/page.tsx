@@ -281,7 +281,7 @@ export default function AssistantPage() {
   const uploadRemaining = quota?.remaining ?? 0;
   const limitReached = !!quota && quota.remaining <= 0;
 
-  const { speak, stop, pause, resume, isSpeaking, isPaused, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
+  const { speak, stop, pause, resume, primeSpeech, isSpeaking, isPaused, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -299,22 +299,46 @@ export default function AssistantPage() {
     query.then(({ data }: { data: Course[] | null }) => { if (data) setCourses(data); });
   }, [user?.program_id]);
 
-  // Restore the ongoing conversation — previously lived only in page
-  // state, so closing the tab erased everything.
+  // Remember which course the student was studying, per user.
+  const courseKey = user?.id ? `pastcs_tutor_course_${user.id}` : null;
+  useEffect(() => {
+    if (!courseKey) return;
+    try {
+      const saved = localStorage.getItem(courseKey);
+      if (saved) setSelectedCourse(saved);
+    } catch { /* storage unavailable */ }
+  }, [courseKey]);
+  useEffect(() => {
+    if (!courseKey) return;
+    try {
+      if (selectedCourse) localStorage.setItem(courseKey, selectedCourse);
+      else localStorage.removeItem(courseKey);
+    } catch { /* storage unavailable */ }
+  }, [courseKey, selectedCourse]);
+
+  // One conversation per course (course_id null = general questions), so
+  // switching course doesn't mix topics together. Loads the NEWEST 50 —
+  // the old query took the oldest 50, so once a student passed 50
+  // messages, everything new vanished on reload.
   useEffect(() => {
     if (!user?.id) return;
+    abortRef.current?.abort();
+    stop();
+    setIsStreaming(false);
+    setMessages([]);
+    let cancelled = false;
     const supabase = createClient();
-    supabase
-      .from('chat_messages')
-      .select('role, content')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
+    let query = supabase.from('chat_messages').select('role, content').eq('user_id', user.id);
+    query = selectedCourse ? query.eq('course_id', selectedCourse) : query.is('course_id', null);
+    query
+      .order('created_at', { ascending: false })
       .limit(50)
       .then(({ data }: { data: Message[] | null }) => {
-        if (data && data.length > 0) setMessages(data);
+        if (!cancelled && data) setMessages([...data].reverse());
       })
       .catch(() => {}); // chat_messages not migrated on this environment yet
-  }, [user?.id]);
+    return () => { cancelled = true; };
+  }, [user?.id, selectedCourse, stop]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -807,6 +831,7 @@ export default function AssistantPage() {
     setInput('');
     setIsStreaming(true);
     abortRef.current = new AbortController();
+    let full = '';
 
     try {
       const res = await fetch('/api/assistant', {
@@ -827,7 +852,6 @@ export default function AssistantPage() {
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
-      let full = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -837,7 +861,16 @@ export default function AssistantPage() {
       if (full) saveMessage('assistant', full);
       if (voiceEnabled && full) speak(full);
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Stopped by the student (or by switching course): keep whatever
+        // had arrived, and drop the empty "Thinking…" bubble if nothing had.
+        if (full) saveMessage('assistant', full);
+        else setMessages(prev => {
+          const last = prev[prev.length - 1];
+          return last?.role === 'assistant' && !last.content ? prev.slice(0, -1) : prev;
+        });
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: `Sorry — ${msg}. Please try again.` }]);
     } finally {
@@ -856,7 +889,9 @@ export default function AssistantPage() {
     setIsStreaming(false);
     if (user?.id) {
       const supabase = createClient();
-      supabase.from('chat_messages').delete().eq('user_id', user.id).then(() => {}).catch(() => {});
+      let query = supabase.from('chat_messages').delete().eq('user_id', user.id);
+      query = selectedCourse ? query.eq('course_id', selectedCourse) : query.is('course_id', null);
+      query.then(() => {}).catch(() => {});
     }
   };
 
@@ -919,7 +954,7 @@ export default function AssistantPage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             {voiceSupported && (
               <button
-                onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) trackEvent('voice_enabled'); setVoiceEnabled(v => !v); }}
+                onClick={() => { if (isSpeaking) stop(); if (!voiceEnabled) { trackEvent('voice_enabled'); primeSpeech(); } setVoiceEnabled(v => !v); }}
                 title={voiceEnabled ? 'Voice on — click to turn off' : 'Voice off — click to turn on'}
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   voiceEnabled
@@ -1323,13 +1358,25 @@ export default function AssistantPage() {
               t.style.height = Math.min(t.scrollHeight, 128) + 'px';
             }}
           />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={isStreaming || !input.trim()}
-            className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0 transition-colors"
-          >
-            {isStreaming ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
-          </button>
+          {isStreaming ? (
+            <button
+              onClick={() => abortRef.current?.abort()}
+              title="Stop answering"
+              aria-label="Stop answering"
+              className="w-9 h-9 rounded-xl bg-gray-900 hover:bg-gray-700 dark:bg-white/15 dark:hover:bg-white/25 flex items-center justify-center flex-shrink-0 transition-colors"
+            >
+              <StopCircle className="w-4 h-4 text-white" />
+            </button>
+          ) : (
+            <button
+              onClick={() => sendMessage(input)}
+              disabled={!input.trim()}
+              aria-label="Send"
+              className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0 transition-colors"
+            >
+              <Send className="w-4 h-4 text-white" />
+            </button>
+          )}
         </div>
         <p className="text-center text-xs text-gray-400 mt-2 dark:text-gray-500">
           AI can make mistakes — always verify with your course materials.
