@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
 import { sampleContent } from '@/lib/utils';
 import { logAiUsage } from '@/lib/aiUsage';
+import { withOpenAIRetry } from '@/lib/openaiRetry';
+import { requireUser } from '@/lib/apiAuth';
 
 // Raised from 120 -> 180 -> 240: an uncapped lesson takes proportionally
 // longer to stream out, and a much larger prompt (see MAX_CONTENT_CHARS)
@@ -183,6 +185,9 @@ ${conceptSections}`;
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof Response) return auth;
+
     const body = await req.json() as {
       text?: string;
       context?: string;
@@ -216,7 +221,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const stream = openai.chat.completions.stream({
+    const stream = await withOpenAIRetry(() => openai.chat.completions.create({
+      stream: true,
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -229,21 +235,27 @@ export async function POST(req: Request) {
       // this much room.
       max_tokens: 16000,
       stream_options: { include_usage: true }, // the final chunk carries token usage
-    });
+    }));
 
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content ?? '';
-          if (delta) controller.enqueue(new TextEncoder().encode(delta));
-          if (chunk.usage) {
-            logAiUsage('generate_lesson', 'gpt-4o', chunk.usage, undefined, body.mode
-              ? { mode: body.mode, batchIndex: body.batchIndex, batchTotal: body.batchTotal }
-              : undefined
-            ).catch(() => {});
+        try {
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content ?? '';
+            if (delta) controller.enqueue(new TextEncoder().encode(delta));
+            if (chunk.usage) {
+              logAiUsage('generate_lesson', 'gpt-4o', chunk.usage, auth.userId, body.mode
+                ? { mode: body.mode, batchIndex: body.batchIndex, batchTotal: body.batchTotal }
+                : undefined
+              ).catch(() => {});
+            }
           }
+          controller.close();
+        } catch (err) {
+          // Without this a mid-stream OpenAI failure left the browser
+          // waiting on a stream that never closed ("Generating…" forever).
+          controller.error(err);
         }
-        controller.close();
       },
     });
 

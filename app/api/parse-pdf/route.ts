@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { extractText } from 'unpdf';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
+import { requireUser } from '@/lib/apiAuth';
 import { sampleContent } from '@/lib/utils';
 
 // Shared by both topic-detection call sites below. A prompt that only
@@ -272,6 +273,9 @@ function cleanTopic(topic: unknown): string {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof Response) return auth;
+
     const contentType = request.headers.get('content-type') ?? '';
 
     // ── JSON path: client already extracted the text (large PDF) ───────────
@@ -284,13 +288,13 @@ export async function POST(request: Request) {
       let detectedTopic = '';
       try {
         const r = await withOpenAIRetry(() => openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: topicDetectionPrompt(text) }],
           response_format: { type: 'json_object' },
           max_tokens: 80,
           temperature: 0.2,
         }));
-        logAiUsage('parse_pdf_topic', 'gpt-4o', r.usage).catch(() => {});
+        logAiUsage('parse_pdf_topic', 'gpt-4o-mini', r.usage, auth.userId).catch(() => {});
         detectedTopic = JSON.parse(r.choices[0].message.content || '{}').topic || '';
       } catch { /* topic detection optional */ }
       return Response.json({ text, detectedTopic: cleanTopic(detectedTopic), pageCount });
@@ -400,13 +404,13 @@ export async function POST(request: Request) {
     if (text.length >= MIN_TEXT_LENGTH && !hasGraphicsHeavyPages) {
       // ── Text-rich file, no graphics-heavy pages: detect topic only ─────────
       const completion = await withOpenAIRetry(() => openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: topicDetectionPrompt(text) }],
         response_format: { type: 'json_object' },
         max_tokens: 80,
         temperature: 0.2,
       }));
-      logAiUsage('parse_pdf_topic', 'gpt-4o', completion.usage).catch(() => {});
+      logAiUsage('parse_pdf_topic', 'gpt-4o-mini', completion.usage, auth.userId).catch(() => {});
       try {
         const r = JSON.parse(completion.choices[0].message.content || '{}');
         detectedTopic = r.topic || '';

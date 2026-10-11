@@ -1,14 +1,21 @@
 import OpenAI from 'openai';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
+import { requireUser } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
   try {
-    const { studentAnswer, correctAnswer, questionText } = await request.json() as {
-      studentAnswer: string;
-      correctAnswer: string;
-      questionText: string;
+    const auth = await requireUser();
+    if (auth instanceof Response) return auth;
+
+    const body = await request.json() as {
+      studentAnswer?: unknown;
+      correctAnswer?: unknown;
+      questionText?: unknown;
     };
+    const studentAnswer = typeof body.studentAnswer === 'string' ? body.studentAnswer.slice(0, 500) : '';
+    const correctAnswer = typeof body.correctAnswer === 'string' ? body.correctAnswer.slice(0, 500) : '';
+    const questionText = typeof body.questionText === 'string' ? body.questionText.slice(0, 2000) : '';
 
     if (!studentAnswer || !correctAnswer) {
       return Response.json({ isCorrect: false });
@@ -56,7 +63,7 @@ Respond with ONLY valid JSON: {"isCorrect": true} or {"isCorrect": false}`,
       temperature: 0,
     }));
 
-    logAiUsage('check_answer', 'gpt-4o-mini', completion.usage).catch(() => {});
+    logAiUsage('check_answer', 'gpt-4o-mini', completion.usage, auth.userId).catch(() => {});
 
     const result = JSON.parse(completion.choices[0].message.content || '{}');
     return Response.json({ isCorrect: result.isCorrect === true });

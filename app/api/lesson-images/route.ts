@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
+import { requireUser } from '@/lib/apiAuth';
 
 export interface LessonImage {
   url: string;
@@ -10,7 +11,12 @@ export interface LessonImage {
 
 export async function POST(req: Request) {
   try {
-    const { lessonText, topic } = await req.json() as { lessonText: string; topic: string };
+    const auth = await requireUser();
+    if (auth instanceof Response) return auth;
+
+    const body = await req.json() as { lessonText?: unknown; topic?: unknown };
+    const lessonText = typeof body.lessonText === 'string' ? body.lessonText : '';
+    const topic = typeof body.topic === 'string' ? body.topic.slice(0, 200) : '';
     if (!lessonText) return Response.json({ images: {} });
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -39,7 +45,7 @@ Only include terms where a visual clearly helps (skip abstract/non-visual concep
       temperature: 0.2,
     }));
 
-    logAiUsage('lesson_images', 'gpt-4o-mini', completion.usage).catch(() => {});
+    logAiUsage('lesson_images', 'gpt-4o-mini', completion.usage, auth.userId).catch(() => {});
 
     let keywords: Array<{ term: string; query: string }> = [];
     try {

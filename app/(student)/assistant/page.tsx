@@ -11,7 +11,7 @@ import { TutorPricingModal } from './components/TutorPricingModal';
 import { PasteTextModal } from './components/PasteTextModal';
 import { coursesForProgram } from '@/lib/programs';
 import { chunkContent } from '@/lib/utils';
-import { renderMarkdownTables } from '@/lib/markdown';
+import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
 import type { Course } from '@/types';
 import {
   BotMessageSquare, Send, Trash2, Loader2, BookOpen, ChevronDown,
@@ -64,7 +64,7 @@ function mdToHtml(text: string): string {
   // characters inside an example), then tables (before the header/list/
   // paragraph steps below, which depend on the original newlines a
   // table's rows need to stay intact).
-  const withCodeBlocks = text.replace(/```(\w*)\n?([\s\S]*?)```/g,
+  const withCodeBlocks = escapeHtml(text).replace(/```(\w*)\n?([\s\S]*?)```/g,
     '<pre class="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-3 font-mono"><code>$2</code></pre>');
 
   return (

@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
+import { requireUser, aiCallsToday } from '@/lib/apiAuth';
 
 const SYSTEM_PROMPT = `You are an expert AI tutor for university students — equally comfortable introducing a first-year student to a brand-new topic and engaging a graduate student critically on advanced material. You don't apply one fixed register by default; you read the sophistication of the question in front of you and match it.
 
@@ -23,42 +24,84 @@ Formatting rules (always use markdown):
 - Use a markdown table (| col | col | with a |---|---| header separator) whenever you're comparing multiple items across attributes, or referencing a specific dataset/record set the student needs to see to follow along — never describe a table's contents in prose only
 - Keep paragraphs short and scannable
 
-At the END of EVERY response, always include this section (do not skip it):
+At the END of every response that teaches a concept, include this section (skip it only for quick replies like greetings, thanks, or yes/no clarifications):
 
 ---
 ## 📚 Resources
 
-**Articles & Reading:**
-- [Title](url) — one-line description
-- [Title](url) — one-line description
+**Read more:**
+- [🔎 "search terms" on GeeksforGeeks](https://www.google.com/search?q=search+terms+site%3Ageeksforgeeks.org)
+- [🔎 "search terms" on Khan Academy](https://www.google.com/search?q=search+terms+site%3Akhanacademy.org)
 
 **YouTube:**
 - [🎬 Search: "query here" on YouTube](https://www.youtube.com/results?search_query=query+here)
 - [🎬 Search: "another query" on YouTube](https://www.youtube.com/results?search_query=another+query)
 
-Pick sources that match the question's level. For foundational/intro topics: geeksforgeeks.org, khanacademy.org, w3schools.com, tutorialspoint.com, developer.mozilla.org, freecodecamp.org. For advanced or research-level topics, prefer cs.stanford.edu, ocw.mit.edu, scholar.google.com, arxiv.org, dl.acm.org, ieee.org, or a relevant field-specific journal/database over an introductory tutorial site — a graduate-level question deserves a graduate-level source, not a beginner tutorial. Use real URLs you are confident exist.`;
+NEVER link to a specific article, page, or video URL — you cannot verify it exists, and dead links waste the student's time. Use ONLY the two search-link formats above, with search terms specific to the question. Pick sites that match the question's level: for foundational topics geeksforgeeks.org, khanacademy.org, w3schools.com, developer.mozilla.org, freecodecamp.org; for advanced or research-level topics ocw.mit.edu, cs.stanford.edu, arxiv.org, or scholar.google.com.`;
+
+// Daily cap on chat replies per student (shared with the results page's
+// "Ask AI to explain"), so one account can't run up the OpenAI bill.
+const CHAT_DAILY_LIMIT = 60;
+const MAX_MESSAGE_CHARS = 4000;
+const MAX_CONTEXT_CHARS = 500;
+const MAX_HISTORY_MESSAGES = 10;
+// Earlier replies are trimmed before being resent — the model needs the
+// gist of the conversation, not every word of each long answer again.
+const MAX_HISTORY_CHARS_EACH = 2500;
+
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof Response) return auth;
+
     const { message, context, history } = await request.json() as {
-      message: string;
-      context?: string;
-      history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+      message?: unknown;
+      context?: unknown;
+      history?: unknown;
     };
 
-    if (!message?.trim()) {
+    if (typeof message !== 'string' || !message.trim()) {
       return Response.json({ error: 'Message is required' }, { status: 400 });
+    }
+    if (message.length > MAX_MESSAGE_CHARS) {
+      return Response.json({ error: `That message is too long — keep it under ${MAX_MESSAGE_CHARS.toLocaleString()} characters, or use Paste Text for longer notes.` }, { status: 400 });
     }
     if (!process.env.OPENAI_API_KEY) {
       return Response.json({ error: 'AI not configured' }, { status: 500 });
     }
 
+    if (await aiCallsToday(auth.userId, ['assistant_chat']) >= CHAT_DAILY_LIMIT) {
+      return Response.json(
+        { error: `You've reached today's limit of ${CHAT_DAILY_LIMIT} AI tutor replies. It resets at midnight (GMT).` },
+        { status: 429 }
+      );
+    }
+
+    // Only plain user/assistant turns are accepted from the browser — a
+    // client-supplied "system" role would let anyone rewrite the tutor's
+    // instructions.
+    const safeHistory: ChatCompletionMessageParam[] = (Array.isArray(history) ? history : [])
+      .filter((m): m is { role: 'user' | 'assistant'; content: string } =>
+        !!m && typeof m === 'object' &&
+        ((m as { role?: unknown }).role === 'user' || (m as { role?: unknown }).role === 'assistant') &&
+        typeof (m as { content?: unknown }).content === 'string')
+      .slice(-MAX_HISTORY_MESSAGES)
+      .map(m => ({
+        role: m.role,
+        content: m.content.length > MAX_HISTORY_CHARS_EACH
+          ? `${m.content.slice(0, MAX_HISTORY_CHARS_EACH)}…`
+          : m.content,
+      }));
+    const safeContext = typeof context === 'string' ? context.slice(0, MAX_CONTEXT_CHARS) : '';
+
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...(context ? [{ role: 'system' as const, content: `Study context: ${context}` }] : []),
-      ...(history ?? []),
+      ...(safeContext ? [{ role: 'system' as const, content: `Study context: ${safeContext}` }] : []),
+      ...safeHistory,
       { role: 'user', content: message },
     ];
 
@@ -77,10 +120,13 @@ export async function POST(request: Request) {
           for await (const chunk of stream) {
             const text = chunk.choices[0]?.delta?.content ?? '';
             if (text) controller.enqueue(new TextEncoder().encode(text));
-            if (chunk.usage) logAiUsage('assistant_chat', 'gpt-4o', chunk.usage).catch(() => {});
+            if (chunk.usage) logAiUsage('assistant_chat', 'gpt-4o', chunk.usage, auth.userId).catch(() => {});
           }
-        } finally {
           controller.close();
+        } catch (err) {
+          // Surfaces to the browser as a failed read instead of a reply
+          // that silently stops mid-sentence.
+          controller.error(err);
         }
       },
     });
