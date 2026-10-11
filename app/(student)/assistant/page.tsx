@@ -361,7 +361,7 @@ export default function AssistantPage() {
   const uploadRemaining = quota?.remaining ?? 0;
   const limitReached = !!quota && quota.remaining <= 0;
 
-  const { speak, stop, pause, resume, primeSpeech, isSpeaking, isPaused, charIndex, speakingText, isSupported: voiceSupported } = useSpeech();
+  const { speak, stop, pause, resume, primeSpeech, isSpeaking, isPaused, position, speakingText, isSupported: voiceSupported } = useSpeech();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -504,23 +504,34 @@ export default function AssistantPage() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [docStage]);
 
-  // Detect spoken keyword and update the image panel
+  // Show a keyword's picture when the voice reaches it. Subscribes to the
+  // speech position directly, so word-by-word progress never re-renders
+  // this (large) page — only an actual new picture does.
   useEffect(() => {
-    if (!isSpeaking || !speakingText || charIndex === 0 || Object.keys(keywordImages).length === 0) return;
-    const fromHere = speakingText.slice(charIndex).toLowerCase();
-    // Sort longest first so multi-word keywords match before single-word prefixes
-    const sorted = Object.keys(keywordImages).sort((a, b) => b.length - a.length);
-    for (const kw of sorted) {
-      const kwLower = kw.toLowerCase();
-      if (fromHere.startsWith(kwLower)) {
-        const after = fromHere[kwLower.length];
-        if (!after || /\W/.test(after)) {
-          setCurrentImage({ ...keywordImages[kw], keyword: kw });
-          return;
+    if (!isSpeaking || !speakingText || Object.keys(keywordImages).length === 0) return;
+    const lower = speakingText.toLowerCase();
+    // Longest first so multi-word keywords match before single-word prefixes
+    const keywords = Object.keys(keywordImages)
+      .sort((a, b) => b.length - a.length)
+      .map(kw => [kw, kw.toLowerCase()] as const);
+    let lastWordStart = -1;
+    return position.subscribe(() => {
+      let start = position.get();
+      // The position may be estimated mid-word — match from the word's start.
+      while (start > 0 && /\S/.test(lower[start - 1])) start--;
+      if (start === lastWordStart) return;
+      lastWordStart = start;
+      for (const [kw, kwLower] of keywords) {
+        if (lower.startsWith(kwLower, start)) {
+          const after = lower[start + kwLower.length];
+          if (!after || /\W/.test(after)) {
+            setCurrentImage(prev => (prev?.keyword === kw ? prev : { ...keywordImages[kw], keyword: kw }));
+            return;
+          }
         }
       }
-    }
-  }, [charIndex, speakingText, isSpeaking, keywordImages]);
+    });
+  }, [isSpeaking, speakingText, keywordImages, position]);
 
   // Clear image when speech stops
   useEffect(() => {
@@ -1452,7 +1463,7 @@ export default function AssistantPage() {
                               : isPast ? 'opacity-40 px-1' : 'px-1'
                           }`}>
                             {isActive && isSpeaking && speakingText
-                              ? <SpeechHighlight text={speakingText} charIndex={charIndex} className="leading-7" />
+                              ? <SpeechHighlight text={speakingText} position={position} className="!text-[15px] leading-7" />
                               : <div className="text-[15px] text-gray-800 leading-7 break-words dark:text-gray-200" dangerouslySetInnerHTML={{ __html: mdToHtml(para) }} />
                             }
                           </div>
@@ -1632,7 +1643,7 @@ export default function AssistantPage() {
                         </div>
                       ) : (
                         isSpeaking && voiceEnabled && !teaching && i === messages.length - 1 && speakingText
-                          ? <SpeechHighlight text={speakingText} charIndex={charIndex} />
+                          ? <SpeechHighlight text={speakingText} position={position} />
                           : <MessageContent content={msg.content} />
                       )}
                     </div>

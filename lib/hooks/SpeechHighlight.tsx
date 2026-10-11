@@ -1,54 +1,75 @@
-import { Fragment } from 'react';
+'use client';
+
+import { Fragment, useEffect, useMemo, useRef } from 'react';
+import type { SpeechPosition } from './useSpeech';
 
 interface Props {
   text: string;
-  charIndex: number;
+  position: SpeechPosition;
   className?: string;
 }
 
-export function SpeechHighlight({ text, charIndex, className = '' }: Props) {
-  const parts: React.ReactNode[] = [];
-  const regex = /(\S+)(\s*)/g;
-  let match;
-  let i = 0;
+interface Word { word: string; space: string; start: number }
 
+function tokenize(text: string): Word[] {
+  const words: Word[] = [];
+  const regex = /(\S+)(\s*)/g;
+  let match: RegExpExecArray | null;
   while ((match = regex.exec(text)) !== null) {
-    const [, word, space] = match;
-    const wordStart = match.index;
-    const isActive = charIndex >= wordStart && charIndex < wordStart + word.length + space.length;
-    parts.push(
-      <Fragment key={i++}>
-        <span
-          style={{
-            display: 'inline-block',
-            transform: isActive ? 'scale(1.15)' : 'scale(1)',
-            transformOrigin: 'center bottom',
-            transition: isActive
-              ? 'transform 0.08s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.06s ease'
-              : 'transform 0.12s ease-out, background-color 0.08s ease',
-            backgroundColor: isActive ? '#fde047' : 'transparent',
-            // The paragraph's own text color follows the theme (light gray
-            // in dark mode) — but the highlight patch itself stays bright
-            // yellow either way, so the active word needs its own color
-            // pinned dark, or light-on-yellow becomes unreadable.
-            color: isActive ? '#1c1917' : 'inherit',
-            borderRadius: isActive ? '4px' : '0',
-            padding: isActive ? '0 3px' : '0',
-            fontWeight: isActive ? 600 : 'inherit',
-            zIndex: isActive ? 1 : 'auto',
-            position: 'relative',
-          }}
-        >
-          {word}
-        </span>
-        {space}
-      </Fragment>
-    );
+    words.push({ word: match[1], space: match[2], start: match.index });
   }
+  return words;
+}
+
+// Index of the last word starting at or before `pos`.
+function wordAt(words: Word[], pos: number): number {
+  let lo = 0;
+  let hi = words.length - 1;
+  let found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (words[mid].start <= pos) { found = mid; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  return found;
+}
+
+/**
+ * Read-along text. The highlighted word is moved by toggling a class on
+ * two spans directly, subscribed to the speech position — not through
+ * React state. Before, every word change re-rendered the whole AI Tutor
+ * page (every chat message's markdown included), which is what made the
+ * highlight trail behind the voice on phones.
+ */
+export function SpeechHighlight({ text, position, className = '' }: Props) {
+  const words = useMemo(() => tokenize(text), [text]);
+  const spansRef = useRef<(HTMLSpanElement | null)[]>([]);
+
+  useEffect(() => {
+    let active = -1;
+    const apply = () => {
+      const next = wordAt(words, position.get());
+      if (next === active) return;
+      if (active >= 0) spansRef.current[active]?.classList.remove('speech-word-active');
+      if (next >= 0) spansRef.current[next]?.classList.add('speech-word-active');
+      active = next;
+    };
+    apply();
+    const unsubscribe = position.subscribe(apply);
+    const spans = spansRef.current;
+    return () => {
+      unsubscribe();
+      if (active >= 0) spans[active]?.classList.remove('speech-word-active');
+    };
+  }, [words, position]);
 
   return (
     <p className={`text-sm text-gray-800 dark:text-gray-200 leading-relaxed ${className}`}>
-      {parts}
+      {words.map((w, i) => (
+        <Fragment key={i}>
+          <span ref={el => { spansRef.current[i] = el; }} className="speech-word">{w.word}</span>
+          {w.space}
+        </Fragment>
+      ))}
     </p>
   );
 }
