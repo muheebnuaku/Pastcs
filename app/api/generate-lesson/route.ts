@@ -3,6 +3,10 @@ import { sampleContent } from '@/lib/utils';
 import { logAiUsage } from '@/lib/aiUsage';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { requireUser } from '@/lib/apiAuth';
+import {
+  verifyLessonToken, countLessonEvents, recordLessonEvent, markLessonUsed,
+  getTutorQuota, MAX_LESSON_CALLS,
+} from '@/lib/tutorCredits';
 
 // Raised from 120 -> 180 -> 240: an uncapped lesson takes proportionally
 // longer to stream out, and a much larger prompt (see MAX_CONTENT_CHARS)
@@ -196,7 +200,27 @@ export async function POST(req: Request) {
       batchTotal?: number;
       priorConceptTitles?: string[];
       conceptSections?: string;
+      lessonToken?: string;
     };
+
+    // Every call must belong to a lesson pass from /api/tutor/lesson-start.
+    // The credit is charged once, when the first part is delivered, so a
+    // lesson that fails outright costs the student nothing.
+    const lessonId = verifyLessonToken(body.lessonToken, auth.userId);
+    if (!lessonId) {
+      return Response.json({ error: 'This lesson session has expired. Please upload the file again.' }, { status: 403 });
+    }
+    if (await countLessonEvents(lessonId, 'tutor_lesson_call') >= MAX_LESSON_CALLS) {
+      return Response.json({ error: 'This lesson has hit its retry limit. Please upload the file again.' }, { status: 429 });
+    }
+    const alreadyCharged = await countLessonEvents(lessonId, 'tutor_lesson_used') > 0;
+    if (!alreadyCharged) {
+      const quota = await getTutorQuota(auth.userId, auth.supabase);
+      if (quota.remaining <= 0) {
+        return Response.json({ error: 'You have no AI Tutor lessons left. Top up to keep going.', code: 'no_credits' }, { status: 402 });
+      }
+    }
+    await recordLessonEvent(auth.userId, lessonId, 'tutor_lesson_call', { mode: body.mode ?? 'full', batchIndex: body.batchIndex ?? 0 });
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -250,6 +274,7 @@ export async function POST(req: Request) {
               ).catch(() => {});
             }
           }
+          if (!alreadyCharged) await markLessonUsed(auth.userId, lessonId).catch(() => {});
           controller.close();
         } catch (err) {
           // Without this a mid-stream OpenAI failure left the browser

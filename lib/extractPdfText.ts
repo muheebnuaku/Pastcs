@@ -234,7 +234,8 @@ const VISION_BATCH_SIZE = 6; // keeps each upload comfortably under serverless r
  * and returns the merged transcribed text across all of them. */
 export async function visionOcrImages(
   images: ExtractedImage[],
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  lessonToken?: string
 ): Promise<string> {
   const texts: string[] = [];
   let done = 0;
@@ -247,7 +248,11 @@ export async function visionOcrImages(
       form.append('images', small, img.name);
     }
 
-    const res = await fetch('/api/parse-pdf', { method: 'POST', body: form });
+    const res = await fetch('/api/parse-pdf', {
+      method: 'POST',
+      body: form,
+      headers: lessonToken ? { 'x-lesson-token': lessonToken } : undefined,
+    });
     const data = await res.json() as { text?: string; error?: string };
     if (!res.ok) throw new Error(data.error || 'Failed to read slide images with AI vision');
     if (data.text) texts.push(data.text);

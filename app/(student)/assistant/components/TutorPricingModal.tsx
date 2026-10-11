@@ -7,10 +7,10 @@ import { Loader2, X, Zap, Star, Rocket, CheckCircle } from 'lucide-react';
 import type { TutorCreditPlan } from '@/app/api/tutor-pricing/route';
 
 interface Props {
-  usedCredits: number;
-  purchasedCredits: number;
+  remaining: number;
+  hasPurchased: boolean;
   onClose: () => void;
-  onSuccess: (newCredits: number) => void;
+  onSuccess: () => void;
 }
 
 // Presentational-only — icon/color/badge/copy per plan id. The numbers
@@ -23,6 +23,10 @@ const PLAN_META: Record<string, { icon: React.ReactNode; badge: string | null; c
 };
 const PLAN_ORDER = ['starter', 'pack_50', 'pack_100'];
 
+function paymentReference() {
+  return `tutor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 // Shown for an instant before the real prices load — same numbers this
 // modal always shipped with, just no longer the source of truth.
 const FALLBACK_PLANS: TutorCreditPlan[] = [
@@ -31,7 +35,7 @@ const FALLBACK_PLANS: TutorCreditPlan[] = [
   { id: 'pack_100', name: 'Pro', credits: 100, amount: 10000 },
 ];
 
-export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSuccess }: Props) {
+export function TutorPricingModal({ remaining, hasPurchased, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<TutorCreditPlan[]>(FALLBACK_PLANS);
   const [payingPlan, setPayingPlan] = useState<string | null>(null);
@@ -57,8 +61,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
       .catch(() => {}); // keep the fallback numbers
   }, []);
 
-  const isTopUp = purchasedCredits > 0;
-  const remaining = Math.max(0, purchasedCredits - usedCredits);
+  const isTopUp = hasPurchased;
 
   // Ensure Paystack script is loaded
   useEffect(() => {
@@ -84,7 +87,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
       .then(r => r.json())
       .then((data: { success?: boolean; error?: string }) => {
         if (data.success) {
-          onSuccess(plan.credits);
+          onSuccess();
         } else {
           setError(data.error ?? 'Payment verification failed. Please contact support.');
         }
@@ -101,7 +104,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
     setError('');
     setPayingPlan(plan.id);
 
-    const ref = `tutor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const ref = paymentReference();
     try {
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
@@ -126,7 +129,7 @@ export function TutorPricingModal({ usedCredits, purchasedCredits, onClose, onSu
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 py-8 sm:py-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto dark:bg-white/[0.04]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto dark:bg-[#1c1a15] dark:border dark:border-white/10">
 
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">

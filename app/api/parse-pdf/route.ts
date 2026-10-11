@@ -3,6 +3,8 @@ import { extractText } from 'unpdf';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { logAiUsage } from '@/lib/aiUsage';
 import { requireUser } from '@/lib/apiAuth';
+import { verifyLessonToken, countLessonEvents, recordLessonEvent, MAX_VISION_BATCHES } from '@/lib/tutorCredits';
+import { isAdminRole } from '@/lib/utils';
 import { sampleContent } from '@/lib/utils';
 
 // Shared by both topic-detection call sites below. A prompt that only
@@ -298,6 +300,21 @@ export async function POST(request: Request) {
         detectedTopic = JSON.parse(r.choices[0].message.content || '{}').topic || '';
       } catch { /* topic detection optional */ }
       return Response.json({ text, detectedTopic: cleanTopic(detectedTopic), pageCount });
+    }
+
+    // ── Everything below runs GPT-4o vision, the costliest step. Students
+    // need the same lesson pass generate-lesson requires (and a cap on
+    // batches per lesson); admins use this from the question generator.
+    const { data: profile } = await auth.supabase.from('users').select('role').eq('id', auth.userId).single();
+    if (!isAdminRole(profile?.role)) {
+      const lessonId = verifyLessonToken(request.headers.get('x-lesson-token'), auth.userId);
+      if (!lessonId) {
+        return Response.json({ error: 'This lesson session has expired. Please upload the file again.' }, { status: 403 });
+      }
+      if (await countLessonEvents(lessonId, 'tutor_vision_batch') >= MAX_VISION_BATCHES) {
+        return Response.json({ error: 'This document has too many image pages to read in one lesson.' }, { status: 429 });
+      }
+      await recordLessonEvent(auth.userId, lessonId, 'tutor_vision_batch');
     }
 
     // ── FormData path: file upload (PPTX / DOCX) ───────────────────────────
