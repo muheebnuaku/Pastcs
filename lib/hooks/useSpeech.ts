@@ -137,6 +137,44 @@ export function useSpeech() {
   // Speaking speed in letter-equivalents per second (see spokenLength.ts),
   // learned from each finished sentence.
   const unitsPerSecRef = useRef(16);
+  // Many voices (online ones especially) report "started" before any sound
+  // plays, so the highlight would run ahead of a still-silent voice. Each
+  // finished sentence is a (spoken length, duration) sample; fitting
+  // duration = delay + length / speed across short and long sentences
+  // separates that fixed start-up delay from the speaking speed.
+  const startDelayRef = useRef(0.3);
+  const samplesRef = useRef<{ units: number; seconds: number }[]>([]);
+  const voiceKeyRef = useRef('');
+
+  const learnTiming = useCallback((units: number, seconds: number) => {
+    if (seconds <= 0.3 || units <= 0) return;
+    const samples = samplesRef.current;
+    samples.push({ units, seconds });
+    if (samples.length > 10) samples.shift();
+
+    const n = samples.length;
+    const meanU = samples.reduce((a, x) => a + x.units, 0) / n;
+    const meanT = samples.reduce((a, x) => a + x.seconds, 0) / n;
+    const varU = samples.reduce((a, x) => a + (x.units - meanU) ** 2, 0);
+    if (n >= 3 && varU > 400) {
+      const slope = samples.reduce((a, x) => a + (x.units - meanU) * (x.seconds - meanT), 0) / varU;
+      if (slope > 0) {
+        const intercept = meanT - slope * meanU;
+        unitsPerSecRef.current = Math.min(32, Math.max(6, 1 / slope));
+        // The intercept also includes the short silence after a sentence
+        // ends; only the part before speech belongs to the start delay.
+        startDelayRef.current = Math.min(2.5, Math.max(0, intercept - 0.2));
+        return;
+      }
+    }
+    // Too few or too similar samples to separate the two: assume the
+    // current delay and learn the speed alone.
+    const speaking = seconds - startDelayRef.current - 0.2;
+    if (speaking > 0.4) {
+      const measured = Math.min(32, Math.max(6, units / speaking));
+      unitsPerSecRef.current = unitsPerSecRef.current * 0.4 + measured * 0.6;
+    }
+  }, []);
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
 
@@ -196,6 +234,15 @@ export function useSpeech() {
     const pieces = splitForSpeech(plain);
     const storedGender = (localStorage.getItem(VOICE_PREF_KEY) ?? 'female') as 'female' | 'male';
     const voice = pickVoice(storedGender);
+    const voiceKey = voice?.name ?? 'default';
+    if (voiceKey !== voiceKeyRef.current) {
+      // New voice: forget the old one's timing. Online voices fetch audio
+      // over the network, so they start noticeably later.
+      voiceKeyRef.current = voiceKey;
+      samplesRef.current = [];
+      unitsPerSecRef.current = 16;
+      startDelayRef.current = voice && !voice.localService ? 0.6 : 0.15;
+    }
 
     setSpeakingText(plain);
     position.set(0);
@@ -243,7 +290,9 @@ export function useSpeech() {
         const tick = () => {
           if (session !== sessionRef.current || gotBoundary) { estimatorRef.current = null; return; }
           if (pausedAtRef.current === null) {
-            position.set(offset + charAtUnits(unitMap, spokenSeconds() * unitsPerSecRef.current));
+            // Hold on the first word until the voice has actually started.
+            const speaking = spokenSeconds() - startDelayRef.current;
+            position.set(offset + (speaking > 0 ? charAtUnits(unitMap, speaking * unitsPerSecRef.current) : 0));
           }
           estimatorRef.current = window.requestAnimationFrame(tick);
         };
@@ -257,16 +306,8 @@ export function useSpeech() {
       utterance.onend = () => {
         if (session !== sessionRef.current) return;
         clearEstimator();
-        // Learn this voice's real speed so the next estimate lines up better.
-        if (!gotBoundary && startedAt) {
-          // The end event lands after a short trailing silence, which would
-          // otherwise read as slower speech and make the highlight lag.
-          const seconds = spokenSeconds() - 0.25;
-          if (seconds > 0.6) {
-            const measured = Math.min(32, Math.max(6, unitMap.total / seconds));
-            unitsPerSecRef.current = unitsPerSecRef.current * 0.4 + measured * 0.6;
-          }
-        }
+        // Learn this voice's real start delay and speed for the next sentence.
+        if (!gotBoundary && startedAt) learnTiming(unitMap.total, spokenSeconds());
         speakPiece(i + 1);
       };
       utterance.onerror = (e) => {
@@ -281,7 +322,7 @@ export function useSpeech() {
     };
 
     speakPiece(0);
-  }, [isSupported, clearEstimator, position]);
+  }, [isSupported, clearEstimator, position, learnTiming]);
 
   useEffect(() => {
     const sessions = sessionRef;
