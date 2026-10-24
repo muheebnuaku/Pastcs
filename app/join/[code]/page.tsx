@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
+import { useAuthStore } from '@/lib/store';
 import { Button } from '@/components/ui';
 import { PENDING_JOIN_KEY, classroomErrorMessage } from '@/lib/classrooms';
-import { Users, Trophy, BarChart3, Loader2 } from 'lucide-react';
+import { Users, Trophy, BarChart3, Loader2, Gift } from 'lucide-react';
 
 interface Preview {
   name: string;
@@ -25,7 +26,7 @@ export default function JoinClassroomPage() {
   const params = useParams();
   const router = useRouter();
   const code = String(params.code ?? '').toUpperCase();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'invalid'>('loading');
   const [joining, setJoining] = useState(false);
@@ -51,11 +52,15 @@ export default function JoinClassroomPage() {
   const join = async () => {
     setJoining(true);
     setError('');
+    const hadFreeCourse = !!user?.free_course_code;
     const { data, error: err } = await createClient().rpc('join_classroom', { p_code: code });
-    setJoining(false);
-    if (err || !data) { setError(classroomErrorMessage(err)); return; }
+    if (err || !data) { setJoining(false); setError(classroomErrorMessage(err)); return; }
     try { localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
-    router.replace(`/classrooms/${data as string}`);
+    // Joining can make the classroom's course this student's free course
+    // (new students) — refresh so the app knows, and say so on arrival.
+    await refreshUser().catch(() => {});
+    const gotFreeCourse = !hadFreeCourse && !!useAuthStore.getState().user?.free_course_code;
+    router.replace(`/classrooms/${data as string}${gotFreeCourse ? '?free=1' : ''}`);
   };
 
   return (
@@ -94,7 +99,8 @@ export default function JoinClassroomPage() {
                 {[
                   { icon: Trophy, text: 'A weekly leaderboard with your classmates' },
                   { icon: BarChart3, text: 'See the topics your class finds hardest' },
-                  { icon: Users, text: 'Practise past questions together' },
+                  { icon: Users, text: 'Class chat, shared resources and video calls' },
+                  ...(!user?.free_course_code ? [{ icon: Gift, text: `New to PastCS? Practise ${preview.course_code} free` }] : []),
                 ].map(({ icon: Icon, text }) => (
                   <li key={text} className="flex items-center gap-2.5 text-sm text-gray-700 dark:text-gray-300">
                     <Icon className="w-4 h-4 text-blue-600 flex-shrink-0 dark:text-blue-400" />{text}
