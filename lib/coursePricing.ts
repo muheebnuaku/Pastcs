@@ -5,6 +5,7 @@ import { CLASS_DEAL_MIN_PAID, CLASS_DEAL_PERCENT } from '@/lib/classDeal';
 const DEFAULT_PRICE_PESEWAS = 5000;
 
 export interface ClassDeal {
+  classroomId: string;
   classroomName: string;
   paidCount: number;
   needed: number;
@@ -44,9 +45,10 @@ export async function coursePriceFor(
   let deal: ClassDeal | null = null;
   // Classrooms may not be set up yet on this database — no deal then.
   const { data: dealRows, error } = await admin.rpc('class_deal_for', { p_user: userId, p_level: level, p_semester: semester });
-  const best = !error ? (dealRows as { classroom_name: string; paid_count: number }[] | null)?.[0] : undefined;
+  const best = !error ? (dealRows as { classroom_id: string; classroom_name: string; paid_count: number }[] | null)?.[0] : undefined;
   if (best) {
     deal = {
+      classroomId: best.classroom_id,
       classroomName: best.classroom_name,
       paidCount: best.paid_count,
       needed: Math.max(0, CLASS_DEAL_MIN_PAID - best.paid_count),
@@ -57,4 +59,13 @@ export async function coursePriceFor(
 
   const amount = deal?.active ? Math.round(fullAmount * (100 - CLASS_DEAL_PERCENT) / 100) : fullAmount;
   return { amount, fullAmount, deal };
+}
+
+/**
+ * Extra subscription columns (migration 032) that let the admin classroom
+ * dashboard measure what the class deal costs. Kept separate so a
+ * database that hasn't run 032 yet can retry the insert without them.
+ */
+export function dealColumns(price: CoursePrice): { full_amount: number; deal_classroom_id: string | null } {
+  return { full_amount: price.fullAmount, deal_classroom_id: price.deal?.active ? price.deal.classroomId : null };
 }

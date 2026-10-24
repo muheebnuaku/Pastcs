@@ -107,7 +107,7 @@ export function LevelSemesterModal({ onSuccess, onClose, isChanging = false }: P
             </h2>
             <p className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">
               {isChanging
-                ? 'This will reset your free course choice.'
+                ? 'Your free course stays the same. Each account gets one.'
                 : 'One course is always free.'}
             </p>
           </div>

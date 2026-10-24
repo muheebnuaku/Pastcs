@@ -37,15 +37,16 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Invalid program' }, { status: 400 });
     }
 
-    // Changing level/semester/program resets the free course selection —
-    // it may not even exist in the new program's catalog.
+    // The free course is NOT reset here any more: it used to be cleared on
+    // every change, so switching level and back handed out a new free
+    // course each time. It's a one-time grant per account (migration 031)
+    // and stays usable after a change of level or programme.
     const { error } = await supabase
       .from('user_public')
       .update({
         selected_level: level,
         selected_semester: semester,
         program_id: programId,
-        free_course_code: null,
       })
       .eq('id', authUser.id);
 

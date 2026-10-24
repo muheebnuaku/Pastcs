@@ -45,6 +45,9 @@ export default function JoinClassroomPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Counts invite opens for the admin classroom dashboard. Fire and
+    // forget: it never affects the page (and quietly fails before 032).
+    createClient().rpc('log_classroom_invite_view', { p_code: code }).then(() => {}, () => {});
     createClient()
       .rpc('get_classroom_preview', { p_code: code })
       .then(({ data, error: err }: { data: Preview[] | null; error: { message?: string } | null }) => {

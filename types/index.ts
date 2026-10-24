@@ -23,6 +23,8 @@ export interface User {
   selected_level: number | null;
   selected_semester: number | null;
   free_course_code: string | null;
+  /** Set the first time a free course is claimed; never cleared (migration 031). */
+  free_course_claimed_at?: string | null;
   program: string | null;
   program_id: string | null;
   referral_code: string | null;

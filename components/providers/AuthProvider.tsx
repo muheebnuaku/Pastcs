@@ -68,7 +68,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: authUser.id,
           email: authUser.email ?? '',
           full_name: authUser.user_metadata?.full_name ?? null,
-          role: (authUser.user_metadata?.role as 'student' | 'admin') ?? 'student',
         })
         .select()
         .single();
