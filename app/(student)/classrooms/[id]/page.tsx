@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/components/providers';
+import { useSubscriptionStore } from '@/lib/store';
 import { Avatar, Button, Modal } from '@/components/ui';
+import { CLASS_DEAL_MIN_PAID, CLASS_DEAL_PERCENT } from '@/lib/classDeal';
+import { ChatPanel } from './ChatPanel';
+import { ResourcesPanel } from './ResourcesPanel';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import {
   accuracyNumber, classroomErrorMessage, inviteUrl, timeAgo, whatsappShareUrl,
@@ -12,14 +17,16 @@ import {
 } from '@/lib/classrooms';
 import {
   ArrowLeft, Users, UserPlus, Play, Trophy, Flame, Copy, Check, RefreshCw, Crown, Shield,
-  Lock, Eye, EyeOff, LogOut, Trash2, BarChart3, Target,
+  Lock, Eye, EyeOff, LogOut, Trash2, BarChart3, Target, MessageCircle, FolderOpen, Gift, Tag,
 } from 'lucide-react';
 
-type Tab = 'week' | 'progress' | 'members';
+type Tab = 'chat' | 'week' | 'progress' | 'resources' | 'members';
 
 const TABS: { key: Tab; label: string; icon: typeof Trophy }[] = [
+  { key: 'chat', label: 'Chat', icon: MessageCircle },
   { key: 'week', label: 'This week', icon: Trophy },
   { key: 'progress', label: 'Progress', icon: BarChart3 },
+  { key: 'resources', label: 'Resources', icon: FolderOpen },
   { key: 'members', label: 'Members', icon: Users },
 ];
 
@@ -49,7 +56,11 @@ export default function ClassroomPage() {
   const [topics, setTopics] = useState<ClassroomTopicStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
-  const [tab, setTab] = useState<Tab>('week');
+  const [tab, setTab] = useState<Tab>('chat');
+  const { user } = useAuth();
+  const { hasActiveSub } = useSubscriptionStore();
+  const [paidClassmates, setPaidClassmates] = useState<number | null>(null);
+  const [freeWelcome, setFreeWelcome] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState<'link' | 'code' | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,7 +69,7 @@ export default function ClassroomPage() {
   const load = useCallback(async () => {
     const supabase = createClient();
     const [roomRes, progRes, topicRes] = await Promise.all([
-      supabase.from('classrooms').select('*, course:courses(course_code, course_name, icon)').eq('id', id).maybeSingle(),
+      supabase.from('classrooms').select('*, course:courses(course_code, course_name, icon, level, semester)').eq('id', id).maybeSingle(),
       supabase.rpc('get_classroom_progress', { p_classroom: id, p_days: 7 }),
       supabase.rpc('get_classroom_topic_stats', { p_classroom: id, p_days: 30 }),
     ]);
@@ -71,16 +82,19 @@ export default function ClassroomPage() {
     setMembers((progRes.data ?? []) as ClassroomMemberProgress[]);
     setTopics((topicRes.data ?? []) as ClassroomTopicStat[]);
     setLoading(false);
+    // Class deal progress (counts only); absent until migration 029 runs.
+    supabase.rpc('get_class_deal', { p_classroom: id })
+      .then(({ data, error }: { data: number | null; error: unknown }) => { if (!error && typeof data === 'number') setPaidClassmates(data); });
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
 
   // A freshly created classroom opens straight on the invite step.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('welcome') === '1') {
-      setShowInvite(true);
-      window.history.replaceState(null, '', window.location.pathname);
-    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('welcome') === '1') setShowInvite(true);
+    if (params.get('free') === '1') setFreeWelcome(true);
+    if (params.has('welcome') || params.has('free')) window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
   const me = members.find(m => m.is_me);
@@ -166,6 +180,13 @@ export default function ClassroomPage() {
   }
 
   const nameOf = (m: ClassroomMemberProgress) => m.full_name || 'Classmate';
+  const myName = me?.full_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || 'A classmate';
+  const canModerate = myRole === 'owner' || myRole === 'leader';
+  const callUrl = `https://meet.jit.si/PastCS-${id.replace(/-/g, '')}#userInfo.displayName=${encodeURIComponent(JSON.stringify(me?.full_name || myName))}`;
+  const courseLevel = (room.course as { level?: number } | null | undefined)?.level;
+  const courseSemester = (room.course as { semester?: number } | null | undefined)?.semester;
+  const unlocked = hasActiveSub(courseLevel, courseSemester, user?.program_id);
+  const showDeal = !unlocked && paidClassmates !== null && !!courseLevel;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -204,12 +225,23 @@ export default function ClassroomPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-gray-100 dark:bg-white/10">
+      {freeWelcome && (
+        <div className="flex items-start gap-3 rounded-2xl border border-green-200 bg-green-50 p-4 dark:border-green-500/20 dark:bg-green-500/10">
+          <Gift className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5 dark:text-green-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-green-900 dark:text-green-200">{courseCode} is now your free course</p>
+            <p className="text-sm text-green-800 dark:text-green-300">Start practising with your class right away — no payment needed.</p>
+          </div>
+          <Link href={`/practice/${courseSlug}?mode=quick`} className="text-sm font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg flex-shrink-0">Start</Link>
+        </div>
+      )}
+
+      <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-gray-100 dark:bg-white/10">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-medium transition-colors ${
               tab === key
                 ? 'bg-white text-gray-900 shadow-sm dark:bg-white/15 dark:text-gray-100'
                 : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
@@ -222,9 +254,43 @@ export default function ClassroomPage() {
 
       {actionError && <p className="text-sm text-red-600 dark:text-red-400">{actionError}</p>}
 
+      {/* ── Chat ── */}
+      {tab === 'chat' && me && (
+        <ChatPanel
+          classroomId={id}
+          myId={me.user_id}
+          myName={myName}
+          members={members}
+          canModerate={canModerate}
+          callUrl={callUrl}
+          onOpenResources={() => setTab('resources')}
+        />
+      )}
+
+      {/* ── Resources ── */}
+      {tab === 'resources' && me && (
+        <ResourcesPanel classroomId={id} myId={me.user_id} myName={myName} members={members} canModerate={canModerate} />
+      )}
+
       {/* ── This week ── */}
       {tab === 'week' && (
         <div className="space-y-4">
+          {showDeal && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+              <p className="text-sm font-semibold text-amber-900 flex items-center gap-1.5 dark:text-amber-200">
+                <Tag className="w-4 h-4" />Class deal: {CLASS_DEAL_PERCENT}% off
+              </p>
+              <p className="text-sm text-amber-800 mt-1 dark:text-amber-300">
+                {(paidClassmates ?? 0) >= CLASS_DEAL_MIN_PAID
+                  ? <>{paidClassmates} classmates have unlocked Level {courseLevel}, so you get {CLASS_DEAL_PERCENT}% off.</>
+                  : <>{paidClassmates} of {CLASS_DEAL_MIN_PAID} classmates have unlocked Level {courseLevel}. At {CLASS_DEAL_MIN_PAID}, everyone else gets {CLASS_DEAL_PERCENT}% off.</>}
+              </p>
+              <div className="h-1.5 rounded-full bg-amber-100 mt-2.5 overflow-hidden dark:bg-white/10">
+                <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, ((paidClassmates ?? 0) / CLASS_DEAL_MIN_PAID) * 100)}%` }} />
+              </div>
+              <Link href="/courses" className="inline-block mt-3 text-sm font-semibold text-amber-900 underline dark:text-amber-200">See unlock options</Link>
+            </div>
+          )}
           {me && (
             <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
               <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Your week in {courseCode}</p>
