@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { coursePriceFor } from '@/lib/coursePricing';
 
 export async function POST(request: Request) {
   try {
@@ -63,6 +64,25 @@ export async function POST(request: Request) {
 
     if (existing) {
       return Response.json({ success: true }); // idempotent
+    }
+
+    // The amount and level used to be trusted as sent by the browser, so a
+    // tampered checkout could pay a few pesewas (or a cheaper level's price)
+    // and still unlock. Check what Paystack actually charged against the
+    // server's own price for this level, class deal included, and that the
+    // payment was made for this account.
+    const paidFor = paystackData.data?.metadata?.userId;
+    if (paidFor && paidFor !== authUser.id) {
+      return Response.json({ error: 'This payment belongs to a different account.' }, { status: 400 });
+    }
+    const expected = await coursePriceFor(adminSupabase, authUser.id, userData.program_id, Number(level), Number(semester));
+    const charged = Number(paystackData.data?.amount);
+    if (paystackData.data?.currency !== 'GHS' || !Number.isFinite(charged) || charged < expected.amount) {
+      console.error('Payment amount mismatch', { reference, userId: authUser.id, level, semester, charged, expected: expected.amount, currency: paystackData.data?.currency });
+      return Response.json(
+        { error: `The amount paid doesn't match the price for this level. Please contact support with reference ${reference}.` },
+        { status: 400 }
+      );
     }
 
     const { error } = await adminSupabase.from('subscriptions').insert({

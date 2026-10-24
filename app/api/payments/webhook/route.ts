@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { coursePriceFor } from '@/lib/coursePricing';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -71,6 +72,16 @@ export async function POST(request: Request) {
     // Can't attribute the subscription to a program — surface loudly so
     // it gets a manual free-pass grant instead of silently vanishing.
     console.error(`Paystack webhook: paid but user ${userId} has no program_id — reference ${reference}, amount ${amount}`);
+    return Response.json({ received: true });
+  }
+
+  // Same amount check as /api/payments/verify: never unlock on less than
+  // the server's own price for this level (class deal included). A 200
+  // stops Paystack retrying — this is a permanent rejection, logged loudly
+  // so support can sort out a genuine underpayment by hand.
+  const expected = await coursePriceFor(supabaseAdmin, userId, userData.program_id, level, semester);
+  if (event.data?.currency !== 'GHS' || !(Number(amount) >= expected.amount)) {
+    console.error('Paystack webhook: amount below price, not unlocking', { reference, userId, level, semester, amount, expected: expected.amount, currency: event.data?.currency });
     return Response.json({ received: true });
   }
 
