@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers';
 import { StudentSidebar } from '@/components/layout';
 import { LevelSemesterModal } from './courses/components/LevelSemesterModal';
+import { PENDING_JOIN_KEY } from '@/lib/classrooms';
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,17 @@ export default function DashboardLayout({
   useEffect(() => {
     if (isLoading) return;
     if (!user) router.replace('/login');
+  }, [user, isLoading, router]);
+
+  // Someone who opened a classroom invite while signed out lands back on
+  // it once they're in (after sign-up + email confirmation, or login).
+  useEffect(() => {
+    if (isLoading || !user) return;
+    let code: string | null = null;
+    try { code = localStorage.getItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
+    if (!code || !/^[A-Z0-9]{6}$/.test(code)) return;
+    try { localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
+    router.replace(`/join/${code}`);
   }, [user, isLoading, router]);
 
   // A student without a real program_id can't access or pay for courses
