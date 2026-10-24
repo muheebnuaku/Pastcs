@@ -6,7 +6,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Button } from '@/components/ui';
-import { Lock, X, CheckCircle, XCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { Lock, X, CheckCircle, XCircle, Loader2, ShieldCheck, Users } from 'lucide-react';
 import type { Subscription } from '@/types';
 
 interface Props {
@@ -24,13 +24,44 @@ declare global {
   }
 }
 
+interface Quote {
+  amount: number;
+  fullAmount: number;
+  deal: { classroomName: string; paidCount: number; needed: number; percent: number; active: boolean } | null;
+}
+
+function ghc(pesewas: number): string {
+  const cedis = pesewas / 100;
+  return `GHC ${Number.isInteger(cedis) ? cedis : cedis.toFixed(2)}`;
+}
+
 export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const { addSubscription } = useSubscriptionStore();
   const [isVerifying, setIsVerifying] = useState(false);
   const [paymentClosed, setPaymentClosed] = useState(false);
   const [error, setError] = useState('');
-  const { amountPesewas: priceAmount, label: priceLabel } = usePricing(user?.selected_level, user?.program_id);
+  const { amountPesewas: listAmount } = usePricing(user?.selected_level, user?.program_id);
+
+  // The exact amount to charge comes from the server (/api/payments/quote),
+  // which also applies any class deal — and verification checks the charge
+  // against the same rule, so the two can never disagree.
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteError, setQuoteError] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/payments/quote')
+      .then(async r => ({ ok: r.ok, data: await r.json() as Quote & { error?: string } }))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (ok && typeof data.amount === 'number') setQuote(data);
+        else setQuoteError(data.error || 'Could not load the price. Please try again.');
+      })
+      .catch(() => { if (!cancelled) setQuoteError('Could not load the price. Check your connection.'); });
+    return () => { cancelled = true; };
+  }, []);
+  const priceAmount = quote?.amount ?? listAmount;
+  const priceLabel = ghc(priceAmount);
 
   // Portal to <body> — see Modal.tsx: rendering inline under a page that
   // uses .animate-fade-in breaks `position: fixed` (its `both` fill-mode
@@ -94,7 +125,7 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
   };
 
   const openPaystack = () => {
-    if (!user) return;
+    if (!user || !quote) return;
     setPaymentClosed(false);
     setError('');
 
@@ -103,7 +134,7 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: user.email,
-        amount: priceAmount,
+        amount: quote.amount,
         currency: 'GHS',
         ref,
         metadata: {
@@ -194,17 +225,35 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
 
           {/* Price */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-3">
-            <p className="text-3xl font-bold text-white">{priceLabel}</p>
+            {quote?.deal?.active && (
+              <p className="text-blue-200 text-sm line-through">{ghc(quote.fullAmount)}</p>
+            )}
+            <p className="text-3xl font-bold text-white">{quote ? priceLabel : '…'}</p>
             <p className="text-blue-100 text-sm mt-1">one payment · this semester · all courses</p>
           </div>
+
+          {quote?.deal && (
+            <div className={`flex items-start gap-2.5 rounded-xl px-3.5 py-3 mb-3 text-sm ${
+              quote.deal.active
+                ? 'bg-green-50 text-green-800 dark:bg-green-500/10 dark:text-green-300'
+                : 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300'
+            }`}>
+              <Users className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                {quote.deal.active
+                  ? <>Class deal: <strong>{quote.deal.percent}% off</strong>, because {quote.deal.paidCount} classmates in {quote.deal.classroomName} have unlocked.</>
+                  : <>Class deal: when <strong>{quote.deal.needed} more</strong> {quote.deal.needed === 1 ? 'classmate' : 'classmates'} in {quote.deal.classroomName} unlock, everyone else gets {quote.deal.percent}% off.</>}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-5 dark:text-gray-400">
             <ShieldCheck className="w-4 h-4 text-green-500 flex-shrink-0" />
             <span>Secure checkout by Paystack — Mobile Money or card</span>
           </div>
 
-          {error && (
-            <p className="text-sm text-red-500 dark:text-red-400 mb-4 text-center">{error}</p>
+          {(error || quoteError) && (
+            <p className="text-sm text-red-500 dark:text-red-400 mb-4 text-center">{error || quoteError}</p>
           )}
 
           {paymentClosed && !error && (
@@ -217,9 +266,14 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
             className="w-full"
             size="lg"
             onClick={openPaystack}
-            disabled={isVerifying}
+            disabled={isVerifying || !quote}
           >
-            {isVerifying ? (
+            {!quote && !quoteError ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Loading price…
+              </>
+            ) : isVerifying ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Verifying payment…
