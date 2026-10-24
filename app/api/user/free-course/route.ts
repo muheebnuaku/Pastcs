@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { serviceClient } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     // Fetch user's current selection and existing free course
     const { data: userData } = await supabase
       .from('user_public')
-      .select('free_course_code, selected_level, selected_semester, program_id')
+      .select('free_course_code, free_course_claimed_at, selected_level, selected_semester, program_id')
       .eq('id', authUser.id)
       .single();
 
@@ -26,8 +27,9 @@ export async function POST(request: Request) {
       return Response.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Do not allow changing an already-selected free course
-    if (userData.free_course_code) {
+    // One free course per account, ever (migration 031) — not one per
+    // level or programme.
+    if (userData.free_course_code || userData.free_course_claimed_at) {
       return Response.json({ error: 'Free course already selected' }, { status: 400 });
     }
 
@@ -58,12 +60,21 @@ export async function POST(request: Request) {
     }
 
     // Store the course's own canonical casing, not whatever the client sent.
-    const { error } = await supabase
-      .from('user_public')
-      .update({ free_course_code: course.course_code })
-      .eq('id', authUser.id);
+    // Students can't write this column themselves (migration 031), so the
+    // service role does it — and only while nothing has been claimed yet,
+    // so two requests at once can't both succeed.
+    const { data: claimed, error } = await serviceClient()
+      .from('users')
+      .update({ free_course_code: course.course_code, free_course_claimed_at: new Date().toISOString() })
+      .eq('id', authUser.id)
+      .is('free_course_code', null)
+      .is('free_course_claimed_at', null)
+      .select('id');
 
     if (error) throw error;
+    if (!claimed?.length) {
+      return Response.json({ error: 'Free course already selected' }, { status: 400 });
+    }
 
     return Response.json({ success: true });
   } catch (error) {

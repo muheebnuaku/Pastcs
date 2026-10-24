@@ -1689,3 +1689,372 @@ $$;
 DROP TRIGGER IF EXISTS classroom_call_end_guard ON public.classroom_messages;
 CREATE TRIGGER classroom_call_end_guard BEFORE INSERT ON public.classroom_messages
   FOR EACH ROW EXECUTE FUNCTION public.classroom_call_end_guard();
+
+-- ================================================================
+-- LOCKED-DOWN USER ROWS + PERMANENT FREE COURSE — see migration 031
+-- ================================================================
+-- ================================================================
+-- MIGRATION: Lock down user rows + make the free course permanent
+-- Run this in the Supabase SQL Editor once. Safe to re-run (idempotent).
+--
+-- Four holes, all reachable from the browser with the public anon key:
+--
+-- 1. user_public was a plain view, and a plain view runs with its
+--    owner's rights — so RLS on users never applied to it. Supabase
+--    grants new views to anon/authenticated, which meant anyone could
+--    read every user's email/IP/student ID through it, and update any
+--    account (including role) by writing through it.
+-- 2. users_update_own let students update every column of their own
+--    row: role → super_admin, is_suspended → false, xp, free course…
+-- 3. Signup copied `role` from the signup metadata, which the browser
+--    controls — `signUp({ options: { data: { role: 'admin' } } })` made
+--    an admin. The client-side "create missing profile" path did too.
+-- 4. increment_xp / update_practice_streak took any user id (and any
+--    XP amount), callable even signed out.
+--
+-- Plus the free course: changing level/programme used to clear it so
+-- another could be picked — one account, unlimited free courses (and
+-- free classrooms). It's now a one-time grant: free_course_claimed_at
+-- is set the first time, and a student who changes programme keeps
+-- their free course but never gets a second one.
+-- ================================================================
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS free_course_claimed_at TIMESTAMP WITH TIME ZONE;
+UPDATE public.users SET free_course_claimed_at = coalesce(updated_at, created_at, now())
+WHERE free_course_code IS NOT NULL AND free_course_claimed_at IS NULL;
+
+-- (1) The view now runs as the caller, so users' own RLS applies:
+-- students see their own row, admins see everyone (admins_select_all_users).
+-- Recreated anyway to pick up the new column (SELECT * is frozen at
+-- create time — see migration 017).
+DROP VIEW IF EXISTS public.user_public;
+CREATE VIEW public.user_public WITH (security_invoker = true) AS SELECT * FROM public.users;
+
+-- (2) + (3) Students may change only these columns of their own row.
+-- Everything else (role, suspension, XP and streak, the free course,
+-- referral fields…) changes only through server code: the service role,
+-- or SECURITY DEFINER functions, which run as their owner. New columns
+-- are protected by default until they're added to this list.
+CREATE OR REPLACE FUNCTION public.guard_user_row()
+RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+DECLARE
+  editable TEXT[] := ARRAY['full_name', 'avatar_url', 'exam_date', 'selected_level', 'selected_semester',
+                           'program_id', 'program', 'student_id', 'updated_at'];
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    -- Nobody is born an admin: promote with an UPDATE from the SQL editor.
+    NEW.role := 'student';
+    IF current_user IN ('authenticated', 'anon') THEN
+      NEW.is_suspended := false;
+      NEW.xp := 0;
+      NEW.practice_streak := 0;
+      NEW.total_tests_taken := 0;
+      NEW.last_practice_date := NULL;
+      NEW.free_course_code := NULL;
+      NEW.free_course_claimed_at := NULL;
+      NEW.referred_by := NULL;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF current_user IN ('authenticated', 'anon')
+     AND (to_jsonb(NEW) - editable) IS DISTINCT FROM (to_jsonb(OLD) - editable) THEN
+    RAISE EXCEPTION 'protected_columns' USING HINT = 'Only your name, photo, exam date and course selection can be changed here.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS guard_user_row ON public.users;
+CREATE TRIGGER guard_user_row BEFORE INSERT OR UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.guard_user_row();
+
+-- (4) Your own XP and streak only. The cap is above the most a single
+-- test can earn (10 per correct answer + 50 exam bonus), so normal play
+-- is unaffected but one call can't add millions.
+CREATE OR REPLACE FUNCTION public.increment_xp(p_user_id UUID, p_amount INTEGER)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND p_user_id IS DISTINCT FROM auth.uid() THEN RAISE EXCEPTION 'not_allowed'; END IF;
+  IF p_amount IS NULL OR p_amount < 0 OR p_amount > 2000 THEN RAISE EXCEPTION 'bad_amount'; END IF;
+  UPDATE public.users SET xp = xp + p_amount WHERE id = p_user_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.increment_xp(UUID, INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.increment_xp(UUID, INTEGER) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.update_practice_streak(p_user_id UUID)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  last_date      DATE;
+  current_streak INTEGER;
+BEGIN
+  IF auth.uid() IS NOT NULL AND p_user_id IS DISTINCT FROM auth.uid() THEN RAISE EXCEPTION 'not_allowed'; END IF;
+  SELECT last_practice_date, practice_streak INTO last_date, current_streak
+  FROM public.users WHERE id = p_user_id;
+  IF last_date IS NULL OR last_date < CURRENT_DATE - INTERVAL '1 day' THEN
+    UPDATE public.users SET practice_streak = 1, last_practice_date = CURRENT_DATE WHERE id = p_user_id;
+  ELSIF last_date = CURRENT_DATE - INTERVAL '1 day' THEN
+    UPDATE public.users SET practice_streak = current_streak + 1, last_practice_date = CURRENT_DATE WHERE id = p_user_id;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.update_practice_streak(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_practice_streak(UUID) TO authenticated, service_role;
+
+-- ── Permanent free course in the classroom rules (migration 030) ──────
+-- available_free only for a student who has never claimed one.
+CREATE OR REPLACE FUNCTION public.course_access_for(p_user UUID, p_course UUID)
+RETURNS TEXT
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+DECLARE
+  u  public.users%ROWTYPE;
+  co public.courses%ROWTYPE;
+BEGIN
+  SELECT * INTO u FROM public.users WHERE id = p_user;
+  SELECT * INTO co FROM public.courses WHERE id = p_course;
+  IF u.id IS NULL OR co.id IS NULL THEN RETURN 'payment_required'; END IF;
+
+  IF u.free_course_code IS NOT NULL AND upper(u.free_course_code) = upper(co.course_code) THEN
+    RETURN 'free';
+  END IF;
+
+  IF u.program_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.course_programs cp WHERE cp.course_id = co.id AND cp.program_id = u.program_id
+  ) THEN
+    RETURN 'wrong_program';
+  END IF;
+
+  IF u.program_id IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM public.subscriptions s
+    LEFT JOIN public.semester_end_dates t ON t.program_id = s.program_id AND t.semester = s.semester
+    WHERE s.user_id = p_user
+      AND s.status = 'active'
+      AND s.level = co.level
+      AND s.semester = co.semester
+      AND s.program_id = u.program_id
+      AND (t.id IS NULL OR (
+        now() < ((t.end_date + t.grace_days + 1)::timestamp AT TIME ZONE 'UTC')
+        AND (t.start_date IS NULL OR s.paid_at IS NULL OR s.paid_at >= (t.start_date::timestamp AT TIME ZONE 'UTC'))
+      ))
+  ) THEN
+    RETURN 'paid';
+  END IF;
+
+  IF u.free_course_code IS NULL AND u.free_course_claimed_at IS NULL THEN RETURN 'available_free'; END IF;
+  RETURN 'payment_required';
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.course_access_for(UUID, UUID) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.claim_free_course(p_user UUID, p_course UUID)
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.users u SET
+    selected_level         = coalesce(u.selected_level, co.level),
+    selected_semester      = coalesce(u.selected_semester, co.semester),
+    program_id             = coalesce(u.program_id, (SELECT cp.program_id FROM public.course_programs cp WHERE cp.course_id = co.id LIMIT 1)),
+    free_course_code       = co.course_code,
+    free_course_claimed_at = now()
+  FROM public.courses co
+  WHERE u.id = p_user AND co.id = p_course
+    AND u.free_course_code IS NULL AND u.free_course_claimed_at IS NULL;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_free_course(UUID, UUID) FROM PUBLIC, anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
+-- CLASSROOM ANALYTICS — see migration 032
+-- ================================================================
+-- ================================================================
+-- MIGRATION: Classroom analytics for admins
+-- Run this in the Supabase SQL Editor once, after 031. Safe to re-run.
+--
+-- Answers "are classrooms working, and are they making or losing
+-- money?": invites opened vs. joins, free vs. paid joins, whether
+-- members go on to pay, and what the class deal actually costs.
+-- ================================================================
+
+-- ── Invite opens ───────────────────────────────────────────────────────
+-- Written only by log_classroom_invite_view (no direct access), so the
+-- count can't be inflated by inserting rows.
+CREATE TABLE IF NOT EXISTS public.classroom_invite_views (
+  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  classroom_id UUID NOT NULL REFERENCES public.classrooms(id) ON DELETE CASCADE,
+  user_id      UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_classroom_invite_views_time ON public.classroom_invite_views(created_at);
+CREATE INDEX IF NOT EXISTS idx_classroom_invite_views_room ON public.classroom_invite_views(classroom_id);
+ALTER TABLE public.classroom_invite_views ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.classroom_invite_views FROM anon, authenticated;
+
+-- The invite page calls this on open, signed in or not. A signed-in
+-- student counts once per classroom per day; anonymous opens are capped
+-- per classroom per minute so a refresh loop can't skew the numbers.
+CREATE OR REPLACE FUNCTION public.log_classroom_invite_view(p_code TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  uid UUID := auth.uid();
+  room_id UUID;
+BEGIN
+  SELECT id INTO room_id FROM public.classrooms WHERE join_code = upper(btrim(coalesce(p_code, '')));
+  IF room_id IS NULL THEN RETURN; END IF;
+  IF uid IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.classroom_invite_views v
+    WHERE v.classroom_id = room_id AND v.user_id = uid AND v.created_at > now() - interval '1 day'
+  ) THEN RETURN; END IF;
+  IF uid IS NULL AND (
+    SELECT count(*) FROM public.classroom_invite_views v
+    WHERE v.classroom_id = room_id AND v.user_id IS NULL AND v.created_at > now() - interval '1 minute'
+  ) >= 20 THEN RETURN; END IF;
+  INSERT INTO public.classroom_invite_views (classroom_id, user_id) VALUES (room_id, uid);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.log_classroom_invite_view(TEXT) TO anon, authenticated;
+
+-- ── How each member got in ─────────────────────────────────────────────
+-- 'owner' (created it), 'free' (their free course, including one this
+-- join claimed), 'paid' (an unlocked level). NULL = joined before this
+-- migration.
+ALTER TABLE public.classroom_members ADD COLUMN IF NOT EXISTS joined_with TEXT
+  CHECK (joined_with IN ('owner', 'free', 'paid'));
+
+CREATE OR REPLACE FUNCTION public.join_classroom(p_code TEXT)
+RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  uid UUID := auth.uid();
+  room public.classrooms%ROWTYPE;
+  access TEXT;
+BEGIN
+  IF uid IS NULL THEN RAISE EXCEPTION 'not_signed_in'; END IF;
+  SELECT * INTO room FROM public.classrooms WHERE join_code = upper(btrim(coalesce(p_code, '')));
+  IF NOT FOUND THEN RAISE EXCEPTION 'invalid_code'; END IF;
+  IF EXISTS (SELECT 1 FROM public.classroom_members WHERE classroom_id = room.id AND user_id = uid) THEN
+    RETURN room.id;
+  END IF;
+  IF (SELECT count(*) FROM public.classroom_members WHERE classroom_id = room.id) >= room.max_members THEN
+    RAISE EXCEPTION 'classroom_full';
+  END IF;
+
+  -- Serialises this student's joins, so two invites opened at once can't
+  -- both be taken as "my free course".
+  PERFORM 1 FROM public.users WHERE id = uid FOR UPDATE;
+  access := public.course_access_for(uid, room.course_id);
+  IF access IN ('payment_required', 'wrong_program') THEN RAISE EXCEPTION '%', access; END IF;
+
+  INSERT INTO public.classroom_members (classroom_id, user_id, joined_with)
+  VALUES (room.id, uid, CASE WHEN access = 'paid' THEN 'paid' ELSE 'free' END);
+  IF access = 'available_free' THEN PERFORM public.claim_free_course(uid, room.course_id); END IF;
+  RETURN room.id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.join_classroom(TEXT) FROM anon;
+
+CREATE OR REPLACE FUNCTION public.create_classroom(p_name TEXT, p_course_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  uid UUID := auth.uid();
+  new_id UUID;
+  access TEXT;
+BEGIN
+  IF uid IS NULL THEN RAISE EXCEPTION 'not_signed_in'; END IF;
+  IF char_length(btrim(coalesce(p_name, ''))) NOT BETWEEN 3 AND 80 THEN RAISE EXCEPTION 'bad_name'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.courses WHERE id = p_course_id) THEN RAISE EXCEPTION 'bad_course'; END IF;
+  -- Abuse guard: a student can own at most 10 classrooms.
+  IF (SELECT count(*) FROM public.classrooms WHERE owner_id = uid) >= 10 THEN RAISE EXCEPTION 'too_many_classrooms'; END IF;
+
+  PERFORM 1 FROM public.users WHERE id = uid FOR UPDATE;
+  access := public.course_access_for(uid, p_course_id);
+  IF access IN ('payment_required', 'wrong_program') THEN RAISE EXCEPTION '%', access; END IF;
+
+  INSERT INTO public.classrooms (name, course_id, owner_id, join_code)
+  VALUES (btrim(p_name), p_course_id, uid, public.new_classroom_code())
+  RETURNING id INTO new_id;
+
+  INSERT INTO public.classroom_members (classroom_id, user_id, role, joined_with) VALUES (new_id, uid, 'owner', 'owner');
+  IF access = 'available_free' THEN PERFORM public.claim_free_course(uid, p_course_id); END IF;
+  RETURN new_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.create_classroom(TEXT, UUID) FROM anon;
+
+-- ── What a payment would have cost without the class deal ──────────────
+-- Set by /api/payments/verify and the webhook. NULL on older rows.
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS full_amount INTEGER;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS deal_classroom_id UUID REFERENCES public.classrooms(id) ON DELETE SET NULL;
+
+-- ── The dashboard, in one call ─────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.admin_classroom_stats(p_days INTEGER DEFAULT 30)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+DECLARE
+  since TIMESTAMP WITH TIME ZONE := now() - make_interval(days => greatest(1, least(coalesce(p_days, 30), 365)));
+  result JSONB;
+BEGIN
+  IF NOT coalesce(public.is_admin(), false) THEN RAISE EXCEPTION 'admin_only'; END IF;
+
+  WITH member_pay AS (
+    -- A member "paid after joining" if they unlocked the classroom's
+    -- level+semester within 14 days of joining it (counted once each).
+    SELECT DISTINCT ON (m.user_id, m.classroom_id) m.user_id, m.classroom_id, s.amount
+    FROM public.classroom_members m
+    JOIN public.classrooms c ON c.id = m.classroom_id
+    JOIN public.courses co ON co.id = c.course_id
+    JOIN public.subscriptions s ON s.user_id = m.user_id AND s.status = 'active'
+      AND s.level = co.level AND s.semester = co.semester
+      AND s.paid_at >= m.joined_at AND s.paid_at < m.joined_at + interval '14 days'
+    WHERE m.joined_at >= since AND m.role <> 'owner'
+    ORDER BY m.user_id, m.classroom_id, s.paid_at
+  ),
+  days AS (
+    SELECT generate_series(date_trunc('day', since), date_trunc('day', now()), interval '1 day')::date AS day
+  )
+  SELECT jsonb_build_object(
+    'days', greatest(1, least(coalesce(p_days, 30), 365)),
+    'classrooms_total', (SELECT count(*) FROM public.classrooms),
+    'classrooms_new', (SELECT count(*) FROM public.classrooms WHERE created_at >= since),
+    'members_total', (SELECT count(*) FROM public.classroom_members),
+    'invite_views', (SELECT count(*) FROM public.classroom_invite_views WHERE created_at >= since),
+    'joins', (SELECT count(*) FROM public.classroom_members WHERE joined_at >= since AND role <> 'owner'),
+    'joins_free', (SELECT count(*) FROM public.classroom_members WHERE joined_at >= since AND joined_with = 'free'),
+    'joins_paid', (SELECT count(*) FROM public.classroom_members WHERE joined_at >= since AND joined_with = 'paid'),
+    'paid_after_join', (SELECT count(*) FROM member_pay),
+    'paid_after_join_amount', (SELECT coalesce(sum(amount), 0) FROM member_pay),
+    'payments_total', (SELECT count(*) FROM public.subscriptions WHERE status = 'active' AND paid_at >= since),
+    'payments_with_deal', (SELECT count(*) FROM public.subscriptions WHERE status = 'active' AND paid_at >= since AND deal_classroom_id IS NOT NULL),
+    'deal_discount_total', (SELECT coalesce(sum(full_amount - amount), 0) FROM public.subscriptions
+                            WHERE status = 'active' AND paid_at >= since AND deal_classroom_id IS NOT NULL AND full_amount > amount),
+    'daily', (SELECT coalesce(jsonb_agg(jsonb_build_object(
+                'day', d.day,
+                'views', (SELECT count(*) FROM public.classroom_invite_views v WHERE v.created_at::date = d.day),
+                'joins', (SELECT count(*) FROM public.classroom_members m WHERE m.joined_at::date = d.day AND m.role <> 'owner'),
+                'created', (SELECT count(*) FROM public.classrooms c WHERE c.created_at::date = d.day)
+              ) ORDER BY d.day), '[]'::jsonb) FROM days d),
+    'top', (SELECT coalesce(jsonb_agg(t ORDER BY t.messages_7d + t.tests_7d DESC, t.members DESC), '[]'::jsonb) FROM (
+              SELECT * FROM (
+                SELECT c.id, c.name, co.course_code, c.created_at,
+                       (SELECT count(*) FROM public.classroom_members m WHERE m.classroom_id = c.id)::INTEGER AS members,
+                       (SELECT count(*) FROM public.classroom_messages x WHERE x.classroom_id = c.id AND x.created_at > now() - interval '7 days')::INTEGER AS messages_7d,
+                       (SELECT count(*) FROM public.tests te JOIN public.classroom_members m ON m.user_id = te.user_id AND m.classroom_id = c.id
+                        WHERE te.course_id = c.course_id AND te.created_at > now() - interval '7 days')::INTEGER AS tests_7d
+                FROM public.classrooms c JOIN public.courses co ON co.id = c.course_id
+              ) ranked
+              ORDER BY messages_7d + tests_7d DESC, members DESC
+              LIMIT 10
+            ) t)
+  ) INTO result;
+  RETURN result;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_classroom_stats(INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_classroom_stats(INTEGER) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';

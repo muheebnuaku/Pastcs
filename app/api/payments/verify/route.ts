@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-import { coursePriceFor } from '@/lib/coursePricing';
+import { coursePriceFor, dealColumns } from '@/lib/coursePricing';
 
 export async function POST(request: Request) {
   try {
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { error } = await adminSupabase.from('subscriptions').insert({
+    const row = {
       user_id: authUser.id,
       level,
       semester,
@@ -94,7 +94,13 @@ export async function POST(request: Request) {
       amount: paystackData.data.amount,
       status: 'active',
       paid_at: new Date().toISOString(),
-    });
+    };
+    let { error } = await adminSupabase.from('subscriptions').insert({ ...row, ...dealColumns(expected) });
+    // Before migration 032 the deal columns don't exist — never let
+    // analytics bookkeeping lose a payment.
+    if (error && /full_amount|deal_classroom_id/.test(error.message)) {
+      ({ error } = await adminSupabase.from('subscriptions').insert(row));
+    }
 
     if (error) {
       console.error('Subscription insert error:', error);

@@ -25,7 +25,9 @@ interface TabsProps {
 // need one.
 export function Tabs({ tabs, active, onChange, className }: TabsProps) {
   return (
-    <div className={cn('inline-flex p-1 bg-gray-100 dark:bg-white/10 rounded-lg', className)}>
+    // max-w-full + overflow-x-auto: on a phone a bar with three or more
+    // tabs scrolls inside itself instead of pushing past the screen edge.
+    <div className={cn('inline-flex max-w-full overflow-x-auto p-1 bg-gray-100 dark:bg-white/10 rounded-lg', className)}>
       {tabs.map(tab => {
         const isActive = active === tab.key;
         return (
@@ -33,7 +35,7 @@ export function Tabs({ tabs, active, onChange, className }: TabsProps) {
             key={tab.key}
             onClick={() => onChange(tab.key)}
             className={cn(
-              'flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors',
+              'flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors',
               isActive
                 ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-gray-100 shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'

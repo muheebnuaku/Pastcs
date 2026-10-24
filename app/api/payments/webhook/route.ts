@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { coursePriceFor } from '@/lib/coursePricing';
+import { coursePriceFor, dealColumns } from '@/lib/coursePricing';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     return Response.json({ received: true });
   }
 
-  const { error } = await supabaseAdmin.from('subscriptions').insert({
+  const row = {
     user_id: userId,
     level,
     semester,
@@ -94,7 +94,12 @@ export async function POST(request: Request) {
     amount,
     status: 'active',
     paid_at: new Date().toISOString(),
-  });
+  };
+  let { error } = await supabaseAdmin.from('subscriptions').insert({ ...row, ...dealColumns(expected) });
+  // Same fallback as /api/payments/verify for a database without 032.
+  if (error && /full_amount|deal_classroom_id/.test(error.message)) {
+    ({ error } = await supabaseAdmin.from('subscriptions').insert(row));
+  }
 
   if (error) {
     console.error('Paystack webhook: subscription insert failed', error, { reference, userId });
