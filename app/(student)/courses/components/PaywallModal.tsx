@@ -15,6 +15,12 @@ interface Props {
   totalCourses: number;
   onClose: () => void;
   onSuccess: () => void;
+  /** What to unlock, when it isn't the student's own selected level (e.g. a classroom's course). */
+  level?: number;
+  semester?: number;
+  /** Replaces the default heading/blurb, e.g. "Unlock to join Kenny's classroom". */
+  heading?: string;
+  blurb?: string;
 }
 
 declare global {
@@ -35,13 +41,15 @@ function ghc(pesewas: number): string {
   return `GHC ${Number.isInteger(cedis) ? cedis : cedis.toFixed(2)}`;
 }
 
-export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
+export function PaywallModal({ totalCourses, onClose, onSuccess, level: levelProp, semester: semesterProp, heading, blurb }: Props) {
   const { user } = useAuth();
+  const level = levelProp ?? user?.selected_level ?? undefined;
+  const semester = semesterProp ?? user?.selected_semester ?? undefined;
   const { addSubscription } = useSubscriptionStore();
   const [isVerifying, setIsVerifying] = useState(false);
   const [paymentClosed, setPaymentClosed] = useState(false);
   const [error, setError] = useState('');
-  const { amountPesewas: listAmount } = usePricing(user?.selected_level, user?.program_id);
+  const { amountPesewas: listAmount } = usePricing(level, user?.program_id);
 
   // The exact amount to charge comes from the server (/api/payments/quote),
   // which also applies any class deal — and verification checks the charge
@@ -50,7 +58,7 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
   const [quoteError, setQuoteError] = useState('');
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/payments/quote')
+    fetch(levelProp && semesterProp ? `/api/payments/quote?level=${levelProp}&semester=${semesterProp}` : '/api/payments/quote')
       .then(async r => ({ ok: r.ok, data: await r.json() as Quote & { error?: string } }))
       .then(({ ok, data }) => {
         if (cancelled) return;
@@ -59,7 +67,7 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
       })
       .catch(() => { if (!cancelled) setQuoteError('Could not load the price. Check your connection.'); });
     return () => { cancelled = true; };
-  }, []);
+  }, [levelProp, semesterProp]);
   const priceAmount = quote?.amount ?? listAmount;
   const priceLabel = ghc(priceAmount);
 
@@ -91,8 +99,8 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reference,
-          level: user?.selected_level,
-          semester: user?.selected_semester,
+          level,
+          semester,
         }),
       });
 
@@ -102,8 +110,8 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
         const newSub: Subscription = {
           id: Date.now().toString(),
           user_id: user!.id,
-          level: user!.selected_level!,
-          semester: user!.selected_semester!,
+          level: level!,
+          semester: semester!,
           program_id: user?.program_id ?? null,
           payment_reference: reference,
           amount: priceAmount,
@@ -139,8 +147,8 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
         ref,
         metadata: {
           userId: user.id,
-          level: user.selected_level,
-          semester: user.selected_semester,
+          level,
+          semester,
         },
         callback: (response: { reference: string }) => {
           handlePaymentSuccess(response.reference);
@@ -183,9 +191,9 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
         </div>
 
         <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Unlock every course</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">{heading ?? 'Unlock every course'}</h2>
           <p className="text-gray-500 text-sm mb-5 dark:text-gray-400">
-            One payment opens {totalCourses > 0 ? `all ${totalCourses}` : 'every'} Level {user?.selected_level} course{totalCourses > 1 ? 's' : ''} for this semester.
+            {blurb ?? `One payment opens ${totalCourses > 0 ? `all ${totalCourses}` : 'every'} Level ${level} course${totalCourses > 1 ? 's' : ''} for this semester.`}
           </p>
 
           {/* Comparison */}
@@ -199,7 +207,7 @@ export function PaywallModal({ totalCourses, onClose, onSuccess }: Props) {
                 </li>
                 <li className="flex items-start gap-2 text-gray-400 dark:text-gray-500">
                   <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  {lockedCount} other course{lockedCount === 1 ? '' : 's'}
+                  {totalCourses > 0 ? `${lockedCount} other course${lockedCount === 1 ? '' : 's'}` : 'Every other course'}
                 </li>
               </ul>
             </div>

@@ -4,13 +4,13 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui';
 import type { ClassroomMemberProgress } from '@/lib/classrooms';
-import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall } from 'lucide-react';
+import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall, PhoneOff } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
   classroom_id: string;
   user_id: string;
-  kind: 'text' | 'call' | 'resource';
+  kind: 'text' | 'call' | 'call_end' | 'resource';
   body: string;
   meta: { url?: string; resource_id?: string } | null;
   created_at: string;
@@ -26,6 +26,9 @@ interface Props {
   onOpenResources: () => void;
 }
 
+// The video room opens in a new tab (meet.jit.si cuts embedded calls off
+// after a few minutes), so the site can't see anyone hang up. A call stays
+// "live" here until its starter or a class leader ends it, or this long.
 const CALL_FRESH_MS = 2 * 60 * 60 * 1000;
 
 // Plain text with web links made clickable — never rendered as HTML.
@@ -57,6 +60,10 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
   const [error, setError] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Set when I start a call; coming back to this tab afterwards asks
+  // whether the call is over, so it ends on the site too.
+  const startedCallRef = useRef(false);
+  const [askEnd, setAskEnd] = useState(false);
 
   const people = useMemo(() => new Map(members.map(m => [m.user_id, m])), [members]);
 
@@ -126,7 +133,13 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
 
   const startCall = async () => {
     window.open(callUrl, '_blank', 'noopener,noreferrer');
-    await post(`${myName} started a video call`, 'call', { url: callUrl });
+    if (await post(`${myName} started a video call`, 'call', { url: callUrl })) startedCallRef.current = true;
+  };
+
+  const endCall = async () => {
+    setAskEnd(false);
+    startedCallRef.current = false;
+    await post(`${myName} ended the call`, 'call_end');
   };
 
   const remove = async (id: string) => {
@@ -135,8 +148,19 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
     if (!err) setMessages(prev => prev.filter(m => m.id !== id));
   };
 
-  const lastCall = [...messages].reverse().find(m => m.kind === 'call');
-  const callLive = lastCall && now - new Date(lastCall.created_at).getTime() < CALL_FRESH_MS;
+  const lastCallEvent = [...messages].reverse().find(m => m.kind === 'call' || m.kind === 'call_end');
+  const lastCall = lastCallEvent?.kind === 'call' ? lastCallEvent : undefined;
+  const callLive = !!lastCall && now - new Date(lastCall.created_at).getTime() < CALL_FRESH_MS;
+  const canEndCall = callLive && (lastCall?.user_id === myId || canModerate);
+  const callStarter = lastCall ? (lastCall.user_id === myId ? 'You' : people.get(lastCall.user_id)?.full_name?.split(' ')[0] || 'A classmate') : '';
+
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === 'visible' && startedCallRef.current) setAskEnd(true);
+    };
+    document.addEventListener('visibilitychange', onReturn);
+    return () => document.removeEventListener('visibilitychange', onReturn);
+  }, []);
 
   return (
     <div className="flex flex-col h-[62vh] min-h-[380px] rounded-2xl border border-gray-200 bg-white overflow-hidden dark:bg-white/[0.04] dark:border-white/10">
@@ -148,26 +172,53 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
         >
           <Paperclip className="w-3.5 h-3.5" />Resources
         </button>
-        <button
-          onClick={startCall}
-          disabled={sending}
-          className="flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <Video className="w-3.5 h-3.5" />Start call
-        </button>
+        {!callLive && (
+          <button
+            onClick={startCall}
+            disabled={sending}
+            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <Video className="w-3.5 h-3.5" />Start call
+          </button>
+        )}
       </div>
 
-      {callLive && lastCall?.meta?.url && (
-        <a
-          href={lastCall.meta.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-800 text-sm border-b border-green-100 hover:bg-green-100 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20"
-        >
-          <PhoneCall className="w-4 h-4 animate-pulse" />
-          <span className="flex-1">Call started {timeLabel(lastCall.created_at)}</span>
-          <span className="font-semibold">Join call</span>
-        </a>
+      {callLive && lastCall && (
+        <div className="border-b border-green-100 bg-green-50 dark:bg-green-500/10 dark:border-green-500/20">
+          <div className="flex items-center gap-2 px-3 py-2 text-sm text-green-800 dark:text-green-300">
+            <PhoneCall className="w-4 h-4 flex-shrink-0 animate-pulse" />
+            <span className="flex-1 min-w-0 truncate">
+              <span className="font-semibold">Call in progress</span>
+              <span className="hidden sm:inline"> · {callStarter} started it {timeLabel(lastCall.created_at)}</span>
+            </span>
+            {lastCall.meta?.url && (
+              <a
+                href={lastCall.meta.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg"
+              >
+                Join
+              </a>
+            )}
+            {canEndCall && (
+              <button
+                onClick={endCall}
+                disabled={sending}
+                className="flex-shrink-0 flex items-center gap-1 text-xs font-semibold text-red-700 bg-white border border-red-200 hover:bg-red-50 px-2.5 py-1.5 rounded-lg dark:bg-transparent dark:text-red-300 dark:border-red-500/40 dark:hover:bg-red-500/10"
+              >
+                <PhoneOff className="w-3.5 h-3.5" />End
+              </button>
+            )}
+          </div>
+          {askEnd && canEndCall && (
+            <div className="flex flex-wrap items-center gap-2 px-3 pb-2.5 text-sm text-gray-700 dark:text-gray-300">
+              <span className="flex-1 min-w-[10rem]">Finished the call? End it so classmates don&rsquo;t join an empty room.</span>
+              <button onClick={endCall} className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg">End for everyone</button>
+              <button onClick={() => setAskEnd(false)} className="text-xs font-medium text-gray-600 px-2.5 py-1.5 rounded-lg hover:bg-white/70 dark:text-gray-300 dark:hover:bg-white/10">Still on it</button>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
@@ -185,13 +236,17 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
           const showName = !mine && (i === 0 || messages[i - 1].user_id !== m.user_id || messages[i - 1].kind !== 'text');
           const canDelete = mine || canModerate;
 
-          if (m.kind === 'call' || m.kind === 'resource') {
+          if (m.kind === 'call' || m.kind === 'call_end' || m.kind === 'resource') {
+            const isLiveCall = m.id === lastCall?.id && callLive;
             return (
               <div key={m.id} className="flex justify-center">
-                <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-100 rounded-full px-3 py-1.5 dark:text-gray-300 dark:bg-white/10">
-                  {m.kind === 'call' ? <Video className="w-3.5 h-3.5 text-green-600" /> : <Paperclip className="w-3.5 h-3.5 text-blue-600" />}
-                  <span>{m.body}</span>
-                  {m.kind === 'call' && m.meta?.url && (
+                <div className="flex items-center gap-2 max-w-full text-xs text-gray-600 bg-gray-100 rounded-full px-3 py-1.5 dark:text-gray-300 dark:bg-white/10">
+                  {m.kind === 'call' ? <Video className="w-3.5 h-3.5 flex-shrink-0 text-green-600" />
+                    : m.kind === 'call_end' ? <PhoneOff className="w-3.5 h-3.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                    : <Paperclip className="w-3.5 h-3.5 flex-shrink-0 text-blue-600" />}
+                  <span className="min-w-0 truncate">{m.body}</span>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0 dark:text-gray-500">{timeLabel(m.created_at)}</span>
+                  {isLiveCall && m.meta?.url && (
                     <a href={m.meta.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-green-700 dark:text-green-400">Join</a>
                   )}
                   {m.kind === 'resource' && (

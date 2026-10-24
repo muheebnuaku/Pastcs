@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
+import { useSubscriptionStore } from '@/lib/store';
+import { PaywallModal } from '../courses/components/PaywallModal';
 import { Button, Input, Modal, Select } from '@/components/ui';
 import { coursesForProgram } from '@/lib/programs';
 import { COURSE_ICONS } from '@/lib/utils';
 import { classroomErrorMessage, classroomsNotSetUp, type ClassroomRole } from '@/lib/classrooms';
 import type { Course } from '@/types';
-import { Users, Plus, LogIn, Trophy, BarChart3, Swords, ChevronRight, Crown, Shield } from 'lucide-react';
+import { Users, Plus, LogIn, Trophy, BarChart3, Swords, ChevronRight, Crown, Shield, Lock, Gift } from 'lucide-react';
 
 interface MyClassroom {
   id: string;
@@ -25,6 +27,7 @@ interface MyClassroom {
 export default function ClassroomsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { hasActiveSub } = useSubscriptionStore();
   const [rooms, setRooms] = useState<MyClassroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [notReady, setNotReady] = useState(false);
@@ -35,6 +38,7 @@ export default function ClassroomsPage() {
   const [courseId, setCourseId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const [code, setCode] = useState('');
   const [joining, setJoining] = useState(false);
@@ -92,6 +96,16 @@ export default function ClassroomsPage() {
       });
   }, [showCreate, user?.program_id, user?.selected_level, user?.selected_semester, courses.length]);
 
+  // Same rule the database enforces (migration 030): your free course, a
+  // level you've paid for, or, before you've picked one, your free course.
+  const accessFor = (c: Course): 'free' | 'paid' | 'claim' | 'locked' => {
+    if (user?.free_course_code && user.free_course_code.toUpperCase() === c.course_code.toUpperCase()) return 'free';
+    if (hasActiveSub(c.level, c.semester, user?.program_id)) return 'paid';
+    return user?.free_course_code ? 'locked' : 'claim';
+  };
+  const selectedCourse = courses.find(c => c.id === courseId);
+  const selectedAccess = selectedCourse ? accessFor(selectedCourse) : null;
+
   const handleCreate = async () => {
     setCreating(true);
     setCreateError('');
@@ -107,7 +121,13 @@ export default function ClassroomsPage() {
     setJoinError('');
     const { data, error } = await createClient().rpc('join_classroom', { p_code: code.trim() });
     setJoining(false);
-    if (error || !data) { setJoinError(classroomErrorMessage(error)); return; }
+    if (error || !data) {
+      // The invite page explains the pay-first / other-programme cases and
+      // has the unlock button, so send them there instead of a bare error.
+      if (/payment_required|wrong_program/.test(error?.message ?? '')) { router.push(`/join/${code.trim().toUpperCase()}`); return; }
+      setJoinError(classroomErrorMessage(error));
+      return;
+    }
     router.push(`/classrooms/${data as string}`);
   };
 
@@ -233,20 +253,57 @@ export default function ClassroomsPage() {
           />
           <Select label="Course" value={courseId} onChange={e => setCourseId(e.target.value)}>
             {courses.length === 0 && <option value="">Loading courses…</option>}
-            {courses.map(c => (
-              <option key={c.id} value={c.id}>{c.course_code} — {c.course_name}</option>
-            ))}
+            {courses.map(c => {
+              const access = accessFor(c);
+              return (
+                <option key={c.id} value={c.id}>
+                  {access === 'locked' ? '🔒 ' : ''}{c.course_code} — {c.course_name}{access === 'free' ? ' (your free course)' : ''}
+                </option>
+              );
+            })}
           </Select>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Everyone in the classroom practises this course together. You&rsquo;ll get a link and a code to share.
-          </p>
+          {selectedAccess === 'claim' && selectedCourse && (
+            <p className="flex items-start gap-2 text-xs rounded-xl px-3 py-2.5 bg-green-50 text-green-800 dark:bg-green-500/10 dark:text-green-300">
+              <Gift className="w-4 h-4 flex-shrink-0" />
+              <span>{selectedCourse.course_code} becomes your free course. Classrooms for other courses need an unlock.</span>
+            </p>
+          )}
+          {selectedAccess === 'locked' && selectedCourse && (
+            <p className="flex items-start gap-2 text-xs rounded-xl px-3 py-2.5 bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-300">
+              <Lock className="w-4 h-4 flex-shrink-0" />
+              <span>Unlock Level {selectedCourse.level}, Semester {selectedCourse.semester} to start a {selectedCourse.course_code} classroom. Your free course is {user?.free_course_code}.</span>
+            </p>
+          )}
+          {(selectedAccess === 'free' || selectedAccess === 'paid' || !selectedAccess) && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Everyone in the classroom practises this course together. You&rsquo;ll get a link and a code to share.
+            </p>
+          )}
           {createError && <p className="text-sm text-red-600 dark:text-red-400">{createError}</p>}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
-            <Button onClick={handleCreate} isLoading={creating} disabled={name.trim().length < 3 || !courseId}>Create</Button>
+            {selectedAccess === 'locked' ? (
+              <Button onClick={() => setShowPaywall(true)}><Lock className="w-4 h-4 mr-1.5" />Unlock</Button>
+            ) : (
+              <Button onClick={handleCreate} isLoading={creating} disabled={name.trim().length < 3 || !courseId}>Create</Button>
+            )}
           </div>
         </div>
       </Modal>
+
+      {showPaywall && selectedCourse && (
+        <PaywallModal
+          courseName={selectedCourse.course_name}
+          courseCode={selectedCourse.course_code}
+          totalCourses={0}
+          level={selectedCourse.level}
+          semester={selectedCourse.semester}
+          heading={`Unlock ${selectedCourse.course_code}`}
+          blurb={`One payment opens every Level ${selectedCourse.level} course in your programme for Semester ${selectedCourse.semester}, so you can start classrooms for any of them.`}
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => setShowPaywall(false)}
+        />
+      )}
     </div>
   );
 }

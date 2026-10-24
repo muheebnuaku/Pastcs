@@ -59,7 +59,17 @@ const ERRORS: Record<string, string> = {
   too_many_classrooms: 'You can own up to 10 classrooms. Delete one you no longer use first.',
   not_a_member: "You're not a member of this classroom.",
   owner_only: 'Only the classroom owner can do that.',
+  payment_required: "You've already used your free course. Unlock this course's level to join its classroom.",
+  wrong_program: "This classroom's course isn't part of your programme.",
+  not_allowed: 'Only the person who started the call, or a class leader, can end it.',
 };
+
+/**
+ * What get_classroom_join_status (migration 030) says about a student and
+ * a classroom: already in, can join (free course, paid, or this becomes
+ * their free course), must pay first, or the course isn't in their program.
+ */
+export type JoinStatus = 'member' | 'free' | 'paid' | 'available_free' | 'payment_required' | 'wrong_program';
 
 /** Turns a Supabase/RPC error into a sentence a student can act on. */
 export function classroomErrorMessage(error: { message?: string } | null | undefined): string {
