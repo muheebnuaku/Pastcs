@@ -189,39 +189,43 @@ export default function ClassroomPage() {
   const showDeal = !unlocked && paidClassmates !== null && !!courseLevel;
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       <Link href="/classrooms" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
         <ArrowLeft className="w-4 h-4 mr-1.5" />All classrooms
       </Link>
 
-      {/* Header */}
-      <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 p-5 sm:p-6 text-white">
-        <div className="flex items-start gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl flex-shrink-0">
-            {room.course?.icon || COURSE_ICONS[courseCode] || '📚'}
+      {/* Header: one compact row on tablets and up, two short rows on phones */}
+      <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 px-4 py-3.5 sm:px-5 sm:py-4 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/20 flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">
+              {room.course?.icon || COURSE_ICONS[courseCode] || '📚'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-xl font-bold leading-tight truncate" title={room.name}>{room.name}</h1>
+              <p className="text-blue-100 text-xs sm:text-sm truncate" title={room.course?.course_name}>
+                {courseCode}<span className="hidden min-[400px]:inline"> · {room.course?.course_name}</span>
+              </p>
+              <p className="text-blue-100 text-xs mt-0.5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 flex-shrink-0" />{members.length} {members.length === 1 ? 'member' : 'members'}
+                {myRole !== 'member' && <span className="px-1.5 py-px rounded-full bg-white/20 text-[10px] font-semibold uppercase tracking-wide">{myRole === 'owner' ? 'Owner' : 'Leader'}</span>}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold break-words">{room.name}</h1>
-            <p className="text-blue-100 text-sm">{courseCode} · {room.course?.course_name}</p>
-            <p className="text-blue-100 text-sm mt-1 flex items-center gap-1.5">
-              <Users className="w-4 h-4" />{members.length} {members.length === 1 ? 'member' : 'members'}
-              {myRole !== 'member' && <span className="ml-2 px-2 py-0.5 rounded-full bg-white/20 text-xs font-medium">{myRole === 'owner' ? 'Owner' : 'Leader'}</span>}
-            </p>
+          <div className="grid grid-cols-2 sm:flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowInvite(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white text-blue-700 font-semibold text-xs sm:text-sm hover:bg-blue-50 transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />Invite
+            </button>
+            <Link
+              href={`/courses/${courseSlug}`}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 font-semibold text-xs sm:text-sm hover:bg-white/25 transition-colors"
+            >
+              <Play className="w-4 h-4" />Practise
+            </Link>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <button
-            onClick={() => setShowInvite(true)}
-            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white text-blue-700 font-semibold text-sm hover:bg-blue-50 transition-colors"
-          >
-            <UserPlus className="w-4 h-4" />Invite classmates
-          </button>
-          <Link
-            href={`/courses/${courseSlug}`}
-            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/15 font-semibold text-sm hover:bg-white/25 transition-colors"
-          >
-            <Play className="w-4 h-4" />Practise {courseCode}
-          </Link>
         </div>
       </div>
 
