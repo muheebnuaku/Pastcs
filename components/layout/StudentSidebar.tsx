@@ -26,12 +26,14 @@ import {
   Bell,
   Trash2,
   MessageSquare,
+  Users,
 } from 'lucide-react';
 
 const studentNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/courses', label: 'Courses', icon: BookOpen },
   { href: '/assistant', label: 'AI Tutor', icon: BotMessageSquare },
+  { href: '/classrooms', label: 'Classrooms', icon: Users },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/achievements', label: 'Achievements', icon: GraduationCap },
@@ -68,7 +70,7 @@ export function StudentSidebar() {
     { href: '/dashboard', label: 'Home', icon: Home },
     { href: '/courses', label: 'Courses', icon: BookOpen },
     { href: '/assistant', label: 'AI Tutor', icon: BotMessageSquare },
-    { href: '/leaderboard', label: 'Ranks', icon: Trophy },
+    { href: '/classrooms', label: 'Classes', icon: Users },
   ];
 
   return (
