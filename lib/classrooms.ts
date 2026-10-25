@@ -11,6 +11,8 @@ export interface Classroom {
   join_code: string;
   max_members: number;
   created_at: string;
+  /** Set by the owner/leaders (migration 035); shown as a countdown. */
+  exam_date?: string | null;
   course?: { course_code: string; course_name: string; icon?: string | null } | null;
 }
 
@@ -62,6 +64,14 @@ const ERRORS: Record<string, string> = {
   payment_required: "You've already used your free course. Unlock this course's level to join its classroom.",
   wrong_program: "This classroom's course isn't part of your programme.",
   not_allowed: 'Only the person who started the call, or a class leader, can end it.',
+  leaders_only: 'Only the class owner and leaders can do that.',
+  too_many_pins: 'You can pin up to 3 announcements. Unpin one first.',
+  bad_announcement: 'Write an announcement of up to 500 characters.',
+  too_many_goals: 'You can have up to 5 goals running at once. Delete one first.',
+  bad_target: 'Pick a number of questions between 1 and 500.',
+  bad_due_date: 'Pick a due date between today and 60 days from now.',
+  bad_topic: 'That topic isn’t part of this course.',
+  bad_exam_date: 'Pick an exam date between today and a year from now.',
 };
 
 /**
@@ -99,4 +109,28 @@ export function timeAgo(iso: string | null): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   return days === 1 ? 'Yesterday' : `${days} days ago`;
+}
+
+/** A YYYY-MM-DD date as a local date (no time-zone shift). */
+export function localDate(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Whole days from today to a YYYY-MM-DD date (negative once it's past). */
+export function daysUntil(ymd: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((localDate(ymd).getTime() - today.getTime()) / 86400000);
+}
+
+export function shortDate(ymd: string): string {
+  return localDate(ymd).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** Today plus n days, as YYYY-MM-DD in local time (for date inputs). */
+export function ymdFromToday(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

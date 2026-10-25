@@ -12,6 +12,7 @@ import { ChatPanel } from './ChatPanel';
 import { ResourcesPanel } from './ResourcesPanel';
 import { AlertSettings, PushPrompt } from './Alerts';
 import { BattleBanner, NewBattleModal, RecentBattles } from './Battles';
+import { ClassGoals, ExamCountdown, ExamDateModal, PinnedAnnouncements } from './RepTools';
 import type { BattleSummary } from '@/lib/battles';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import {
@@ -70,6 +71,7 @@ export default function ClassroomPage() {
   const [actionError, setActionError] = useState('');
   const [battles, setBattles] = useState<BattleSummary[]>([]);
   const [showNewBattle, setShowNewBattle] = useState(false);
+  const [showExamDate, setShowExamDate] = useState(false);
 
   // Absent until migration 034 runs — the battle buttons just stay hidden.
   const [battlesReady, setBattlesReady] = useState(false);
@@ -235,6 +237,12 @@ export default function ClassroomPage() {
                 <Users className="w-3.5 h-3.5 flex-shrink-0" />{members.length} {members.length === 1 ? 'member' : 'members'}
                 {myRole !== 'member' && <span className="px-1.5 py-px rounded-full bg-white/20 text-[10px] font-semibold uppercase tracking-wide">{myRole === 'owner' ? 'Owner' : 'Leader'}</span>}
               </p>
+              {/* exam_date only exists once migration 035 has run */}
+              {'exam_date' in room && (
+                <div className="mt-1.5">
+                  <ExamCountdown examDate={room.exam_date} canModerate={canModerate} onEdit={() => setShowExamDate(true)} />
+                </div>
+              )}
             </div>
           </div>
           <div className={`grid ${battlesReady ? 'grid-cols-3' : 'grid-cols-2'} sm:flex gap-2 flex-shrink-0`}>
@@ -297,6 +305,9 @@ export default function ClassroomPage() {
 
       {/* ── Chat ── */}
       {tab === 'chat' && me && (
+        <PinnedAnnouncements classroomId={id} canModerate={canModerate} members={members} />
+      )}
+      {tab === 'chat' && me && (
         <ChatPanel
           classroomId={id}
           myId={me.user_id}
@@ -316,6 +327,8 @@ export default function ClassroomPage() {
       {/* ── This week ── */}
       {tab === 'week' && (
         <div className="space-y-4">
+          {me && <PinnedAnnouncements classroomId={id} canModerate={canModerate} members={members} allowAdd />}
+          {me && <ClassGoals classroomId={id} courseId={room.course_id} canModerate={canModerate} />}
           {showDeal && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
               <p className="text-sm font-semibold text-amber-900 flex items-center gap-1.5 dark:text-amber-200">
@@ -564,6 +577,10 @@ export default function ClassroomPage() {
       )}
 
       {/* Invite */}
+      {showExamDate && (
+        <ExamDateModal classroomId={id} examDate={room.exam_date} onClose={() => setShowExamDate(false)} onSaved={load} />
+      )}
+
       {showNewBattle && room && (
         <NewBattleModal classroomId={id} courseId={room.course_id} onClose={() => setShowNewBattle(false)} />
       )}
