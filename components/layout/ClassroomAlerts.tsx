@@ -64,10 +64,10 @@ export function ClassroomAlerts() {
           window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
           const n = payload.new;
           const path = pathRef.current;
-          // Never interrupt a practice session or exam, and the classroom
-          // itself already shows the call banner.
+          // Never interrupt a practice session, exam or battle, and the
+          // classroom itself already shows the call banner.
           if (n.type !== 'classroom_call' || !n.link || path === n.link) return;
-          if (path.startsWith('/practice/') || path.startsWith('/exam/')) return;
+          if (path.startsWith('/practice/') || path.startsWith('/exam/') || path.includes('/battles/')) return;
           setCall({ id: n.id, message: n.message, link: n.link, url: n.meta?.url });
         })
       .subscribe();

@@ -11,6 +11,8 @@ import { CLASS_DEAL_MIN_PAID, CLASS_DEAL_PERCENT } from '@/lib/classDeal';
 import { ChatPanel } from './ChatPanel';
 import { ResourcesPanel } from './ResourcesPanel';
 import { AlertSettings, PushPrompt } from './Alerts';
+import { BattleBanner, NewBattleModal, RecentBattles } from './Battles';
+import type { BattleSummary } from '@/lib/battles';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import {
   accuracyNumber, classroomErrorMessage, inviteUrl, timeAgo, whatsappShareUrl,
@@ -18,7 +20,7 @@ import {
 } from '@/lib/classrooms';
 import {
   ArrowLeft, Users, UserPlus, Play, Trophy, Flame, Copy, Check, RefreshCw, Crown, Shield,
-  Lock, Eye, EyeOff, LogOut, Trash2, BarChart3, Target, MessageCircle, FolderOpen, Gift, Tag,
+  Lock, Eye, EyeOff, LogOut, Trash2, BarChart3, Target, MessageCircle, FolderOpen, Gift, Tag, Swords,
 } from 'lucide-react';
 
 type Tab = 'chat' | 'week' | 'progress' | 'resources' | 'members';
@@ -66,6 +68,27 @@ export default function ClassroomPage() {
   const [copied, setCopied] = useState<'link' | 'code' | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const [battles, setBattles] = useState<BattleSummary[]>([]);
+  const [showNewBattle, setShowNewBattle] = useState(false);
+
+  // Absent until migration 034 runs — the battle buttons just stay hidden.
+  const [battlesReady, setBattlesReady] = useState(false);
+  const loadBattles = useCallback(async () => {
+    const { data, error } = await createClient().rpc('get_classroom_battles', { p_classroom: id });
+    if (error) return;
+    setBattles((data ?? []) as BattleSummary[]);
+    setBattlesReady(true);
+  }, [id]);
+
+  useEffect(() => {
+    loadBattles();
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`classroom-battles-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'classroom_battles', filter: `classroom_id=eq.${id}` }, () => loadBattles())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, loadBattles]);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -99,6 +122,7 @@ export default function ClassroomPage() {
   }, []);
 
   const me = members.find(m => m.is_me);
+  const activeBattle = battles.find(b => b.status === 'lobby' || b.status === 'live');
   const myRole = me?.role ?? 'member';
   const courseCode = room?.course?.course_code ?? '';
   const courseSlug = courseCode ? courseCodeSlug(courseCode) : '';
@@ -213,7 +237,7 @@ export default function ClassroomPage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:flex gap-2 flex-shrink-0">
+          <div className={`grid ${battlesReady ? 'grid-cols-3' : 'grid-cols-2'} sm:flex gap-2 flex-shrink-0`}>
             <button
               onClick={() => setShowInvite(true)}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white text-blue-700 font-semibold text-xs sm:text-sm hover:bg-blue-50 transition-colors"
@@ -226,6 +250,14 @@ export default function ClassroomPage() {
             >
               <Play className="w-4 h-4" />Practise
             </Link>
+            {battlesReady && (
+              <button
+                onClick={() => (activeBattle ? router.push(`/classrooms/${id}/battles/${activeBattle.id}`) : setShowNewBattle(true))}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 font-semibold text-xs sm:text-sm hover:bg-white/25 transition-colors"
+              >
+                <Swords className="w-4 h-4" />Battle
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -242,6 +274,8 @@ export default function ClassroomPage() {
       )}
 
       <PushPrompt />
+
+      {activeBattle && <BattleBanner classroomId={id} battle={activeBattle} />}
 
       <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-gray-100 dark:bg-white/10">
         {TABS.map(({ key, label, icon: Icon }) => (
@@ -352,6 +386,8 @@ export default function ClassroomPage() {
               {hiddenCount > 0 && <>{hiddenCount} {hiddenCount === 1 ? 'member keeps' : 'members keep'} their progress private.</>}
             </p>
           )}
+
+          {battlesReady && <RecentBattles classroomId={id} battles={battles} onNew={activeBattle ? undefined : () => setShowNewBattle(true)} />}
         </div>
       )}
 
@@ -528,6 +564,10 @@ export default function ClassroomPage() {
       )}
 
       {/* Invite */}
+      {showNewBattle && room && (
+        <NewBattleModal classroomId={id} courseId={room.course_id} onClose={() => setShowNewBattle(false)} />
+      )}
+
       <Modal isOpen={showInvite} onClose={() => setShowInvite(false)} title="Invite your classmates" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Share the link in your class WhatsApp group, or give people the code.</p>

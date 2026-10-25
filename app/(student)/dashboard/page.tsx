@@ -391,7 +391,7 @@ export default function DashboardPage() {
                           <span className="text-lg">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
                           <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{test.course?.course_code}</span>
                           <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'} size="sm">
-                            {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
+                            {test.test_type === 'exam_simulation' ? 'Exam' : test.test_type === 'battle' ? 'Battle' : 'Practice'}
                           </Badge>
                         </div>
                         <span className={`text-sm font-semibold ${
@@ -436,7 +436,7 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-6 py-4">
                             <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'}>
-                              {test.test_type === 'exam_simulation' ? 'Exam' : 'Practice'}
+                              {test.test_type === 'exam_simulation' ? 'Exam' : test.test_type === 'battle' ? 'Battle' : 'Practice'}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">

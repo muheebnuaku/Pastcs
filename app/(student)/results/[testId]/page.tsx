@@ -219,7 +219,7 @@ export default function ResultsPage() {
               : 'bg-gradient-to-br from-red-500 to-pink-500'
         } text-white`}>
           <p className="text-sm text-white/85">
-            {test.course?.course_code} · {test.test_type === 'exam_simulation' ? 'Mock exam' : 'Practice'}
+            {test.course?.course_code} · {test.test_type === 'exam_simulation' ? 'Mock exam' : test.test_type === 'battle' ? 'Class battle' : 'Practice'}
           </p>
           <p className="text-5xl sm:text-6xl font-extrabold tracking-tight mt-2 tabular-nums">
             {formatPercentage(test.percentage)}
