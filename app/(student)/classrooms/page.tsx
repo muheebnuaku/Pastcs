@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { useSubscriptionStore } from '@/lib/store';
+import { useClassroomUnreadStore, useSubscriptionStore, unreadLabel } from '@/lib/store';
 import { PaywallModal } from '../courses/components/PaywallModal';
 import { Button, Input, Modal, Select } from '@/components/ui';
 import { coursesForProgram } from '@/lib/programs';
@@ -28,6 +28,7 @@ export default function ClassroomsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
+  const unread = useClassroomUnreadStore(s => s.counts);
   const [rooms, setRooms] = useState<MyClassroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [notReady, setNotReady] = useState(false);
@@ -225,10 +226,19 @@ export default function ClassroomsPage() {
                     <p className="font-semibold text-gray-900 truncate dark:text-gray-100">{room.name}</p>
                     <p className="text-xs text-gray-500 truncate dark:text-gray-400">{room.courseCode} · {room.courseName}</p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 dark:text-gray-600" />
+                  {(unread[room.id] ?? 0) > 0 ? (
+                    <span className="flex-shrink-0 h-6 min-w-[1.5rem] px-2 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center" aria-label={`${unread[room.id]} new messages`}>
+                      {unreadLabel(unread[room.id])}
+                    </span>
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 dark:text-gray-600" />
+                  )}
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{room.members} {room.members === 1 ? 'member' : 'members'}</span>
+                  <span className="flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" />{room.members} {room.members === 1 ? 'member' : 'members'}
+                    {(unread[room.id] ?? 0) > 0 && <span className="font-semibold text-red-600 dark:text-red-400"> · {unread[room.id] === 1 ? 'New message' : 'New messages'}</span>}
+                  </span>
                   {room.role !== 'member' && (
                     <span className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
                       {room.role === 'owner' ? <Crown className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}

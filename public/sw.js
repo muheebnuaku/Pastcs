@@ -5,7 +5,8 @@
 //  1. make the app installable (a manifest + a fetch handler is what
 //     browsers require for "Add to Home Screen"), and
 //  2. show a friendly offline page instead of the browser's own error
-//     when a full page navigation fails with no network.
+//     when a full page navigation fails with no network, and
+//  3. show web push notifications for classroom calls and @mentions.
 // Anything already in flight (an open practice session) is unaffected —
 // that's the browser's normal HTTP cache and the app's own localStorage
 // pause/resume, not this worker.
@@ -32,5 +33,34 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+  );
+});
+
+// Classroom calls and @mentions (sent by /api/classrooms/push). Tapping
+// one opens the classroom, reusing a PastCS tab if one is open.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
+  const url = typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/classrooms';
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'PastCS', {
+      body: data.body || '',
+      icon: '/past.png',
+      badge: '/past.png',
+      tag: data.tag,
+      data: { url },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || '/classrooms', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => w.url.startsWith(self.location.origin));
+      if (open) return open.navigate(url).then((w) => (w || open).focus());
+      return self.clients.openWindow(url);
+    })
   );
 });

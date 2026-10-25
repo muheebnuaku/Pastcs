@@ -10,7 +10,14 @@ export interface AppNotification {
   message: string;
   is_read: boolean;
   created_at: string;
+  // In-app path to open (classroom calls and @mentions, migration 033).
+  link?: string | null;
+  meta?: { classroom_id?: string; url?: string } | null;
 }
+
+// Fired by ClassroomAlerts when a notification arrives over Realtime, so
+// the bell refreshes without its own subscription.
+export const NOTIFICATIONS_CHANGED = 'pastcs:notifications-changed';
 
 const NOTIF_COOLDOWN_KEY = (userId: string, type: string) =>
   `notif_cooldown_${userId}_${type}`;
@@ -138,6 +145,10 @@ export function useNotifications(userId: string | undefined) {
   }, []);
 
   useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    window.addEventListener(NOTIFICATIONS_CHANGED, fetch);
+    return () => window.removeEventListener(NOTIFICATIONS_CHANGED, fetch);
+  }, [fetch]);
 
   return { notifications, unreadCount, markAllRead, dismiss, refetch: fetch };
 }

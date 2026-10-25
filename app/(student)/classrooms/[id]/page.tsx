@@ -10,6 +10,7 @@ import { Avatar, Button, Modal } from '@/components/ui';
 import { CLASS_DEAL_MIN_PAID, CLASS_DEAL_PERCENT } from '@/lib/classDeal';
 import { ChatPanel } from './ChatPanel';
 import { ResourcesPanel } from './ResourcesPanel';
+import { AlertSettings, PushPrompt } from './Alerts';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import {
   accuracyNumber, classroomErrorMessage, inviteUrl, timeAgo, whatsappShareUrl,
@@ -240,6 +241,8 @@ export default function ClassroomPage() {
         </div>
       )}
 
+      <PushPrompt />
+
       <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-gray-100 dark:bg-white/10">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
@@ -439,6 +442,8 @@ export default function ClassroomPage() {
       {/* ── Members ── */}
       {tab === 'members' && (
         <div className="space-y-5">
+          {me && <AlertSettings classroomId={id} userId={me.user_id} />}
+
           <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:bg-white/[0.04] dark:border-white/10">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Your progress</h2>
             <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Classmates only ever see weekly totals, never your individual answers.</p>

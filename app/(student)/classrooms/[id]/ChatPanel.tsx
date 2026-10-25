@@ -3,8 +3,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui';
+import { useClassroomUnreadStore } from '@/lib/store';
+import { requestClassroomPush } from '@/lib/push';
 import type { ClassroomMemberProgress } from '@/lib/classrooms';
-import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall, PhoneOff } from 'lucide-react';
+import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall, PhoneOff, AtSign } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
@@ -12,7 +14,7 @@ export interface ChatMessage {
   user_id: string;
   kind: 'text' | 'call' | 'call_end' | 'resource';
   body: string;
-  meta: { url?: string; resource_id?: string } | null;
+  meta: { url?: string; resource_id?: string; mentions?: string[] } | null;
   created_at: string;
 }
 
@@ -31,15 +33,23 @@ interface Props {
 // "live" here until its starter or a class leader ends it, or this long.
 const CALL_FRESH_MS = 2 * 60 * 60 * 1000;
 
-// Plain text with web links made clickable — never rendered as HTML.
-function Linkified({ text }: { text: string }) {
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Plain text with web links made clickable and @mentions in bold — never
+// rendered as HTML.
+function Linkified({ text, mentions = [] }: { text: string; mentions?: string[] }) {
   const parts = text.split(/(https?:\/\/[^\s<]+)/g);
+  const mentionRe = mentions.length ? new RegExp(`(${mentions.map(n => `@${escapeRegExp(n)}`).join('|')})`, 'g') : null;
   return (
     <>
       {parts.map((part, i) =>
         /^https?:\/\//.test(part)
           ? <a key={i} href={part} target="_blank" rel="noopener noreferrer nofollow" className="underline break-all">{part}</a>
-          : <Fragment key={i}>{part}</Fragment>
+          : mentionRe
+            ? <Fragment key={i}>{part.split(mentionRe).map((bit, j) => (j % 2 === 1 ? <strong key={j} className="font-semibold">{bit}</strong> : bit))}</Fragment>
+            : <Fragment key={i}>{part}</Fragment>
       )}
     </>
   );
@@ -64,6 +74,12 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
   // whether the call is over, so it ends on the site too.
   const startedCallRef = useRef(false);
   const [askEnd, setAskEnd] = useState(false);
+  const clearUnread = useClassroomUnreadStore(s => s.clear);
+  // @mentions: what's typed after "@", and the names picked from the list
+  // (name → user id) so the message can say who to alert.
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const pickedRef = useRef(new Map<string, string>());
 
   const people = useMemo(() => new Map(members.map(m => [m.user_id, m])), [members]);
 
@@ -100,6 +116,21 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages.length]);
 
+  // Reading the chat clears its unread badge: on open, on each new message
+  // from a classmate, and on coming back to the tab.
+  const lastFromOthers = [...messages].reverse().find(m => m.user_id !== myId)?.id;
+  useEffect(() => {
+    if (loading) return;
+    const markRead = () => {
+      if (document.visibilityState !== 'visible') return;
+      clearUnread(classroomId);
+      createClient().rpc('mark_classroom_read', { p_classroom: classroomId }).then(() => {}, () => {});
+    };
+    markRead();
+    document.addEventListener('visibilitychange', markRead);
+    return () => document.removeEventListener('visibilitychange', markRead);
+  }, [loading, lastFromOthers, classroomId, clearUnread]);
+
   // Keeps "call in progress" fresh without a reload.
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 60000);
@@ -119,21 +150,59 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
       setError(err?.message?.includes('slow_down')
         ? "You're sending messages too fast. Wait a moment and try again."
         : 'Message not sent. Check your connection and try again.');
-      return false;
+      return null;
     }
     addMessage(data as ChatMessage);
-    return true;
+    return data as ChatMessage;
   };
 
   const send = async () => {
-    const body = text.trim();
+    const body = text.trim().slice(0, 2000);
     if (!body || sending) return;
-    if (await post(body.slice(0, 2000))) setText('');
+    const mentions = [...pickedRef.current].filter(([name]) => body.includes(`@${name}`)).map(([, id]) => id);
+    const msg = await post(body, 'text', mentions.length ? { mentions } : {});
+    if (!msg) return;
+    setText('');
+    setMentionQuery(null);
+    pickedRef.current.clear();
+    // The database keeps only real classmates; push goes to those.
+    if (msg.meta?.mentions?.length) requestClassroomPush(msg.id);
   };
 
   const startCall = async () => {
     window.open(callUrl, '_blank', 'noopener,noreferrer');
-    if (await post(`${myName} started a video call`, 'call', { url: callUrl })) startedCallRef.current = true;
+    const msg = await post(`${myName} started a video call`, 'call', { url: callUrl });
+    if (!msg) return;
+    startedCallRef.current = true;
+    requestClassroomPush(msg.id);
+  };
+
+  const suggestions = mentionQuery === null ? [] : members
+    .filter(m => !m.is_me && m.full_name && (
+      m.full_name.toLowerCase().startsWith(mentionQuery)
+      || m.full_name.toLowerCase().split(/\s+/).some(w => w.startsWith(mentionQuery))
+    ))
+    .slice(0, 5);
+
+  const onType = (value: string, caret: number) => {
+    setText(value);
+    const typed = value.slice(0, caret).match(/(?:^|\s)@([^\s@]{0,20})$/);
+    setMentionQuery(typed ? typed[1].toLowerCase() : null);
+  };
+
+  const pickMention = (m: ClassroomMemberProgress) => {
+    const el = inputRef.current;
+    const name = (m.full_name ?? '').trim();
+    if (!el || !name) return;
+    const caret = el.selectionStart ?? text.length;
+    const start = text.slice(0, caret).lastIndexOf('@');
+    if (start < 0) return;
+    const next = `${text.slice(0, start)}@${name} ${text.slice(caret)}`;
+    pickedRef.current.set(name, m.user_id);
+    setText(next);
+    setMentionQuery(null);
+    const at = start + name.length + 2;
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(at, at); });
   };
 
   const endCall = async () => {
@@ -235,6 +304,8 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
           const name = person?.full_name || 'Former member';
           const showName = !mine && (i === 0 || messages[i - 1].user_id !== m.user_id || messages[i - 1].kind !== 'text');
           const canDelete = mine || canModerate;
+          const mentionNames = (m.meta?.mentions ?? []).map(id => people.get(id)?.full_name?.trim()).filter((n): n is string => !!n);
+          const mentionsMe = !mine && !!m.meta?.mentions?.includes(myId);
 
           if (m.kind === 'call' || m.kind === 'call_end' || m.kind === 'resource') {
             const isLiveCall = m.id === lastCall?.id && callLive;
@@ -266,8 +337,8 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
                 {showName && <p className="text-[11px] font-semibold text-gray-500 mb-0.5 ml-1 dark:text-gray-400">{name}</p>}
                 <div className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere] ${
                   mine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-100 text-gray-900 rounded-bl-md dark:bg-white/10 dark:text-gray-100'
-                }`}>
-                  <Linkified text={m.body} />
+                }${mentionsMe ? ' ring-2 ring-amber-400 dark:ring-amber-500/70' : ''}`}>
+                  <Linkified text={m.body} mentions={mentionNames} />
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5 mx-1">
                   <span className="text-[10px] text-gray-400 dark:text-gray-500">{timeLabel(m.created_at)}</span>
@@ -285,14 +356,37 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
       </div>
 
       {error && <p className="px-3 pb-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {suggestions.length > 0 && (
+        <div className="border-t border-gray-100 py-1 dark:border-white/10" role="listbox" aria-label="Mention a classmate">
+          {suggestions.map((m, i) => (
+            <button
+              key={m.user_id}
+              role="option"
+              aria-selected={i === 0}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => pickMention(m)}
+              className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5 ${i === 0 ? 'bg-gray-50 dark:bg-white/5' : ''}`}
+            >
+              <Avatar src={m.avatar_url} name={m.full_name || 'Classmate'} size="sm" />
+              <span className="min-w-0 flex-1 truncate text-gray-900 dark:text-gray-100">{m.full_name}</span>
+              <AtSign className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 dark:text-gray-500" />
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2 p-2 border-t border-gray-100 dark:border-white/10">
         <textarea
+          ref={inputRef}
           value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onChange={e => onType(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+          onKeyDown={e => {
+            if (suggestions.length > 0 && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); pickMention(suggestions[0]); return; }
+            if (e.key === 'Escape') { setMentionQuery(null); return; }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+          }}
           rows={1}
           maxLength={2000}
-          placeholder="Message your class…"
+          placeholder="Message your class… (@ to mention)"
           className="flex-1 resize-none max-h-28 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-white/5 dark:border-white/10 dark:text-gray-100"
         />
         <button
