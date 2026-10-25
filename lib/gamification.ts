@@ -28,10 +28,10 @@ interface AchievementRow {
 }
 
 /**
- * Awards XP and checks/unlocks achievements right after a test or exam
- * simulation is saved. Both the practice and exam pages insert into
- * `tests` directly from the client (there is no shared submit endpoint),
- * so this lives here instead of an API route and is called from both.
+ * Checks/unlocks achievements right after a test or exam simulation is
+ * saved. XP and the streak are awarded by the server when the test is
+ * saved (record_test, migration 034); achievements are still checked
+ * here, from the practice and exam pages.
  *
  * Best-effort: every failure is swallowed after a console.warn — this
  * must never block the student from reaching the results page.
@@ -41,17 +41,7 @@ export async function recordTestGamification(
   userId: string,
   test: CompletedTestInfo
 ): Promise<void> {
-  const xpEarned =
-    test.score * 10 +
-    (test.testType === 'exam_simulation' && test.percentage >= 70 ? 50 : 0);
-
-  const xpPromise = supabase
-    .rpc('increment_xp', { p_user_id: userId, p_amount: xpEarned })
-    .then(({ error }: { error: { message: string } | null }) => {
-      if (error) console.warn('Failed to award XP:', error.message);
-    });
-
-  await Promise.all([xpPromise, awardAchievements(supabase, userId, test)]);
+  await awardAchievements(supabase, userId, test);
 }
 
 async function awardAchievements(

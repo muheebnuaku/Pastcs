@@ -1,20 +1,21 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui';
 import { useClassroomUnreadStore } from '@/lib/store';
 import { requestClassroomPush } from '@/lib/push';
 import type { ClassroomMemberProgress } from '@/lib/classrooms';
-import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall, PhoneOff, AtSign } from 'lucide-react';
+import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall, PhoneOff, AtSign, Swords } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
   classroom_id: string;
   user_id: string;
-  kind: 'text' | 'call' | 'call_end' | 'resource';
+  kind: 'text' | 'call' | 'call_end' | 'resource' | 'battle';
   body: string;
-  meta: { url?: string; resource_id?: string; mentions?: string[] } | null;
+  meta: { url?: string; resource_id?: string; mentions?: string[]; battle_id?: string } | null;
   created_at: string;
 }
 
@@ -307,18 +308,22 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
           const mentionNames = (m.meta?.mentions ?? []).map(id => people.get(id)?.full_name?.trim()).filter((n): n is string => !!n);
           const mentionsMe = !mine && !!m.meta?.mentions?.includes(myId);
 
-          if (m.kind === 'call' || m.kind === 'call_end' || m.kind === 'resource') {
+          if (m.kind === 'call' || m.kind === 'call_end' || m.kind === 'resource' || m.kind === 'battle') {
             const isLiveCall = m.id === lastCall?.id && callLive;
             return (
               <div key={m.id} className="flex justify-center">
                 <div className="flex items-center gap-2 max-w-full text-xs text-gray-600 bg-gray-100 rounded-full px-3 py-1.5 dark:text-gray-300 dark:bg-white/10">
                   {m.kind === 'call' ? <Video className="w-3.5 h-3.5 flex-shrink-0 text-green-600" />
                     : m.kind === 'call_end' ? <PhoneOff className="w-3.5 h-3.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                    : m.kind === 'battle' ? <Swords className="w-3.5 h-3.5 flex-shrink-0 text-purple-600 dark:text-purple-400" />
                     : <Paperclip className="w-3.5 h-3.5 flex-shrink-0 text-blue-600" />}
                   <span className="min-w-0 truncate">{m.body}</span>
                   <span className="text-[10px] text-gray-400 flex-shrink-0 dark:text-gray-500">{timeLabel(m.created_at)}</span>
                   {isLiveCall && m.meta?.url && (
                     <a href={m.meta.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-green-700 dark:text-green-400">Join</a>
+                  )}
+                  {m.kind === 'battle' && m.meta?.battle_id && (
+                    <Link href={`/classrooms/${classroomId}/battles/${m.meta.battle_id}`} className="font-semibold text-purple-700 dark:text-purple-400">Open</Link>
                   )}
                   {m.kind === 'resource' && (
                     <button onClick={onOpenResources} className="font-semibold text-blue-700 dark:text-blue-400">Open</button>

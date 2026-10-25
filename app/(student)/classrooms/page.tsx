@@ -196,7 +196,7 @@ export default function ClassroomsPage() {
             {[
               { icon: Trophy, title: 'Weekly leaderboard', text: 'See who practised most this week' },
               { icon: BarChart3, title: 'Class weak spots', text: 'The topics your class gets wrong most' },
-              { icon: Swords, title: 'Battles, coming soon', text: 'Live quizzes against your classmates' },
+              { icon: Swords, title: 'Class battles', text: 'Live 10-question quizzes against your classmates' },
             ].map(({ icon: Icon, title, text }) => (
               <div key={title} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03]">
                 <Icon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5 dark:text-blue-400" />

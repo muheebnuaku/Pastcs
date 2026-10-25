@@ -11,6 +11,7 @@ import { Card, Button, Badge, Progress, QuestionContent } from '@/components/ui'
 import { shuffleArray, QUESTIONS_PER_PRACTICE, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
+import { submitTest } from '@/lib/submitTest';
 import { courseCountForProgram } from '@/lib/programs';
 import type { Question, Course } from '@/types';
 import {
@@ -70,7 +71,7 @@ function PracticeContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
   const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
@@ -127,6 +128,9 @@ function PracticeContent() {
 
   // ── Fetch fresh questions ────────────────────────────────────────────────────
   const fetchFresh = useCallback(async () => {
+    // Until the profile and subscriptions have loaded every course looks
+    // locked — a refresh mid-practice used to bounce to the course page.
+    if (authLoading) return;
     const supabase = createClient();
     const { data: courseData } = await supabase
       // Case-insensitive — see courses/[courseCode]/page.tsx for why.
@@ -201,7 +205,7 @@ function PracticeContent() {
       const shuffled = shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE);
       setQuestions(shuffled);
     }
-  }, [courseCode, topicId, router, isPaid, isFree, isMistakesMode, isDueMode, user?.id, user?.selected_level, user?.selected_semester, user?.program_id]);
+  }, [authLoading, courseCode, topicId, router, isPaid, isFree, isMistakesMode, isDueMode, user?.id, user?.selected_level, user?.selected_semester, user?.program_id]);
 
   // ── Initial load: detect saved session ─────────────────────────────────────
   useEffect(() => {
@@ -331,68 +335,32 @@ function PracticeContent() {
   const handleFinish = async () => {
     setIsSubmitting(true);
     setSubmitError('');
-    let score = 0;
-    questions.forEach(q => { if (getIsCorrect(q)) score++; });
 
     try {
-      const supabase = createClient();
-
-      // Verify topic_id is still valid — a deleted topic causes a FK violation
-      let safeTopicId: string | null = topicId || null;
-      if (safeTopicId) {
-        const { data: topicCheck } = await supabase
-          .from('topics').select('id').eq('id', safeTopicId).single();
-        if (!topicCheck) safeTopicId = null;
-      }
-
-      const { data: testData, error: testError } = await supabase
-        .from('tests')
-        .insert({
-          user_id: user?.id,
-          course_id: course!.id,
-          topic_id: safeTopicId,
-          test_type: 'practice',
-          score,
-          total_questions: questions.length,
-          percentage: Math.round((score / questions.length) * 100 * 100) / 100,
-          completed_at: new Date().toISOString(),
-        })
-        .select().single();
-
-      if (testError) {
-        // Surface the actual Supabase error message
-        const msg = (testError as { message?: string }).message ?? JSON.stringify(testError);
-        throw new Error(msg);
-      }
-
-      // Save answers — errors here don't block the result page
-      const testAnswers = questions.map(q => ({
-        test_id: testData.id,
-        question_id: q.id,
-        selected_answer: answers[q.id] ?? [],
-        is_correct: getIsCorrect(q),
-        confidence: confidence[q.id] ?? null,
-      }));
-      await supabase.from('test_answers').insert(testAnswers).then((result: { error: { message?: string } | null }) => {
-        if (result.error) console.warn('test_answers insert failed:', result.error.message);
+      // Marked and saved on the server (it also awards XP and the streak).
+      const result = await submitTest({
+        courseId: course!.id,
+        topicId: topicId || null,
+        testType: 'practice',
+        answers: questions.map(q => ({ question_id: q.id, selected: answers[q.id] ?? [], confidence: confidence[q.id] ?? null })),
       });
 
-      if (user?.id) await supabase.rpc('update_practice_streak', { p_user_id: user.id });
+      const supabase = createClient();
       fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
       if (user?.id) {
-        updateReviewSchedule(supabase, user.id, questions.map(q => ({ questionId: q.id, correct: getIsCorrect(q) }))).catch(() => {});
+        updateReviewSchedule(supabase, user.id, result.marks.map(m => ({ questionId: m.question_id, correct: m.is_correct }))).catch(() => {});
         recordTestGamification(supabase, user.id, {
           courseId: course!.id,
           testType: 'practice',
-          score,
-          totalQuestions: questions.length,
-          percentage: Math.round((score / questions.length) * 100 * 100) / 100,
+          score: result.score,
+          totalQuestions: result.total,
+          percentage: Math.round((result.score / result.total) * 100 * 100) / 100,
           timeTaken: null,
         }).catch(() => {});
       }
 
       localStorage.removeItem(storageKey(courseCode, topicId, mode));
-      router.push(`/results/${testData.id}`);
+      router.push(`/results/${result.testId}`);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to submit practice. Please try again.');
     } finally {

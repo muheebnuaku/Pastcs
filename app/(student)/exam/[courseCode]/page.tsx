@@ -11,6 +11,7 @@ import { Card, Button, Badge, Modal, Progress, QuestionContent } from '@/compone
 import { shuffleArray, formatTime, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
+import { submitTest } from '@/lib/submitTest';
 import { courseCountForProgram } from '@/lib/programs';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
@@ -28,7 +29,7 @@ import {
 export default function ExamPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
   const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
@@ -41,6 +42,7 @@ export default function ExamPage() {
   const [lockedQuestions, setLockedQuestions] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState(EXAM_DURATION_MINUTES * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
@@ -48,70 +50,52 @@ export default function ExamPage() {
   const [allLevelCourses, setAllLevelCourses] = useState(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSubmitted = useRef(false);
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
   const { label: priceLabel } = usePricing(user?.selected_level, user?.program_id);
   const isFree = courseCode === user?.free_course_code;
 
   const submitExam = useCallback(async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || !course) return;
     setIsSubmitting(true);
-
-    const supabase = createClient();
-    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
-    const isAnswerCorrect = (q: typeof questions[number]) => {
-      const answer = answers[q.id] || [];
-      if (q.question_type === 'fill_in_blank') {
-        const userAns = norm(answer[0] ?? '');
-        return (q.correct_answers ?? []).some(ca => norm(ca) === userAns);
-      }
-      return JSON.stringify(answer.sort()) === JSON.stringify(q.correct_answers.sort());
-    };
-    let score = 0;
-    questions.forEach(q => { if (isAnswerCorrect(q)) score++; });
+    setSubmitError('');
 
     const timeTaken = (EXAM_DURATION_MINUTES * 60) - timeRemaining;
+    try {
+      // Marked and saved on the server (it also awards XP and the streak).
+      const result = await submitTest({
+        courseId: course.id,
+        topicId: null,
+        testType: 'exam_simulation',
+        answers: questions.map(q => ({ question_id: q.id, selected: answers[q.id] || [] })),
+        timeTaken,
+      });
 
-    const { data: testData } = await supabase
-      .from('tests')
-      .insert({
-        user_id: user?.id,
-        course_id: course?.id,
-        test_type: 'exam_simulation',
-        score,
-        total_questions: questions.length,
-        percentage: (score / questions.length) * 100,
-        time_taken: timeTaken,
-      })
-      .select()
-      .single();
-
-    if (testData) {
-      const testAnswers = questions.map(q => ({
-        test_id: testData.id,
-        question_id: q.id,
-        selected_answer: answers[q.id] || [],
-        is_correct: isAnswerCorrect(q),
-      }));
-      await supabase.from('test_answers').insert(testAnswers);
-      await supabase.rpc('update_practice_streak', { p_user_id: user?.id });
+      const supabase = createClient();
       fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
       if (user?.id) {
-        updateReviewSchedule(supabase, user.id, questions.map(q => ({ questionId: q.id, correct: isAnswerCorrect(q) }))).catch(() => {});
+        updateReviewSchedule(supabase, user.id, result.marks.map(m => ({ questionId: m.question_id, correct: m.is_correct }))).catch(() => {});
         recordTestGamification(supabase, user.id, {
-          courseId: course!.id,
+          courseId: course.id,
           testType: 'exam_simulation',
-          score,
-          totalQuestions: questions.length,
-          percentage: (score / questions.length) * 100,
+          score: result.score,
+          totalQuestions: result.total,
+          percentage: (result.score / result.total) * 100,
           timeTaken,
         }).catch(() => {});
       }
-      router.push(`/results/${testData.id}`);
+      router.push(`/results/${result.testId}`);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Could not submit your exam. Please try again.');
+      setShowSubmitModal(true);
+      setIsSubmitting(false);
     }
   }, [isSubmitting, questions, answers, timeRemaining, course, user, router]);
 
   useEffect(() => {
+    // Until the profile and subscriptions have loaded every course looks locked.
+    if (authLoading) return;
     const fetchQuestions = async () => {
       const supabase = createClient();
 
@@ -157,7 +141,7 @@ export default function ExamPage() {
     };
 
     fetchQuestions();
-  }, [courseCode, router, isPaid, isFree, user?.selected_level, user?.selected_semester, user?.program_id]);
+  }, [authLoading, courseCode, router, isPaid, isFree, user?.selected_level, user?.selected_semester, user?.program_id]);
 
   useEffect(() => {
     if (!examStarted || isSubmitting) return;
@@ -165,7 +149,8 @@ export default function ExamPage() {
       setTimeRemaining(prev => {
         if (prev <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
-          submitExam();
+          // Once: if saving fails, the student retries from the modal.
+          if (!autoSubmitted.current) { autoSubmitted.current = true; submitExam(); }
           return 0;
         }
         if (prev === 300 && !showTimeWarning) setShowTimeWarning(true);
@@ -447,6 +432,9 @@ export default function ExamPage() {
                 You have {questions.length - answeredCount} unanswered questions. Are you sure you want to submit?
               </p>
             </div>
+          )}
+          {submitError && (
+            <p role="alert" className="p-3 rounded-lg bg-red-50 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{submitError}</p>
           )}
           <div className="grid grid-cols-2 gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowSubmitModal(false)}>
