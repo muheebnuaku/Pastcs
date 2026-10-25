@@ -187,3 +187,25 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
     );
   },
 }));
+
+// Classroom unread counts (migration 033) — kept by ClassroomAlerts in the
+// student layout, read by the Classes tab badge and the classroom cards.
+interface ClassroomUnreadStore {
+  counts: Record<string, number>;
+  setCounts: (counts: Record<string, number>) => void;
+  bump: (classroomId: string) => void;
+  clear: (classroomId: string) => void;
+}
+
+export const useClassroomUnreadStore = create<ClassroomUnreadStore>((set) => ({
+  counts: {},
+  setCounts: (counts) => set({ counts }),
+  bump: (classroomId) => set((state) => ({
+    counts: { ...state.counts, [classroomId]: Math.min(100, (state.counts[classroomId] ?? 0) + 1) },
+  })),
+  clear: (classroomId) => set((state) => ({ counts: { ...state.counts, [classroomId]: 0 } })),
+}));
+
+export function unreadLabel(n: number): string {
+  return n > 99 ? '99+' : String(n);
+}

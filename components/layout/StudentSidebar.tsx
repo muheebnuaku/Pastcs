@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn, isAdminRole } from '@/lib/utils';
 import { Avatar } from '@/components/ui';
-import { useAuthStore, useSubscriptionStore } from '@/lib/store';
+import { useAuthStore, useClassroomUnreadStore, useSubscriptionStore, unreadLabel } from '@/lib/store';
 import { useAuth } from '@/components/providers';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessages';
@@ -51,6 +51,7 @@ export function StudentSidebar() {
 
   const { notifications, unreadCount, markAllRead, dismiss } = useNotifications(user?.id);
   const unreadMessages = useUnreadMessageCount(user?.id, pathname);
+  const unreadClass = useClassroomUnreadStore(s => Object.values(s.counts).reduce((a, b) => a + b, 0));
 
   const handleSignOut = async () => {
     await signOut().catch(() => {});
@@ -89,7 +90,14 @@ export function StudentSidebar() {
                     active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
                   )}
                 >
-                  <Icon className="w-5 h-5" />
+                  <span className="relative">
+                    <Icon className="w-5 h-5" />
+                    {href === '/classrooms' && unreadClass > 0 && (
+                      <span className="absolute -top-1.5 left-3 min-w-[1.125rem] h-[1.125rem] px-1 bg-red-500 text-white text-[10px] font-bold leading-none rounded-full flex items-center justify-center ring-2 ring-white dark:ring-[#1c1a15]">
+                        {unreadLabel(unreadClass)}
+                      </span>
+                    )}
+                  </span>
                   {label}
                 </Link>
               );
@@ -100,7 +108,7 @@ export function StudentSidebar() {
             >
               <Menu className="w-5 h-5" />
               More
-              {unreadMessages > 0 && (
+              {(unreadMessages > 0 || unreadCount > 0) && (
                 <span className="absolute top-1.5 left-1/2 ml-2 w-2 h-2 bg-red-500 rounded-full" />
               )}
             </button>
@@ -182,13 +190,20 @@ export function StudentSidebar() {
                           Message from PastCS — tap to open
                         </p>
                       )}
+                      {(n.type === 'classroom_call' || n.type === 'classroom_mention') && (
+                        <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide mb-0.5 dark:text-blue-400">
+                          {n.type === 'classroom_call' ? 'Class call' : 'Mentioned you'} — tap to open
+                        </p>
+                      )}
                       <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{n.message}</p>
                     </div>
                   );
+                  // Only in-app paths are followed (a student can write their own rows).
+                  const href = n.type === 'admin_message' ? '/messages' : n.link?.startsWith('/') ? n.link : null;
                   return (
                     <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 ${!n.is_read ? 'bg-[#fde3da]/60 dark:bg-[#e8603c]/10' : ''}`}>
-                      {n.type === 'admin_message' ? (
-                        <Link href="/messages" onClick={() => { setShowNotifs(false); setIsOpen(false); }} className="flex-1 min-w-0">
+                      {href ? (
+                        <Link href={href} onClick={() => { setShowNotifs(false); setIsOpen(false); }} className="flex-1 min-w-0">
                           {content}
                         </Link>
                       ) : content}
@@ -235,6 +250,11 @@ export function StudentSidebar() {
                 {item.href === '/messages' && unreadMessages > 0 && (
                   <span className="w-4.5 h-4.5 min-w-[1.125rem] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
+                {item.href === '/classrooms' && unreadClass > 0 && (
+                  <span className="h-[1.125rem] min-w-[1.125rem] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadLabel(unreadClass)}
                   </span>
                 )}
               </Link>
