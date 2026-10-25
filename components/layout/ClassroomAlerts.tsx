@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { useAuthStore, useClassroomUnreadStore } from '@/lib/store';
+import { useAuthStore, useClassroomUnreadStore, useSubscriptionStore } from '@/lib/store';
 import { NOTIFICATIONS_CHANGED } from '@/lib/hooks/useNotifications';
 import { PhoneCall, X } from 'lucide-react';
+import type { Subscription } from '@/types';
 
 interface CallAlert {
   id: string;
@@ -63,6 +64,12 @@ export function ClassroomAlerts() {
         (payload: { new: { id: string; type: string; message: string; link: string | null; meta: { url?: string } | null } }) => {
           window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
           const n = payload.new;
+          // A class rep just paid for this student (migration 036): pick up
+          // the new subscription so locked courses open without a reload.
+          if (n.type === 'group_payment') {
+            supabase.from('subscriptions').select('*').eq('user_id', userId).eq('status', 'active')
+              .then(({ data, error }: { data: Subscription[] | null; error: unknown }) => { if (!error && data) useSubscriptionStore.getState().setSubscriptions(data); });
+          }
           const path = pathRef.current;
           // Never interrupt a practice session, exam or battle, and the
           // classroom itself already shows the call banner.

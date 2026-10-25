@@ -195,6 +195,11 @@ export function StudentSidebar() {
                           {n.type === 'classroom_call' ? 'Class call' : 'Mentioned you'} — tap to open
                         </p>
                       )}
+                      {n.type === 'group_payment' && (
+                        <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide mb-0.5 dark:text-green-400">
+                          Unlocked for you — tap to open
+                        </p>
+                      )}
                       <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{n.message}</p>
                     </div>
                   );

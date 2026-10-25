@@ -13,6 +13,7 @@ import { ResourcesPanel } from './ResourcesPanel';
 import { AlertSettings, PushPrompt } from './Alerts';
 import { BattleBanner, NewBattleModal, RecentBattles } from './Battles';
 import { ClassGoals, ExamCountdown, ExamDateModal, PinnedAnnouncements } from './RepTools';
+import { GroupPayCard } from './GroupPay';
 import type { BattleSummary } from '@/lib/battles';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import {
@@ -329,6 +330,7 @@ export default function ClassroomPage() {
         <div className="space-y-4">
           {me && <PinnedAnnouncements classroomId={id} canModerate={canModerate} members={members} allowAdd />}
           {me && <ClassGoals classroomId={id} courseId={room.course_id} canModerate={canModerate} />}
+          {me && canModerate && <GroupPayCard classroomId={id} classroomName={room.name} />}
           {showDeal && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
               <p className="text-sm font-semibold text-amber-900 flex items-center gap-1.5 dark:text-amber-200">
