@@ -34,10 +34,21 @@ export async function POST(request: Request) {
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
       { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
     );
-    const paystackData = await paystackRes.json() as { status: boolean; data?: { status: string; amount: number } };
+    const paystackData = await paystackRes.json() as {
+      status: boolean;
+      data?: { status: string; amount: number; currency?: string; metadata?: { userId?: string; product?: string } };
+    };
 
     if (!paystackData.status || paystackData.data?.status !== 'success') {
       return Response.json({ error: 'Payment not successful' }, { status: 400 });
+    }
+    // Any successful reference used to be accepted here — someone else's,
+    // a course unlock, or a rep's group payment — as long as it was big
+    // enough. Only a tutor checkout made from this account counts.
+    const meta = paystackData.data?.metadata;
+    if (meta?.product !== 'ai_tutor' || meta?.userId !== authUser.id || paystackData.data?.currency !== 'GHS') {
+      console.error('Tutor credits: reference is not a tutor checkout for this account', { reference, userId: authUser.id, meta, currency: paystackData.data?.currency });
+      return Response.json({ error: `This payment isn't a tutor credit purchase on your account. Please contact support with reference ${reference}.` }, { status: 400 });
     }
     // The amount actually paid must match what this plan currently costs —
     // stops a stale/tampered client-side price from buying a pack for less

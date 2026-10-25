@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { coursePriceFor, dealColumns } from '@/lib/coursePricing';
+import { GROUP_REFERENCE_PREFIX } from '@/lib/groupPaymentsServer';
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +19,13 @@ export async function POST(request: Request) {
         { error: 'reference, level, and semester are required' },
         { status: 400 }
       );
+    }
+
+    // A rep's group checkout is settled by /api/payments/group/verify. Its
+    // total would pass the amount check below, so without this the rep
+    // could also unlock themselves with a payment made for classmates.
+    if (String(reference).startsWith(GROUP_REFERENCE_PREFIX)) {
+      return Response.json({ error: 'This payment belongs to a group checkout.' }, { status: 400 });
     }
 
     // A subscription unlocks the student's own program's courses at this
@@ -72,6 +80,11 @@ export async function POST(request: Request) {
     // server's own price for this level, class deal included, and that the
     // payment was made for this account.
     const paidFor = paystackData.data?.metadata?.userId;
+    // A tutor credit purchase is a different product: it mustn't also
+    // unlock a level just because it cost as much.
+    if (paystackData.data?.metadata?.product === 'ai_tutor') {
+      return Response.json({ error: 'This payment was for tutor credits, not a course unlock.' }, { status: 400 });
+    }
     if (paidFor && paidFor !== authUser.id) {
       return Response.json({ error: 'This payment belongs to a different account.' }, { status: 400 });
     }

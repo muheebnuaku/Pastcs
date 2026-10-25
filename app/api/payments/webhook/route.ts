@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { coursePriceFor, dealColumns } from '@/lib/coursePricing';
+import { fulfilGroupPayment, GROUP_REFERENCE_PREFIX } from '@/lib/groupPaymentsServer';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,6 +42,19 @@ export async function POST(request: Request) {
   }
 
   const { reference, amount, metadata } = event.data;
+
+  // A rep paying for classmates (migration 036). The server made this
+  // reference and recorded who it covers, so metadata isn't trusted here.
+  if (typeof reference === 'string' && reference.startsWith(GROUP_REFERENCE_PREFIX)) {
+    try {
+      await fulfilGroupPayment(supabaseAdmin, reference, Number(amount), String(event.data?.currency ?? ''), 'webhook');
+      return Response.json({ received: true });
+    } catch {
+      // Logged inside; non-2xx so Paystack retries.
+      return new Response('Group payment failed', { status: 500 });
+    }
+  }
+
   const userId = metadata?.userId;
   const level = Number(metadata?.level);
   const semester = Number(metadata?.semester);
