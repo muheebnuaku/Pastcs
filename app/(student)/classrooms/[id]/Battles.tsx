@@ -7,7 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Modal } from '@/components/ui';
 import { battleErrorMessage, battlePath, ordinal, type BattleSummary } from '@/lib/battles';
 import { timeAgo } from '@/lib/classrooms';
-import { Loader2, Swords } from 'lucide-react';
+import { isTopicOpen, useCourseAccess } from '@/lib/courseAccess';
+import { Loader2, Lock, Swords } from 'lucide-react';
 
 /** The open lobby or live battle, above the tabs. */
 export function BattleBanner({ classroomId, battle }: { classroomId: string; battle: BattleSummary }) {
@@ -69,8 +70,17 @@ export function RecentBattles({ classroomId, battles, onNew }: { classroomId: st
 }
 
 /** Pick topics (or none for the whole course) and open a lobby. */
-export function NewBattleModal({ classroomId, courseId, onClose }: { classroomId: string; courseId: string; onClose: () => void }) {
+export function NewBattleModal({ classroomId, courseId, battlesLeft, onClose }: {
+  classroomId: string;
+  courseId: string;
+  /** Free-course battles left in this classroom (migration 039); undefined when unlimited. */
+  battlesLeft?: number;
+  onClose: () => void;
+}) {
   const router = useRouter();
+  // On a free course, battles use only the open topics (migration 039).
+  const { access } = useCourseAccess(courseId);
+  const freeLimited = access?.access === 'free';
   const [topics, setTopics] = useState<{ id: string; topic_name: string }[] | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -109,17 +119,27 @@ export function NewBattleModal({ classroomId, courseId, onClose }: { classroomId
             <div className="mt-2 max-h-56 overflow-y-auto space-y-1 pr-1">
               <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 text-sm dark:hover:bg-white/[0.04]">
                 <input type="checkbox" checked={chosen.length === 0} onChange={() => setChosen([])} className="w-4 h-4 accent-purple-600" />
-                <span className="text-gray-900 dark:text-gray-100">All topics</span>
+                <span className="text-gray-900 dark:text-gray-100">{freeLimited ? 'All your open topics' : 'All topics'}</span>
               </label>
-              {topics.map(t => (
+              {topics.map(t => isTopicOpen(access, t.id) ? (
                 <label key={t.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 text-sm dark:hover:bg-white/[0.04]">
                   <input type="checkbox" checked={chosen.includes(t.id)} onChange={() => toggle(t.id)} className="w-4 h-4 accent-purple-600 flex-shrink-0" />
                   <span className="min-w-0 text-gray-900 [overflow-wrap:anywhere] dark:text-gray-100">{t.topic_name}</span>
                 </label>
+              ) : (
+                <div key={t.id} className="flex items-center gap-2.5 px-2 py-1.5 text-sm text-gray-400 dark:text-gray-500">
+                  <Lock className="w-4 h-4 flex-shrink-0" aria-label="Locked" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{t.topic_name}</span>
+                </div>
               ))}
             </div>
           )}
         </div>
+        {battlesLeft !== undefined && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {battlesLeft} of 2 free battles left in this class. Unlock all courses for unlimited battles on every topic.
+          </p>
+        )}
         {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="grid grid-cols-2 gap-2">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/10">Cancel</button>

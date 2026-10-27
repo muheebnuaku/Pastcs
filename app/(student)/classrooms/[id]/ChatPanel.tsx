@@ -7,6 +7,8 @@ import { Avatar } from '@/components/ui';
 import { useClassroomUnreadStore } from '@/lib/store';
 import { requestClassroomPush } from '@/lib/push';
 import type { ClassroomMemberProgress } from '@/lib/classrooms';
+import { hasJoinedCall, left, rememberJoinedCall, type ClassroomLimits } from '@/lib/classroomLimits';
+import { LimitReached, type LimitKind } from './FreeLimits';
 import { Send, Video, Trash2, Loader2, Paperclip, PhoneCall, PhoneOff, AtSign, Swords } from 'lucide-react';
 
 export interface ChatMessage {
@@ -25,7 +27,13 @@ interface Props {
   myName: string;
   members: ClassroomMemberProgress[];
   canModerate: boolean;
-  callUrl: string;
+  /** Shown in the video call. */
+  displayName: string;
+  /** Free-access allowances (migration 039); null means none apply. */
+  limits: ClassroomLimits | null;
+  level?: number;
+  onLimit: (kind: LimitKind) => void;
+  onUsed: () => void;
   onOpenResources: () => void;
 }
 
@@ -63,7 +71,7 @@ function timeLabel(iso: string): string {
   return d.toDateString() === today.toDateString() ? time : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
-export function ChatPanel({ classroomId, myId, myName, members, canModerate, callUrl, onOpenResources }: Props) {
+export function ChatPanel({ classroomId, myId, myName, members, canModerate, displayName, limits, level, onLimit, onUsed, onOpenResources }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -148,6 +156,7 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
       .single();
     setSending(false);
     if (err || !data) {
+      if (err?.message?.includes('free_limit_messages')) { onUsed(); onLimit('messages'); return null; }
       setError(err?.message?.includes('slow_down')
         ? "You're sending messages too fast. Wait a moment and try again."
         : 'Message not sent. Check your connection and try again.');
@@ -163,6 +172,7 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
     const mentions = [...pickedRef.current].filter(([name]) => body.includes(`@${name}`)).map(([, id]) => id);
     const msg = await post(body, 'text', mentions.length ? { mentions } : {});
     if (!msg) return;
+    if (limits?.free) onUsed();
     setText('');
     setMentionQuery(null);
     pickedRef.current.clear();
@@ -170,12 +180,36 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
     if (msg.meta?.mentions?.length) requestClassroomPush(msg.id);
   };
 
-  const startCall = async () => {
-    window.open(callUrl, '_blank', 'noopener,noreferrer');
-    const msg = await post(`${myName} started a video call`, 'call', { url: callUrl });
-    if (!msg) return;
-    startedCallRef.current = true;
-    requestClassroomPush(msg.id);
+  // Start a call, or join the one in progress. The room link only comes
+  // from the server, which counts the join for students on a free course.
+  const openCall = async (start: boolean) => {
+    const wasLive = callLive && !!lastCall;
+    const rejoining = wasLive && hasJoinedCall(classroomId, lastCall!.id);
+    if (limits?.free && left(limits.calls) <= 0 && !rejoining) { onLimit('calls'); return; }
+    // Opened during the tap, so pop-up blockers allow it; pointed at the
+    // room once the server answers.
+    const tab = window.open('', '_blank');
+    setSending(true);
+    setError('');
+    const { data, error: err } = await createClient().rpc('join_classroom_call', { p_classroom: classroomId, p_start: start });
+    setSending(false);
+    if (err || !data) {
+      tab?.close();
+      if (err?.message?.includes('free_limit_calls')) { onUsed(); onLimit('calls'); return; }
+      setError(err?.message?.includes('no_call') ? 'That call has ended.' : "Couldn't open the call. Check your connection and try again.");
+      return;
+    }
+    const { url, message_id } = data as { url: string; message_id: string };
+    const roomUrl = `${url}#userInfo.displayName=${encodeURIComponent(JSON.stringify(displayName))}`;
+    if (tab) { tab.opener = null; tab.location.href = roomUrl; } else window.open(roomUrl, '_blank', 'noopener,noreferrer');
+    rememberJoinedCall(classroomId, message_id);
+    if (limits?.free) onUsed();
+    if (start && !wasLive) {
+      startedCallRef.current = true;
+      requestClassroomPush(message_id);
+      const { data: row } = await createClient().from('classroom_messages').select('*').eq('id', message_id).maybeSingle();
+      if (row) addMessage(row as ChatMessage);
+    }
   };
 
   const suggestions = mentionQuery === null ? [] : members
@@ -244,7 +278,7 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
         </button>
         {!callLive && (
           <button
-            onClick={startCall}
+            onClick={() => openCall(true)}
             disabled={sending}
             className="flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 px-3 py-1.5 rounded-lg transition-colors"
           >
@@ -260,17 +294,17 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
             <span className="flex-1 min-w-0 truncate">
               <span className="font-semibold">Call in progress</span>
               <span className="hidden sm:inline"> · {callStarter} started it {timeLabel(lastCall.created_at)}</span>
+              {limits?.free && limits.calls && (
+                <span className="block text-xs font-normal">{left(limits.calls)} of {limits.calls.limit} free call joins left</span>
+              )}
             </span>
-            {lastCall.meta?.url && (
-              <a
-                href={lastCall.meta.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg"
-              >
-                Join
-              </a>
-            )}
+            <button
+              onClick={() => openCall(false)}
+              disabled={sending}
+              className="flex-shrink-0 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 px-3 py-1.5 rounded-lg"
+            >
+              Join
+            </button>
             {canEndCall && (
               <button
                 onClick={endCall}
@@ -319,8 +353,8 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
                     : <Paperclip className="w-3.5 h-3.5 flex-shrink-0 text-blue-600" />}
                   <span className="min-w-0 truncate">{m.body}</span>
                   <span className="text-[10px] text-gray-400 flex-shrink-0 dark:text-gray-500">{timeLabel(m.created_at)}</span>
-                  {isLiveCall && m.meta?.url && (
-                    <a href={m.meta.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-green-700 dark:text-green-400">Join</a>
+                  {isLiveCall && (
+                    <button onClick={() => openCall(false)} disabled={sending} className="font-semibold text-green-700 dark:text-green-400">Join</button>
                   )}
                   {m.kind === 'battle' && m.meta?.battle_id && (
                     <Link href={`/classrooms/${classroomId}/battles/${m.meta.battle_id}`} className="font-semibold text-purple-700 dark:text-purple-400">Open</Link>
@@ -379,7 +413,17 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
           ))}
         </div>
       )}
-      <div className="flex items-end gap-2 p-2 border-t border-gray-100 dark:border-white/10">
+      {limits?.free && limits.messages && left(limits.messages) <= 0 ? (
+        <div className="p-2 border-t border-gray-100 dark:border-white/10">
+          <LimitReached kind="messages" level={level} onUnlock={() => onLimit('messages')} />
+        </div>
+      ) : (<>
+      {limits?.free && limits.messages && (
+        <p className="px-3 pt-1.5 text-[11px] text-gray-500 border-t border-gray-100 dark:text-gray-400 dark:border-white/10">
+          {left(limits.messages)} of {limits.messages.limit} free messages left in this class
+        </p>
+      )}
+      <div className={`flex items-end gap-2 p-2 ${limits?.free ? '' : 'border-t border-gray-100 dark:border-white/10'}`}>
         <textarea
           ref={inputRef}
           value={text}
@@ -403,6 +447,7 @@ export function ChatPanel({ classroomId, myId, myName, members, canModerate, cal
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
       </div>
+      </>)}
     </div>
   );
 }

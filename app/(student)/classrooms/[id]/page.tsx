@@ -12,6 +12,8 @@ import { AlertSettings, PushPrompt } from './Alerts';
 import { BattleBanner, NewBattleModal, RecentBattles } from './Battles';
 import { ClassGoals, ExamCountdown, ExamDateModal, PinnedAnnouncements } from './RepTools';
 import { GroupPayCard } from './GroupPay';
+import { LimitPaywall, type LimitKind } from './FreeLimits';
+import { left, useClassroomLimits } from '@/lib/classroomLimits';
 import type { BattleSummary } from '@/lib/battles';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import {
@@ -69,6 +71,9 @@ export default function ClassroomPage() {
   const [battles, setBattles] = useState<BattleSummary[]>([]);
   const [showNewBattle, setShowNewBattle] = useState(false);
   const [showExamDate, setShowExamDate] = useState(false);
+  // Free-course allowances in this classroom (migration 039).
+  const { limits, reload: reloadLimits } = useClassroomLimits(id);
+  const [limitPaywall, setLimitPaywall] = useState<LimitKind | null>(null);
 
   // Absent until migration 034 runs — the battle buttons just stay hidden.
   const [battlesReady, setBattlesReady] = useState(false);
@@ -203,7 +208,9 @@ export default function ClassroomPage() {
   const nameOf = (m: ClassroomMemberProgress) => m.full_name || 'Classmate';
   const myName = me?.full_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || 'A classmate';
   const canModerate = myRole === 'owner' || myRole === 'leader';
-  const callUrl = `https://meet.jit.si/PastCS-${id.replace(/-/g, '')}#userInfo.displayName=${encodeURIComponent(JSON.stringify(me?.full_name || myName))}`;
+  const courseLevel = (room.course as { level?: number } | null | undefined)?.level;
+  const courseSemester = (room.course as { semester?: number } | null | undefined)?.semester;
+  const outOfBattles = !!limits?.free && left(limits.battles) <= 0;
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -250,7 +257,7 @@ export default function ClassroomPage() {
             </Link>
             {battlesReady && (
               <button
-                onClick={() => (activeBattle ? router.push(`/classrooms/${id}/battles/${activeBattle.id}`) : setShowNewBattle(true))}
+                onClick={() => (activeBattle ? router.push(`/classrooms/${id}/battles/${activeBattle.id}`) : outOfBattles ? setLimitPaywall('battles') : setShowNewBattle(true))}
                 className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 font-semibold text-xs sm:text-sm hover:bg-white/25 transition-colors"
               >
                 <Swords className="w-4 h-4" />Battle
@@ -304,7 +311,11 @@ export default function ClassroomPage() {
           myName={myName}
           members={members}
           canModerate={canModerate}
-          callUrl={callUrl}
+          displayName={me.full_name || myName}
+          limits={limits}
+          level={courseLevel}
+          onLimit={setLimitPaywall}
+          onUsed={reloadLimits}
           onOpenResources={() => setTab('resources')}
         />
       )}
@@ -375,7 +386,7 @@ export default function ClassroomPage() {
             </p>
           )}
 
-          {battlesReady && <RecentBattles classroomId={id} battles={battles} onNew={activeBattle ? undefined : () => setShowNewBattle(true)} />}
+          {battlesReady && <RecentBattles classroomId={id} battles={battles} onNew={activeBattle ? undefined : () => (outOfBattles ? setLimitPaywall('battles') : setShowNewBattle(true))} />}
         </div>
       )}
 
@@ -557,7 +568,17 @@ export default function ClassroomPage() {
       )}
 
       {showNewBattle && room && (
-        <NewBattleModal classroomId={id} courseId={room.course_id} onClose={() => setShowNewBattle(false)} />
+        <NewBattleModal classroomId={id} courseId={room.course_id} battlesLeft={limits?.free ? left(limits.battles) : undefined} onClose={() => setShowNewBattle(false)} />
+      )}
+
+      {limitPaywall && (
+        <LimitPaywall
+          kind={limitPaywall}
+          level={courseLevel}
+          semester={courseSemester}
+          onClose={() => setLimitPaywall(null)}
+          onUnlocked={() => { setLimitPaywall(null); reloadLimits(); load(); }}
+        />
       )}
 
       <Modal isOpen={showInvite} onClose={() => setShowInvite(false)} title="Invite your classmates" size="sm">

@@ -253,7 +253,12 @@ export default function BattlePage() {
               </>
             )}
           </div>
-          {error && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">
+              {error}
+              {/Unlock all courses/.test(error) && <> <Link href="/courses" className="font-semibold underline">See unlock options</Link></>}
+            </p>
+          )}
         </div>
       </div>
     );
