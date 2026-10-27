@@ -18,7 +18,6 @@ import {
   LogOut,
   Menu,
   Flame,
-  GraduationCap,
   User,
   ShieldCheck,
   BotMessageSquare,
@@ -36,7 +35,6 @@ const studentNavItems = [
   { href: '/classrooms', label: 'Classrooms', icon: Users },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { href: '/achievements', label: 'Achievements', icon: GraduationCap },
   { href: '/profile', label: 'Profile', icon: User },
 ];
 
