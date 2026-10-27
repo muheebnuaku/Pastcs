@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore, useClassroomUnreadStore, useSubscriptionStore } from '@/lib/store';
 import { NOTIFICATIONS_CHANGED } from '@/lib/hooks/useNotifications';
+import { rememberJoinedCall } from '@/lib/classroomLimits';
 import { PhoneCall, X } from 'lucide-react';
 import type { Subscription } from '@/types';
 
@@ -13,7 +14,9 @@ interface CallAlert {
   id: string;
   message: string;
   link: string;
+  /** Older alerts carried the room link; newer ones get it on Join. */
   url?: string;
+  classroomId?: string;
 }
 
 // Mounted once in the student layout. Keeps the classroom unread counts
@@ -22,7 +25,9 @@ interface CallAlert {
 // one-tap Join wherever the student is in the app (migration 033).
 export function ClassroomAlerts() {
   const userId = useAuthStore(s => s.user?.id);
+  const fullName = useAuthStore(s => s.user?.full_name);
   const pathname = usePathname();
+  const router = useRouter();
   const setCounts = useClassroomUnreadStore(s => s.setCounts);
   const bump = useClassroomUnreadStore(s => s.bump);
   const [call, setCall] = useState<CallAlert | null>(null);
@@ -61,7 +66,7 @@ export function ClassroomAlerts() {
           bump(m.classroom_id);
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-        (payload: { new: { id: string; type: string; message: string; link: string | null; meta: { url?: string } | null } }) => {
+        (payload: { new: { id: string; type: string; message: string; link: string | null; meta: { url?: string; classroom_id?: string } | null } }) => {
           window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
           const n = payload.new;
           // A class rep just paid for this student (migration 036): pick up
@@ -75,7 +80,7 @@ export function ClassroomAlerts() {
           // classroom itself already shows the call banner.
           if (n.type !== 'classroom_call' || !n.link || path === n.link) return;
           if (path.startsWith('/practice/') || path.startsWith('/exam/') || path.includes('/battles/')) return;
-          setCall({ id: n.id, message: n.message, link: n.link, url: n.meta?.url });
+          setCall({ id: n.id, message: n.message, link: n.link, url: n.meta?.url, classroomId: n.meta?.classroom_id });
         })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -92,6 +97,24 @@ export function ClassroomAlerts() {
     if (call && pathname === call.link) setCall(null);
   }, [pathname, call]);
 
+  // The room link comes from the server, which counts the join for a
+  // student on a free course (migration 039). If they're out of joins,
+  // the classroom explains why and how to unlock.
+  const joinCall = async (alert: CallAlert) => {
+    setCall(null);
+    const tab = window.open('', '_blank');
+    const { data, error } = await createClient().rpc('join_classroom_call', { p_classroom: alert.classroomId, p_start: false });
+    if (error || !data) {
+      tab?.close();
+      router.push(alert.link);
+      return;
+    }
+    const { url, message_id } = data as { url: string; message_id: string };
+    if (alert.classroomId) rememberJoinedCall(alert.classroomId, message_id);
+    const roomUrl = `${url}#userInfo.displayName=${encodeURIComponent(JSON.stringify(fullName || 'Classmate'))}`;
+    if (tab) { tab.opener = null; tab.location.href = roomUrl; } else window.open(roomUrl, '_blank', 'noopener,noreferrer');
+  };
+
   if (!call) return null;
 
   return (
@@ -106,7 +129,7 @@ export function ClassroomAlerts() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 [overflow-wrap:anywhere]">{call.message}</p>
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            {call.url && (
+            {call.url ? (
               <a
                 href={call.url}
                 target="_blank"
@@ -116,6 +139,13 @@ export function ClassroomAlerts() {
               >
                 Join call
               </a>
+            ) : call.classroomId && (
+              <button
+                onClick={() => joinCall(call)}
+                className="text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg"
+              >
+                Join call
+              </button>
             )}
             <Link
               href={call.link}

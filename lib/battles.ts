@@ -76,6 +76,8 @@ const ERRORS: Record<string, string> = {
   already_answered: 'You’ve already locked in an answer.',
   not_in_battle: 'You’re watching this battle, not playing in it.',
   not_a_member: 'You’re not a member of this classroom.',
+  free_limit_battles: 'You’ve played your 2 free battles in this class. Unlock all courses for unlimited battles.',
+  battle_topics_locked: 'This battle uses topics your free course doesn’t include. Unlock all courses to join it.',
 };
 
 export function battleErrorMessage(error: { message?: string } | null | undefined): string {
