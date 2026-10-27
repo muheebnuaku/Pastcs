@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { coursePriceFor, dealColumns } from '@/lib/coursePricing';
+import { coursePriceFor } from '@/lib/coursePricing';
 import { fulfilGroupPayment, GROUP_REFERENCE_PREFIX } from '@/lib/groupPaymentsServer';
 
 const supabaseAdmin = createClient(
@@ -90,12 +90,12 @@ export async function POST(request: Request) {
   }
 
   // Same amount check as /api/payments/verify: never unlock on less than
-  // the server's own price for this level (class deal included). A 200
+  // the server's own price for this level. A 200
   // stops Paystack retrying — this is a permanent rejection, logged loudly
   // so support can sort out a genuine underpayment by hand.
-  const expected = await coursePriceFor(supabaseAdmin, userId, userData.program_id, level, semester);
-  if (event.data?.currency !== 'GHS' || !(Number(amount) >= expected.amount)) {
-    console.error('Paystack webhook: amount below price, not unlocking', { reference, userId, level, semester, amount, expected: expected.amount, currency: event.data?.currency });
+  const expected = await coursePriceFor(supabaseAdmin, userData.program_id, level);
+  if (event.data?.currency !== 'GHS' || !(Number(amount) >= expected)) {
+    console.error('Paystack webhook: amount below price, not unlocking', { reference, userId, level, semester, amount, expected, currency: event.data?.currency });
     return Response.json({ received: true });
   }
 
@@ -109,9 +109,9 @@ export async function POST(request: Request) {
     status: 'active',
     paid_at: new Date().toISOString(),
   };
-  let { error } = await supabaseAdmin.from('subscriptions').insert({ ...row, ...dealColumns(expected) });
+  let { error } = await supabaseAdmin.from('subscriptions').insert({ ...row, full_amount: expected });
   // Same fallback as /api/payments/verify for a database without 032.
-  if (error && /full_amount|deal_classroom_id/.test(error.message)) {
+  if (error && /full_amount/.test(error.message)) {
     ({ error } = await supabaseAdmin.from('subscriptions').insert(row));
   }
 

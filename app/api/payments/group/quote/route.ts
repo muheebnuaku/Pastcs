@@ -3,8 +3,8 @@ import { groupPayErrorMessage, type GroupPayCandidate, type GroupPayQuote } from
 import { priceGroupPayment } from '@/lib/groupPaymentsPricing';
 
 // GET /api/payments/group/quote?classroom= — for a class rep: which
-// classmates they can pay for, and the price per classmate (class deal
-// applied). /api/payments/group/start charges exactly this.
+// classmates they can pay for, and the price per classmate.
+// /api/payments/group/start charges exactly this.
 export async function GET(request: Request) {
   const auth = await requireUser();
   if (auth instanceof Response) return auth;
@@ -24,10 +24,6 @@ export async function GET(request: Request) {
     if ('error' in price) return Response.json({ error: groupPayErrorMessage(price.error) }, { status: 400 });
     const quote: GroupPayQuote = {
       unitAmount: price.unitAmount,
-      fullUnitAmount: price.fullUnitAmount,
-      dealActive: price.dealActive,
-      paidCount: price.paidCount,
-      percent: price.percent,
       level: price.level,
       semester: price.semester,
       candidates: (candidates ?? []) as GroupPayCandidate[],

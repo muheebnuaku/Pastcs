@@ -3371,3 +3371,13 @@ REVOKE EXECUTE ON FUNCTION public.get_my_group_payments(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_group_payments(UUID) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
+-- CLASS DEAL REMOVED — see migration 037
+-- ================================================================
+-- Let members see how many classmates had paid, for the deal's progress bar.
+DROP FUNCTION IF EXISTS public.get_class_deal(UUID);
+-- Priced the deal for the payment routes.
+DROP FUNCTION IF EXISTS public.class_deal_for(UUID, INTEGER, INTEGER);
+
+NOTIFY pgrst, 'reload schema';

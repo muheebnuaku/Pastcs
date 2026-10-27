@@ -253,12 +253,9 @@ function GroupPayModal({ classroomId, onClose, onDone }: { classroomId: string; 
 
           <div className="rounded-xl bg-gray-50 p-3 text-sm space-y-1 dark:bg-white/[0.04]">
             <div className="flex justify-between gap-3 text-gray-600 dark:text-gray-400">
-              <span>{count} × {ghc(quote.unitAmount)}{quote.dealActive && <span className="line-through ml-1.5 text-gray-400">{ghc(quote.fullUnitAmount)}</span>}</span>
+              <span>{count} × {ghc(quote.unitAmount)}</span>
               <span className="tabular-nums">{ghc(total)}</span>
             </div>
-            {quote.dealActive && (
-              <p className="text-green-700 dark:text-green-300">Class deal: {quote.percent}% off each, because {quote.paidCount} classmates have unlocked.</p>
-            )}
             <div className="flex justify-between gap-3 font-bold text-gray-900 pt-1 border-t border-gray-200 dark:text-gray-100 dark:border-white/10">
               <span>Total</span><span className="tabular-nums">{ghc(total)}</span>
             </div>

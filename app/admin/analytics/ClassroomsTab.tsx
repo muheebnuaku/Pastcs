@@ -155,7 +155,7 @@ export function ClassroomsTab() {
       </div>
 
       {/* Money */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 ${stats.payments_with_deal > 0 ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"><UserPlus className="w-4 h-4 text-green-600 dark:text-green-400" />How people join</div>
@@ -190,9 +190,12 @@ export function ClassroomsTab() {
           </CardContent>
         </Card>
 
+        {/* The class deal was removed in migration 037; this only shows
+            while discounted payments are still inside the date range. */}
+        {stats.payments_with_deal > 0 && (
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"><Percent className="w-4 h-4 text-amber-600 dark:text-amber-400" />Class deal</div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"><Percent className="w-4 h-4 text-amber-600 dark:text-amber-400" />Class deal (ended)</div>
             <p className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">All payments in the last {stats.days} days</p>
             <p className="text-3xl font-bold text-gray-900 mt-4 dark:text-gray-100">{pct(stats.payments_with_deal, stats.payments_total)}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -200,6 +203,7 @@ export function ClassroomsTab() {
             </p>
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* Daily trend */}

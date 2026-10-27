@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-import { coursePriceFor, dealColumns } from '@/lib/coursePricing';
+import { coursePriceFor } from '@/lib/coursePricing';
 import { GROUP_REFERENCE_PREFIX } from '@/lib/groupPaymentsServer';
 
 export async function POST(request: Request) {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     // The amount and level used to be trusted as sent by the browser, so a
     // tampered checkout could pay a few pesewas (or a cheaper level's price)
     // and still unlock. Check what Paystack actually charged against the
-    // server's own price for this level, class deal included, and that the
+    // server's own price for this level, and that the
     // payment was made for this account.
     const paidFor = paystackData.data?.metadata?.userId;
     // A tutor credit purchase is a different product: it mustn't also
@@ -88,10 +88,10 @@ export async function POST(request: Request) {
     if (paidFor && paidFor !== authUser.id) {
       return Response.json({ error: 'This payment belongs to a different account.' }, { status: 400 });
     }
-    const expected = await coursePriceFor(adminSupabase, authUser.id, userData.program_id, Number(level), Number(semester));
+    const expected = await coursePriceFor(adminSupabase, userData.program_id, Number(level));
     const charged = Number(paystackData.data?.amount);
-    if (paystackData.data?.currency !== 'GHS' || !Number.isFinite(charged) || charged < expected.amount) {
-      console.error('Payment amount mismatch', { reference, userId: authUser.id, level, semester, charged, expected: expected.amount, currency: paystackData.data?.currency });
+    if (paystackData.data?.currency !== 'GHS' || !Number.isFinite(charged) || charged < expected) {
+      console.error('Payment amount mismatch', { reference, userId: authUser.id, level, semester, charged, expected, currency: paystackData.data?.currency });
       return Response.json(
         { error: `The amount paid doesn't match the price for this level. Please contact support with reference ${reference}.` },
         { status: 400 }
@@ -108,10 +108,10 @@ export async function POST(request: Request) {
       status: 'active',
       paid_at: new Date().toISOString(),
     };
-    let { error } = await adminSupabase.from('subscriptions').insert({ ...row, ...dealColumns(expected) });
-    // Before migration 032 the deal columns don't exist — never let
+    let { error } = await adminSupabase.from('subscriptions').insert({ ...row, full_amount: expected });
+    // Before migration 032 the full_amount column doesn't exist — never let
     // analytics bookkeeping lose a payment.
-    if (error && /full_amount|deal_classroom_id/.test(error.message)) {
+    if (error && /full_amount/.test(error.message)) {
       ({ error } = await adminSupabase.from('subscriptions').insert(row));
     }
 

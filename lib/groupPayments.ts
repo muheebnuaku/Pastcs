@@ -12,10 +12,6 @@ export interface GroupPayCandidate {
 
 export interface GroupPayQuote {
   unitAmount: number;
-  fullUnitAmount: number;
-  dealActive: boolean;
-  paidCount: number;
-  percent: number;
   level: number;
   semester: number;
   candidates: GroupPayCandidate[];
@@ -29,6 +25,7 @@ export interface GroupPayReceipt {
   semester: number;
   unit_amount: number;
   full_unit_amount: number;
+  /** Only on checkouts from before the class deal was removed. */
   deal: boolean;
   total: number;
   amount_paid: number | null;

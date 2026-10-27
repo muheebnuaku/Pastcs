@@ -29,8 +29,8 @@ export async function POST(request: Request) {
       p_classroom: classroomId,
       p_students: studentIds,
       p_unit_amount: price.unitAmount,
-      p_full_unit_amount: price.fullUnitAmount,
-      p_deal: price.dealActive,
+      p_full_unit_amount: price.unitAmount,
+      p_deal: false,
     });
     if (error) {
       const known = KNOWN_ERRORS.test(error.message);
