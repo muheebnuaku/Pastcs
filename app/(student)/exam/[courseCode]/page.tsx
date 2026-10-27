@@ -13,6 +13,7 @@ import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
 import { submitTest } from '@/lib/submitTest';
 import { courseCountForProgram } from '@/lib/programs';
+import { fetchCourseAccess, openQuestionsOnly } from '@/lib/courseAccess';
 import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Question, Course } from '@/types';
 import {
@@ -48,6 +49,7 @@ export default function ExamPage() {
   const [examStarted, setExamStarted] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [allLevelCourses, setAllLevelCourses] = useState(0);
+  const [freeLimited, setFreeLimited] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitted = useRef(false);
@@ -134,8 +136,13 @@ export default function ExamPage() {
         .eq('is_approved', true)
         .limit(100);
 
-      if (questionsData && questionsData.length > 0) {
-        const shuffled = shuffleArray(questionsData as Question[]).slice(0, QUESTIONS_PER_EXAM);
+      // On free access the exam draws only on the open topics (migration
+      // 038); questions answered before a topic locked can't be saved.
+      const access = await fetchCourseAccess(supabase, courseData.id);
+      setFreeLimited(access?.access === 'free');
+      const usable = openQuestionsOnly((questionsData ?? []) as Question[], access);
+      if (usable.length > 0) {
+        const shuffled = shuffleArray(usable).slice(0, QUESTIONS_PER_EXAM);
         setQuestions(shuffled);
       }
     };
@@ -237,6 +244,12 @@ export default function ExamPage() {
               </li>
             </ul>
           </div>
+
+          {freeLimited && (
+            <p className="text-sm text-blue-800 bg-blue-50 rounded-xl px-4 py-3 mb-4 text-left dark:bg-blue-500/10 dark:text-blue-300">
+              On your free course, the mock exam covers its first 2 topics. Unlock all courses to be tested on every topic.
+            </p>
+          )}
 
           <Button size="lg" onClick={() => setExamStarted(true)} className="w-full">
             Start Exam

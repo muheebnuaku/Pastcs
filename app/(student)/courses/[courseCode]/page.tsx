@@ -11,6 +11,7 @@ import { Card, CardContent, Button } from '@/components/ui';
 import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, decodeRouteParam, courseCodeSlug } from '@/lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
 import { courseCountForProgram } from '@/lib/programs';
+import { isTopicOpen, useCourseAccess } from '@/lib/courseAccess';
 import type { Course, Topic } from '@/types';
 import {
   ArrowLeft,
@@ -28,7 +29,7 @@ import {
 export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { hasActiveSub } = useSubscriptionStore();
 
   const courseCode = decodeRouteParam(params.courseCode as string).toUpperCase();
@@ -100,6 +101,19 @@ export default function CourseDetailPage() {
     fetchCount();
   }, [course?.id, user?.selected_level, user?.selected_semester, user?.program_id]);
 
+  // On free access only the first 2 topics are open (migration 038).
+  const { access } = useCourseAccess(course?.id);
+  const freeLimited = access?.access === 'free';
+
+  // No free course picked yet: back to the course list to pick one. In an
+  // effect, once sign-in has loaded — calling router.push during render
+  // was a React error, and before the profile loaded every course looked
+  // locked, so a refresh could bounce a student off the page.
+  const needsFreeCourse = !!course && !authLoading && !!user && !hasAccess && !user.free_course_code;
+  useEffect(() => {
+    if (needsFreeCourse) router.push('/courses');
+  }, [needsFreeCourse, router]);
+
   if (!course) {
     return (
       <div className="text-center py-12">
@@ -112,10 +126,7 @@ export default function CourseDetailPage() {
   }
 
   // No free course selected yet — send back to courses to pick
-  if (!hasAccess && !user?.free_course_code) {
-    router.push('/courses');
-    return null;
-  }
+  if (!hasAccess && !user?.free_course_code) return null;
 
   const slug = courseCodeSlug(course.course_code);
   const icon = course.icon || COURSE_ICONS[course.course_code] || '📚';
@@ -214,6 +225,9 @@ export default function CourseDetailPage() {
     );
   }
 
+  const topicOpen = (idx: number) => (topicIdGroups[idx] ?? [topics[idx].id]).some(id => isTopicOpen(access, id));
+  const openTopicCount = topics.filter((_, idx) => topicOpen(idx)).length;
+
   // Full class strings (not interpolated fragments) so Tailwind picks them up.
   const tiles = [
     { href: `/practice/${slug}?mode=quick`, icon: Zap, title: 'Quick Practice', sub: `${QUESTIONS_PER_PRACTICE} questions · no timer`, iconBox: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400', hover: 'hover:border-blue-300 dark:hover:border-blue-500/40' },
@@ -226,11 +240,13 @@ export default function CourseDetailPage() {
     <div className="space-y-5 animate-fade-in">
       {backLink}
 
-      {isFree && !isPaid && allLevelCourses > 1 && (
+      {isFree && !isPaid && (freeLimited || allLevelCourses > 1) && (
         <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-sm text-blue-800 dark:text-blue-300">
             <span className="font-semibold">This is your free course.</span>{' '}
-            Unlock the other {allLevelCourses - 1} for {priceLabel} this semester.
+            {freeLimited
+              ? <>The first {openTopicCount} {openTopicCount === 1 ? 'topic is' : 'topics are'} open. Unlock all {topics.length} topics{allLevelCourses > 1 ? <>, plus the other {allLevelCourses - 1} courses,</> : ''} for {priceLabel} this semester.</>
+              : <>Unlock the other {allLevelCourses - 1} for {priceLabel} this semester.</>}
           </p>
           <Button size="sm" onClick={() => setShowPaywall(true)} className="w-full sm:w-auto flex-shrink-0">
             Unlock all
@@ -268,7 +284,7 @@ export default function CourseDetailPage() {
         <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Practice by topic</h2>
         {topics.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {topics.map((topic, idx) => (
+            {topics.map((topic, idx) => topicOpen(idx) ? (
               <Link
                 key={topic.id}
                 href={`/practice/${slug}?topic=${(topicIdGroups[idx] ?? [topic.id]).join(',')}`}
@@ -285,6 +301,21 @@ export default function CourseDetailPage() {
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 dark:text-gray-600 transition-colors" />
               </Link>
+            ) : (
+              <button
+                key={topic.id}
+                onClick={() => setShowPaywall(true)}
+                aria-label={`${topic.topic_name} is locked. Unlock all courses`}
+                className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 border border-dashed border-gray-300 text-left hover:border-blue-300 transition-colors dark:bg-white/[0.02] dark:border-white/15 dark:hover:border-blue-500/40"
+              >
+                <span className="w-8 h-8 rounded-lg bg-gray-200 text-gray-500 flex items-center justify-center flex-shrink-0 dark:bg-white/10 dark:text-gray-400">
+                  <Lock className="w-4 h-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-medium text-gray-500 dark:text-gray-400 text-sm sm:text-base">{topic.topic_name}</h3>
+                  <p className="text-xs text-blue-600 mt-0.5 dark:text-blue-400">Unlock all courses at {priceLabel}</p>
+                </div>
+              </button>
             ))}
           </div>
         ) : (

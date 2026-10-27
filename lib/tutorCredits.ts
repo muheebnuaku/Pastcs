@@ -5,11 +5,17 @@ import type { createClient } from '@/lib/supabase/server';
 
 type UserClient = Awaited<ReturnType<typeof createClient>>;
 
-// AI Tutor document lessons. Free accounts get FREE_LESSONS, students with
-// an active course subscription get PAID_LESSONS, and purchased credit
-// packs are added on top of either (they used to replace the free 5).
+// AI Tutor document lessons (one uploaded document = one lesson).
+// Students with an active course subscription get PAID_LESSONS. Free
+// accounts get FREE_WINDOW_UPLOADS at a time: each one comes back
+// FREE_WINDOW_HOURS after it was used. Purchased credit packs work as
+// before on top (a lifetime pool of FREE_LESSONS + the packs, which is what
+// they bought into), and are only drawn on once the free uploads are used.
 export const FREE_LESSONS = 5;
 export const PAID_LESSONS = 100;
+export const FREE_WINDOW_UPLOADS = 3;
+export const FREE_WINDOW_HOURS = 3;
+const FREE_WINDOW_EVENT = 'tutor_free_upload';
 
 // Usage is recorded server-side only. 'document_upload' rows were written
 // by the browser before this existed and still count, so existing
@@ -29,15 +35,24 @@ export interface TutorQuota {
   isPaid: boolean;
   limit: number;
   remaining: number;
+  /** Free accounts only: the rolling allowance. */
+  freeWindow: { limit: number; used: number; nextAt: string | null } | null;
 }
 
 export async function getTutorQuota(userId: string, supabase: UserClient): Promise<TutorQuota> {
   const svc = serviceClient();
-  const [usedRes, creditsRes, profileRes] = await Promise.all([
+  const windowStart = new Date(Date.now() - FREE_WINDOW_HOURS * 3600 * 1000).toISOString();
+  const [usedRes, windowRes, creditsRes, profileRes] = await Promise.all([
     svc.from('feature_events')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .in('event', USED_EVENTS),
+    svc.from('feature_events')
+      .select('created_at')
+      .eq('user_id', userId)
+      .eq('event', FREE_WINDOW_EVENT)
+      .gt('created_at', windowStart)
+      .order('created_at', { ascending: true }),
     svc.from('ai_tutor_credits').select('total_credits').eq('user_id', userId),
     supabase.from('user_public')
       .select('selected_level, selected_semester, program_id')
@@ -69,8 +84,26 @@ export async function getTutorQuota(userId: string, supabase: UserClient): Promi
     isPaid = !!sub && isSubscriptionCurrentlyActive(sub, terms ?? []);
   }
 
-  const limit = (isPaid ? PAID_LESSONS : FREE_LESSONS) + purchased;
-  return { used, purchased, isPaid, limit, remaining: Math.max(0, limit - used) };
+  if (isPaid) {
+    const limit = PAID_LESSONS + purchased;
+    return { used, purchased, isPaid, limit, remaining: Math.max(0, limit - used), freeWindow: null };
+  }
+
+  const windowUses = ((windowRes.data ?? []) as { created_at: string }[]).map(r => r.created_at);
+  const windowLeft = Math.max(0, FREE_WINDOW_UPLOADS - windowUses.length);
+  // The oldest upload in the window is the next one to come back.
+  const nextAt = windowUses.length > 0
+    ? new Date(new Date(windowUses[0]).getTime() + FREE_WINDOW_HOURS * 3600 * 1000).toISOString()
+    : null;
+  const packLeft = purchased > 0 ? Math.max(0, FREE_LESSONS + purchased - used) : 0;
+  return {
+    used,
+    purchased,
+    isPaid,
+    limit: FREE_WINDOW_UPLOADS + packLeft,
+    remaining: windowLeft + packLeft,
+    freeWindow: { limit: FREE_WINDOW_UPLOADS, used: windowUses.length, nextAt },
+  };
 }
 
 // ── Lesson pass (signed, stateless) ──────────────────────────────────────
@@ -125,9 +158,19 @@ export async function recordLessonEvent(
   });
 }
 
-/** Charges the lesson's credit once — the first time any part of it is
- * actually delivered. Later parts and retries of the same lesson are free. */
-export async function markLessonUsed(userId: string, lessonId: string): Promise<void> {
-  if (await countLessonEvents(lessonId, 'tutor_lesson_used') > 0) return;
-  await recordLessonEvent(userId, lessonId, 'tutor_lesson_used');
+/** Has this lesson been charged yet (from either pool)? */
+export async function isLessonCharged(lessonId: string): Promise<boolean> {
+  return await countLessonEvents(lessonId, 'tutor_lesson_used') > 0
+    || await countLessonEvents(lessonId, FREE_WINDOW_EVENT) > 0;
+}
+
+/** Charges the lesson once — the first time any part of it is actually
+ * delivered. Later parts and retries of the same lesson are free. A free
+ * account uses one of its rolling uploads if it has one left, and only
+ * then its purchased pack. */
+export async function markLessonUsed(userId: string, lessonId: string, supabase: UserClient): Promise<void> {
+  if (await isLessonCharged(lessonId)) return;
+  const quota = await getTutorQuota(userId, supabase);
+  const fromWindow = !!quota.freeWindow && quota.freeWindow.used < quota.freeWindow.limit;
+  await recordLessonEvent(userId, lessonId, fromWindow ? FREE_WINDOW_EVENT : 'tutor_lesson_used');
 }

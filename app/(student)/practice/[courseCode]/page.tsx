@@ -13,6 +13,7 @@ import { updateReviewSchedule } from '@/lib/spacedRepetition';
 import { recordTestGamification } from '@/lib/gamification';
 import { submitTest } from '@/lib/submitTest';
 import { courseCountForProgram } from '@/lib/programs';
+import { fetchCourseAccess, isTopicOpen, openQuestionsOnly } from '@/lib/courseAccess';
 import type { Question, Course } from '@/types';
 import {
   ArrowLeft,
@@ -99,6 +100,9 @@ function PracticeContent() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [allLevelCourses, setAllLevelCourses] = useState(0);
   const [resumeOffer, setResumeOffer] = useState<PausedState | null>(null);
+  // Free access opens only the first 2 topics (migration 038).
+  const [freeLimited, setFreeLimited] = useState(false);
+  const [topicLocked, setTopicLocked] = useState(false);
   const [isLoadingResume, setIsLoadingResume] = useState(false);
 
   const isPaid = hasActiveSub(user?.selected_level, user?.selected_semester, user?.program_id);
@@ -141,6 +145,8 @@ function PracticeContent() {
     trackEvent('practice_start', { course: courseCode, topicId: topicId ?? undefined });
 
     if (!isPaid && !isFree) { router.push(`/courses/${courseCodeSlug(courseCode)}`); return; }
+    const access = await fetchCourseAccess(supabase, courseData.id);
+    setFreeLimited(access?.access === 'free');
 
     if (user?.selected_level && user?.selected_semester && user?.program_id) {
       const { count } = await courseCountForProgram(supabase, user.program_id)
@@ -166,7 +172,7 @@ function PracticeContent() {
       const { data: qs } = await supabase.from('questions').select('*')
         .in('id', missedIds).eq('is_approved', true);
       if (qs && qs.length > 0) {
-        setQuestions(shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE));
+        setQuestions(shuffleArray(openQuestionsOnly(qs as unknown as Question[], access)).slice(0, QUESTIONS_PER_PRACTICE));
       }
       return;
     }
@@ -188,7 +194,7 @@ function PracticeContent() {
       const { data: qs } = await supabase.from('questions').select('*')
         .eq('course_id', courseData.id).in('id', dueIds).eq('is_approved', true);
       if (qs && qs.length > 0) {
-        setQuestions(shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE));
+        setQuestions(shuffleArray(openQuestionsOnly(qs as unknown as Question[], access)).slice(0, QUESTIONS_PER_PRACTICE));
       }
       return;
     }
@@ -196,13 +202,14 @@ function PracticeContent() {
     let query = supabase.from('questions').select('*')
       .eq('course_id', courseData.id).eq('is_approved', true);
     if (topicId) {
-      const ids = topicId.split(',');
+      const ids = topicId.split(',').filter((id: string) => isTopicOpen(access, id));
+      if (ids.length === 0) { setTopicLocked(true); return; }
       query = ids.length === 1 ? query.eq('topic_id', ids[0]) : query.in('topic_id', ids);
     }
 
     const { data: qs } = await query.limit(200);
     if (qs && qs.length > 0) {
-      const shuffled = shuffleArray(qs as unknown as Question[]).slice(0, QUESTIONS_PER_PRACTICE);
+      const shuffled = shuffleArray(openQuestionsOnly(qs as unknown as Question[], access)).slice(0, QUESTIONS_PER_PRACTICE);
       setQuestions(shuffled);
     }
   }, [authLoading, courseCode, topicId, router, isPaid, isFree, isMistakesMode, isDueMode, user?.id, user?.selected_level, user?.selected_semester, user?.program_id]);
@@ -236,10 +243,13 @@ function PracticeContent() {
         setAllLevelCourses(count ?? 0);
       }
 
+      const access = courseData ? await fetchCourseAccess(supabase, courseData.id) : null;
+      setFreeLimited(access?.access === 'free');
       const { data: qs } = await supabase.from('questions').select('*').in('id', resumeOffer.questionIds);
       if (qs) {
+        const open = openQuestionsOnly(qs as unknown as Question[], access);
         const ordered = resumeOffer.questionIds
-          .map(id => (qs as unknown as Question[]).find(q => q.id === id))
+          .map(id => open.find(q => q.id === id))
           .filter(Boolean) as Question[];
         setQuestions(ordered);
         setAnswers(resumeOffer.answers);
@@ -398,6 +408,27 @@ function PracticeContent() {
     );
   }
 
+  if (topicLocked) {
+    return (
+      <div className="text-center py-12 max-w-md mx-auto">
+        <Lock className="w-14 h-14 text-gray-300 dark:text-white/15 mx-auto mb-4" />
+        <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-gray-100">This topic is locked</h2>
+        <p className="text-gray-500 mb-5 dark:text-gray-400">
+          Your free course includes its first 2 topics. Unlock all courses at {priceLabel} to practise every topic.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2 justify-center">
+          <Button onClick={() => setShowPaywall(true)}>Unlock all courses — {priceLabel}</Button>
+          <Button variant="outline" onClick={() => router.push(`/courses/${courseCodeSlug(courseCode)}`)}>Back to topics</Button>
+        </div>
+        {showPaywall && course && (
+          <PaywallModal courseName={course.course_name} courseCode={course.course_code}
+            totalCourses={allLevelCourses} onClose={() => setShowPaywall(false)}
+            onSuccess={() => { setShowPaywall(false); setTopicLocked(false); fetchFresh(); }} />
+        )}
+      </div>
+    );
+  }
+
   if (questions.length === 0) {
     return (
       <div className="text-center py-12">
@@ -434,13 +465,15 @@ function PracticeContent() {
   // ── Quiz UI ──────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
-      {isFree && !isPaid && allLevelCourses > 1 && (
+      {isFree && !isPaid && (freeLimited || allLevelCourses > 1) && (
         <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
+          <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300 min-w-0">
             <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
             <span>
               <span className="font-medium">You&rsquo;re on your free course.</span>{' '}
-              Unlock {allLevelCourses - 1} more for just {priceLabel}.
+              {freeLimited
+                ? <>Its first 2 topics are open. Unlock every topic for {priceLabel}.</>
+                : <>Unlock {allLevelCourses - 1} more for just {priceLabel}.</>}
             </span>
           </div>
           <button onClick={() => setShowPaywall(true)}

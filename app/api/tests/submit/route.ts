@@ -19,6 +19,7 @@ interface SubmittedAnswer {
 const ERRORS: Record<string, string> = {
   payment_required: 'This course is locked. Unlock it to save your results.',
   bad_questions: 'Some of these questions have changed since you started. Please start a new session.',
+  topic_locked: 'Some of these questions are in topics your free course doesn’t include. Unlock all courses to save them.',
 };
 
 export async function POST(request: Request) {

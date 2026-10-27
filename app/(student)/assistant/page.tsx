@@ -1340,7 +1340,9 @@ export default function AssistantPage() {
                 <span className={`text-xs font-medium tabular-nums ${
                   uploadRemaining <= 2 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'
                 }`}>
-                  {uploadRemaining} {uploadRemaining === 1 ? 'lesson' : 'lessons'} left
+                  {quota?.freeWindow && !quota.purchased
+                    ? `${uploadRemaining} of ${quota.freeWindow.limit} left`
+                    : `${uploadRemaining} ${uploadRemaining === 1 ? 'lesson' : 'lessons'} left`}
                 </span>
               )}
             </button>
@@ -1370,6 +1372,14 @@ export default function AssistantPage() {
             </button>
           )}
         </div>
+
+        {/* Free accounts: uploads come back one at a time, 3 hours after use */}
+        {quota?.freeWindow && quota.freeWindow.used > 0 && quota.freeWindow.nextAt && (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {Math.max(0, quota.freeWindow.limit - quota.freeWindow.used)} of {quota.freeWindow.limit} free uploads left
+            {' · '}next one back at {new Date(quota.freeWindow.nextAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </p>
+        )}
 
         {/* Upload error */}
         {docError && (
