@@ -43,7 +43,7 @@ interface FeatureUser {
   last_used: string;
 }
 
-const TYPE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b'];
+const TYPE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'];
 
 const FEATURE_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   ai_chat:         { label: 'AI Tutor Chat',    color: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',    icon: <BotMessageSquare className="w-4 h-4" /> },
@@ -130,6 +130,7 @@ export function EngagementTab() {
       { name: 'Practice', value: tests.filter(t => t.test_type === 'practice').length,        color: TYPE_COLORS[0] },
       { name: 'Exam Sim', value: tests.filter(t => t.test_type === 'exam_simulation').length,  color: TYPE_COLORS[1] },
       { name: 'Battle',   value: tests.filter(t => t.test_type === 'battle').length,           color: TYPE_COLORS[2] },
+      { name: 'Climb',    value: tests.filter(t => t.test_type === 'climb').length,            color: TYPE_COLORS[3] },
     ]);
 
     const feedItems = (rawFeed ?? []) as FeedItem[];
@@ -461,7 +462,7 @@ create index on feature_events (user_id, created_at desc);`}</pre>
                 <div className="flex items-center gap-2 mt-0.5">
                   {item.course && <span className="text-xs text-gray-500 font-medium dark:text-gray-400">{item.course.course_code}</span>}
                   <Badge variant={item.test_type === 'exam_simulation' ? 'info' : 'default'} size="sm">
-                    {item.test_type === 'exam_simulation' ? 'Exam' : item.test_type === 'battle' ? 'Battle' : 'Practice'}
+                    {item.test_type === 'exam_simulation' ? 'Exam' : item.test_type === 'battle' ? 'Battle' : item.test_type === 'climb' ? 'Climb' : 'Practice'}
                   </Badge>
                 </div>
               </div>

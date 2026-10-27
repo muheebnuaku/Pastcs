@@ -13,6 +13,8 @@ import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, ge
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
 import type { Course, Test, WeakTopic } from '@/types';
+
+interface CourseGradeBadge { course_id: string; label: string; next_label: string | null }
 import {
   Flame,
   Target,
@@ -58,6 +60,15 @@ export default function DashboardPage() {
   // Exam countdown
   const [editingExamDate, setEditingExamDate] = useState(false);
   const [examDateInput, setExamDateInput] = useState('');
+  // Each course's grade on the ladder (migration 042); empty before it runs.
+  const [grades, setGrades] = useState<Record<string, CourseGradeBadge>>({});
+  useEffect(() => {
+    if (!user?.id) return;
+    createClient().rpc('get_my_course_grades')
+      .then(({ data, error }: { data: CourseGradeBadge[] | null; error: unknown }) => {
+        if (!error && data) setGrades(Object.fromEntries(data.map(g => [g.course_id, g])));
+      });
+  }, [user?.id]);
   const [savingExamDate, setSavingExamDate] = useState(false);
 
   const daysUntilExam = user?.exam_date
@@ -337,6 +348,7 @@ export default function DashboardPage() {
             <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 p-3 sm:p-4">
               {courses.slice(0, 6).map((course) => {
                 const isLocked = !isPaid && course.course_code !== user?.free_course_code && !!user?.free_course_code;
+                const g = isLocked ? undefined : grades[course.id];
                 return (
                   <Link
                     key={course.id}
@@ -354,7 +366,11 @@ export default function DashboardPage() {
                           : course.icon || COURSE_ICONS[course.course_code] || '📚'
                         }
                       </span>
-                      <span className="text-[11px] text-gray-400 dark:text-gray-500">{course.total_questions} Qs</span>
+                      {g ? (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full border border-blue-400 bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" aria-label={`Grade ${g.label}`}>{g.label}</span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400 dark:text-gray-500">{course.total_questions} Qs</span>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <p className={`font-semibold text-sm truncate ${isLocked ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
@@ -363,6 +379,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-snug">
                         {course.course_name}
                       </p>
+                      {g && <p className="text-[11px] font-semibold text-blue-700 mt-0.5 dark:text-blue-300">{g.next_label ? `Next: ${g.next_label}` : 'Top grade'}</p>}
                     </div>
                   </Link>
                 );
@@ -391,7 +408,7 @@ export default function DashboardPage() {
                           <span className="text-lg">{test.course?.icon || COURSE_ICONS[test.course?.course_code || ''] || '📚'}</span>
                           <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{test.course?.course_code}</span>
                           <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'} size="sm">
-                            {test.test_type === 'exam_simulation' ? 'Exam' : test.test_type === 'battle' ? 'Battle' : 'Practice'}
+                            {test.test_type === 'exam_simulation' ? 'Exam' : test.test_type === 'battle' ? 'Battle' : test.test_type === 'climb' ? 'Climb' : 'Practice'}
                           </Badge>
                         </div>
                         <span className={`text-sm font-semibold ${
@@ -436,7 +453,7 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-6 py-4">
                             <Badge variant={test.test_type === 'exam_simulation' ? 'info' : 'default'}>
-                              {test.test_type === 'exam_simulation' ? 'Exam' : test.test_type === 'battle' ? 'Battle' : 'Practice'}
+                              {test.test_type === 'exam_simulation' ? 'Exam' : test.test_type === 'battle' ? 'Battle' : test.test_type === 'climb' ? 'Climb' : 'Practice'}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
