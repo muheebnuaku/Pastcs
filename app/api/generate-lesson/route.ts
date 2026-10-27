@@ -4,7 +4,7 @@ import { logAiUsage } from '@/lib/aiUsage';
 import { withOpenAIRetry } from '@/lib/openaiRetry';
 import { requireUser } from '@/lib/apiAuth';
 import {
-  verifyLessonToken, countLessonEvents, recordLessonEvent, markLessonUsed,
+  verifyLessonToken, countLessonEvents, recordLessonEvent, markLessonUsed, isLessonCharged,
   getTutorQuota, MAX_LESSON_CALLS,
 } from '@/lib/tutorCredits';
 
@@ -214,7 +214,7 @@ export async function POST(req: Request) {
     if (await countLessonEvents(lessonId, 'tutor_lesson_call') >= MAX_LESSON_CALLS) {
       return Response.json({ error: 'This lesson has hit its retry limit. Please upload the file again.' }, { status: 429 });
     }
-    const alreadyCharged = await countLessonEvents(lessonId, 'tutor_lesson_used') > 0;
+    const alreadyCharged = await isLessonCharged(lessonId);
     if (!alreadyCharged) {
       const quota = await getTutorQuota(auth.userId, auth.supabase);
       if (quota.remaining <= 0) {
@@ -275,7 +275,7 @@ export async function POST(req: Request) {
               ).catch(() => {});
             }
           }
-          if (!alreadyCharged) await markLessonUsed(auth.userId, lessonId).catch(() => {});
+          if (!alreadyCharged) await markLessonUsed(auth.userId, lessonId, auth.supabase).catch(() => {});
           controller.close();
         } catch (err) {
           // Without this a mid-stream OpenAI failure left the browser

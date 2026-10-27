@@ -4,17 +4,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/components/providers';
 import { Card, CardContent, Button, Badge, QuestionContent } from '@/components/ui';
 import { formatPercentage, formatTime, courseCodeSlug } from '@/lib/utils';
 import { renderMarkdownTables, escapeHtml } from '@/lib/markdown';
 import { extractMath, restoreMath } from '@/lib/math';
 import { useSpeech } from '@/lib/hooks/useSpeech';
 import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
+import { useCourseAccess } from '@/lib/courseAccess';
+import { usePricing } from '@/lib/hooks/usePricing';
+import { PaywallModal } from '../../courses/components/PaywallModal';
 import type { Test, TestAnswer, Question } from '@/types';
 import {
   Clock, CheckCircle, XCircle,
   ArrowLeft, RotateCcw, BookOpen, BotMessageSquare, Loader2,
-  Volume2, VolumeX, HelpCircle,
+  Volume2, VolumeX, HelpCircle, Lock,
 } from 'lucide-react';
 
 // Lightweight markdown → HTML for AI panel
@@ -55,12 +59,19 @@ export default function ResultsPage() {
 
   // AI explain state per question
   const [aiPanels, setAiPanels] = useState<Record<string, string>>({});
+  // Ask AI on a quiz review is for paid students only (the server checks
+  // too). On free access it opens the paywall instead.
+  const [showAiPaywall, setShowAiPaywall] = useState(false);
   const [loadingAI, setLoadingAI] = useState<Set<string>>(new Set());
   const [openAI, setOpenAI] = useState<Set<string>>(new Set());
   const abortControllers = useRef<Record<string, AbortController>>({});
 
   // Voice
   const { speak, stop, position, speakingText, isSupported: voiceSupported } = useSpeech();
+  const { user } = useAuth();
+  const { access: courseAccess } = useCourseAccess(test?.course_id);
+  const aiLocked = !!courseAccess && courseAccess.access !== 'full';
+  const { label: priceLabel } = usePricing(test?.course?.level, user?.program_id);
   const [speakingQId, setSpeakingQId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,6 +99,7 @@ export default function ResultsPage() {
 
   const handleAskAI = async (answer: TestAnswer & { question: Question }) => {
     const qId = answer.question.id;
+    if (aiLocked) { setShowAiPaywall(true); return; }
 
     // Toggle off if already done
     if (openAI.has(qId) && !loadingAI.has(qId)) {
@@ -149,9 +161,15 @@ export default function ResultsPage() {
       const res = await fetch('/api/assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, context, history: [] }),
+        body: JSON.stringify({ message, context, history: [], source: 'quiz_review', testId }),
         signal: controller.signal,
       });
+
+      if (res.status === 402) {
+        setOpenAI(prev => { const s = new Set(prev); s.delete(qId); return s; });
+        setShowAiPaywall(true);
+        return;
+      }
 
       if (!res.ok || !res.body) throw new Error('Request failed');
 
@@ -203,6 +221,19 @@ export default function ResultsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 animate-fade-in">
+      {showAiPaywall && (
+        <PaywallModal
+          courseName={test.course?.course_name ?? ''}
+          courseCode={test.course?.course_code ?? ''}
+          totalCourses={0}
+          level={test.course?.level}
+          semester={test.course?.semester}
+          heading={`Unlock all courses at ${priceLabel} to access the AI`}
+          blurb="Ask AI explanations on your quiz reviews come with full access. One payment opens every course at this level, and the AI, for the semester."
+          onClose={() => setShowAiPaywall(false)}
+          onSuccess={() => { setShowAiPaywall(false); window.location.reload(); }}
+        />
+      )}
       {/* Back */}
       <Link href="/dashboard" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
         <ArrowLeft className="w-4 h-4 mr-1.5" />
@@ -420,11 +451,17 @@ export default function ResultsPage() {
                         </>
                       ) : (
                         <>
-                          <BotMessageSquare className="w-3.5 h-3.5" />
+                          {aiLocked ? <Lock className="w-3.5 h-3.5" /> : <BotMessageSquare className="w-3.5 h-3.5" />}
                           Ask AI to explain
                         </>
                       )}
                     </button>
+                    {aiLocked ? (
+                      <button onClick={() => setShowAiPaywall(true)}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-purple-600 dark:text-gray-400 dark:hover:text-purple-400 px-2 py-1.5">
+                        Continue in AI Tutor →
+                      </button>
+                    ) : (<>
                     {/* Opens the full tutor on this course, with a follow-up
                         about this question already typed in. */}
                     <Link
@@ -436,6 +473,7 @@ export default function ResultsPage() {
                     >
                       Continue in AI Tutor →
                     </Link>
+                    </>)}
                     </div>
 
                     {/* ── Streaming AI panel ── */}

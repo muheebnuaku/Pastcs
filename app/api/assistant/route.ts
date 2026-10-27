@@ -58,13 +58,34 @@ export async function POST(request: Request) {
     const auth = await requireUser();
     if (auth instanceof Response) return auth;
 
-    const { message, context, history, courseId, action } = await request.json() as {
+    const { message, context, history, courseId, action, source, testId } = await request.json() as {
       message?: unknown;
       context?: unknown;
       history?: unknown;
       courseId?: unknown;
       action?: unknown;
+      source?: unknown;
+      testId?: unknown;
     };
+
+    // "Ask AI to explain" on a quiz review is for paid students only: the
+    // test's course must be fully unlocked (migration 038), not on free
+    // access. Checked as the student, against their own test.
+    if (source === 'quiz_review') {
+      const { data: testRow } = typeof testId === 'string'
+        ? await auth.supabase.from('tests').select('course_id').eq('id', testId).maybeSingle()
+        : { data: null };
+      const reviewCourse = (testRow as { course_id: string } | null)?.course_id;
+      if (!reviewCourse) return Response.json({ error: 'Test not found' }, { status: 404 });
+      const { data: access, error: accessError } = await auth.supabase.rpc('get_course_access', { p_course: reviewCourse });
+      // Before migration 038 the check doesn't exist: keep the old behaviour.
+      if (!accessError && (access as { access?: string } | null)?.access !== 'full') {
+        return Response.json(
+          { error: 'Ask AI on quiz reviews is for paid students. Unlock all courses to use it.', code: 'paid_only' },
+          { status: 402 }
+        );
+      }
+    }
     const tutorAction: TutorAction | null =
       typeof action === 'string' && (TUTOR_ACTIONS as string[]).includes(action) ? action as TutorAction : null;
 
