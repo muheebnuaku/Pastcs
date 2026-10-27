@@ -29,10 +29,15 @@ interface ProgramSummary {
   studentCount: number;
 }
 
+// Course Statistics lists the busiest courses; "View all" shows the rest.
+const COURSES_SHOWN = 4;
+
 export default function AdminOverviewPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [newStudentsThisWeek, setNewStudentsThisWeek] = useState(0);
   const [courseStats, setCourseStats] = useState<CourseStats[]>([]);
+  // The overview shows the 4 busiest courses; the rest on request.
+  const [showAllCourses, setShowAllCourses] = useState(false);
   const [programSummaries, setProgramSummaries] = useState<ProgramSummary[]>([]);
   const [flaggedCount, setFlaggedCount] = useState(0);
   const [pendingQuestions, setPendingQuestions] = useState(0);
@@ -108,8 +113,9 @@ export default function AdminOverviewPage() {
 
             const { data: tests } = await supabase
               .from('tests')
-              .select('percentage')
+              .select('percentage, created_at')
               .eq('course_id', course.id);
+            const monthAgo = Date.now() - 30 * 24 * 3600 * 1000;
 
             const avgScore = tests && tests.length > 0
               ? tests.reduce((acc: number, t: { percentage: number | null }) => acc + (t.percentage || 0), 0) / tests.length
@@ -122,11 +128,14 @@ export default function AdminOverviewPage() {
               course_icon: course.icon || '',
               total_questions: questionCount || 0,
               total_tests: tests?.length || 0,
+              recent_tests: (tests ?? []).filter((t: { created_at: string | null }) => t.created_at && new Date(t.created_at).getTime() >= monthAgo).length,
               avg_score: avgScore,
             };
           });
 
-          setCourseStats(await Promise.all(statsPromises));
+          // Busiest first: tests in the last 30 days, then all time.
+          setCourseStats((await Promise.all(statsPromises)).sort((a, b) =>
+            (b.recent_tests ?? 0) - (a.recent_tests ?? 0) || b.total_tests - a.total_tests || a.course_code.localeCompare(b.course_code)));
         }
       } else {
         setCourseStats([]);
@@ -322,15 +331,27 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Course Statistics */}
         <Card>
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Course Statistics</h2>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Course Statistics</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Most active in the last 30 days</p>
+            </div>
+            {courseStats.length > COURSES_SHOWN && (
+              <button
+                onClick={() => setShowAllCourses(v => !v)}
+                aria-expanded={showAllCourses}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 flex-shrink-0"
+              >
+                {showAllCourses ? `Show top ${COURSES_SHOWN}` : `View all ${courseStats.length}`} <ArrowRight className={`w-3 h-3 transition-transform ${showAllCourses ? '-rotate-90' : 'rotate-90'}`} />
+              </button>
+            )}
           </div>
           <div className="divide-y divide-gray-100 dark:divide-white/10">
             {courseStats.length === 0 ? (
               <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                 No active courses yet — assign a course to a program on the Courses page.
               </div>
-            ) : courseStats.map((course) => (
+            ) : (showAllCourses ? courseStats : courseStats.slice(0, COURSES_SHOWN)).map((course) => (
               <div key={course.course_id} className="px-6 py-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
@@ -345,10 +366,12 @@ export default function AdminOverviewPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">avg score</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
                   <span>{course.total_questions} questions</span>
                   <span>•</span>
                   <span>{course.total_tests} tests taken</span>
+                  <span>•</span>
+                  <span>{course.recent_tests ?? 0} in the last 30 days</span>
                 </div>
               </div>
             ))}
