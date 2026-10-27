@@ -280,6 +280,8 @@ export interface CourseStats {
   course_icon?: string;
   total_questions: number;
   total_tests: number;
+  /** Tests in the last 30 days; the overview ranks courses by this. */
+  recent_tests?: number;
   avg_score: number;
 }
 
