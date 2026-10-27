@@ -6,7 +6,7 @@ import { useAuth } from '@/components/providers';
 import { useSubscriptionStore } from '@/lib/store';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { Button } from '@/components/ui';
-import { Lock, X, CheckCircle, XCircle, Loader2, ShieldCheck, Users } from 'lucide-react';
+import { Lock, X, CheckCircle, XCircle, Loader2, ShieldCheck } from 'lucide-react';
 import type { Subscription } from '@/types';
 
 interface Props {
@@ -32,8 +32,6 @@ declare global {
 
 interface Quote {
   amount: number;
-  fullAmount: number;
-  deal: { classroomName: string; paidCount: number; needed: number; percent: number; active: boolean } | null;
 }
 
 function ghc(pesewas: number): string {
@@ -52,8 +50,8 @@ export function PaywallModal({ totalCourses, onClose, onSuccess, level: levelPro
   const { amountPesewas: listAmount } = usePricing(level, user?.program_id);
 
   // The exact amount to charge comes from the server (/api/payments/quote),
-  // which also applies any class deal — and verification checks the charge
-  // against the same rule, so the two can never disagree.
+  // and verification checks the charge against the same rule, so the two
+  // can never disagree.
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState('');
   useEffect(() => {
@@ -233,27 +231,9 @@ export function PaywallModal({ totalCourses, onClose, onSuccess, level: levelPro
 
           {/* Price */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-3">
-            {quote?.deal?.active && (
-              <p className="text-blue-200 text-sm line-through">{ghc(quote.fullAmount)}</p>
-            )}
-            <p className="text-3xl font-bold text-white">{quote ? priceLabel : '…'}</p>
+<p className="text-3xl font-bold text-white">{quote ? priceLabel : '…'}</p>
             <p className="text-blue-100 text-sm mt-1">one payment · this semester · all courses</p>
           </div>
-
-          {quote?.deal && (
-            <div className={`flex items-start gap-2.5 rounded-xl px-3.5 py-3 mb-3 text-sm ${
-              quote.deal.active
-                ? 'bg-green-50 text-green-800 dark:bg-green-500/10 dark:text-green-300'
-                : 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300'
-            }`}>
-              <Users className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>
-                {quote.deal.active
-                  ? <>Class deal: <strong>{quote.deal.percent}% off</strong>, because {quote.deal.paidCount} classmates in {quote.deal.classroomName} have unlocked.</>
-                  : <>Class deal: when <strong>{quote.deal.needed} more</strong> {quote.deal.needed === 1 ? 'classmate' : 'classmates'} in {quote.deal.classroomName} unlock, everyone else gets {quote.deal.percent}% off.</>}
-              </span>
-            </div>
-          )}
 
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-5 dark:text-gray-400">
             <ShieldCheck className="w-4 h-4 text-green-500 flex-shrink-0" />

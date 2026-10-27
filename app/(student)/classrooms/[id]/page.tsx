@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers';
-import { useSubscriptionStore } from '@/lib/store';
 import { Avatar, Button, Modal } from '@/components/ui';
-import { CLASS_DEAL_MIN_PAID, CLASS_DEAL_PERCENT } from '@/lib/classDeal';
 import { ChatPanel } from './ChatPanel';
 import { ResourcesPanel } from './ResourcesPanel';
 import { AlertSettings, PushPrompt } from './Alerts';
@@ -22,7 +20,7 @@ import {
 } from '@/lib/classrooms';
 import {
   ArrowLeft, Users, UserPlus, Play, Trophy, Flame, Copy, Check, RefreshCw, Crown, Shield,
-  Lock, Eye, EyeOff, LogOut, Trash2, BarChart3, Target, MessageCircle, FolderOpen, Gift, Tag, Swords,
+  Lock, Eye, EyeOff, LogOut, Trash2, BarChart3, Target, MessageCircle, FolderOpen, Gift, Swords,
 } from 'lucide-react';
 
 type Tab = 'chat' | 'week' | 'progress' | 'resources' | 'members';
@@ -63,8 +61,6 @@ export default function ClassroomPage() {
   const [missing, setMissing] = useState(false);
   const [tab, setTab] = useState<Tab>('chat');
   const { user } = useAuth();
-  const { hasActiveSub } = useSubscriptionStore();
-  const [paidClassmates, setPaidClassmates] = useState<number | null>(null);
   const [freeWelcome, setFreeWelcome] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState<'link' | 'code' | null>(null);
@@ -109,9 +105,6 @@ export default function ClassroomPage() {
     setMembers((progRes.data ?? []) as ClassroomMemberProgress[]);
     setTopics((topicRes.data ?? []) as ClassroomTopicStat[]);
     setLoading(false);
-    // Class deal progress (counts only); absent until migration 029 runs.
-    supabase.rpc('get_class_deal', { p_classroom: id })
-      .then(({ data, error }: { data: number | null; error: unknown }) => { if (!error && typeof data === 'number') setPaidClassmates(data); });
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
@@ -211,10 +204,6 @@ export default function ClassroomPage() {
   const myName = me?.full_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || 'A classmate';
   const canModerate = myRole === 'owner' || myRole === 'leader';
   const callUrl = `https://meet.jit.si/PastCS-${id.replace(/-/g, '')}#userInfo.displayName=${encodeURIComponent(JSON.stringify(me?.full_name || myName))}`;
-  const courseLevel = (room.course as { level?: number } | null | undefined)?.level;
-  const courseSemester = (room.course as { semester?: number } | null | undefined)?.semester;
-  const unlocked = hasActiveSub(courseLevel, courseSemester, user?.program_id);
-  const showDeal = !unlocked && paidClassmates !== null && !!courseLevel;
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -331,22 +320,6 @@ export default function ClassroomPage() {
           {me && <PinnedAnnouncements classroomId={id} canModerate={canModerate} members={members} allowAdd />}
           {me && <ClassGoals classroomId={id} courseId={room.course_id} canModerate={canModerate} />}
           {me && canModerate && <GroupPayCard classroomId={id} classroomName={room.name} />}
-          {showDeal && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
-              <p className="text-sm font-semibold text-amber-900 flex items-center gap-1.5 dark:text-amber-200">
-                <Tag className="w-4 h-4" />Class deal: {CLASS_DEAL_PERCENT}% off
-              </p>
-              <p className="text-sm text-amber-800 mt-1 dark:text-amber-300">
-                {(paidClassmates ?? 0) >= CLASS_DEAL_MIN_PAID
-                  ? <>{paidClassmates} classmates have unlocked Level {courseLevel}, so you get {CLASS_DEAL_PERCENT}% off.</>
-                  : <>{paidClassmates} of {CLASS_DEAL_MIN_PAID} classmates have unlocked Level {courseLevel}. At {CLASS_DEAL_MIN_PAID}, everyone else gets {CLASS_DEAL_PERCENT}% off.</>}
-              </p>
-              <div className="h-1.5 rounded-full bg-amber-100 mt-2.5 overflow-hidden dark:bg-white/10">
-                <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, ((paidClassmates ?? 0) / CLASS_DEAL_MIN_PAID) * 100)}%` }} />
-              </div>
-              <Link href="/courses" className="inline-block mt-3 text-sm font-semibold text-amber-900 underline dark:text-amber-200">See unlock options</Link>
-            </div>
-          )}
           {me && (
             <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
               <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Your week in {courseCode}</p>
