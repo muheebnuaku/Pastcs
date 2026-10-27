@@ -14,6 +14,7 @@ import { SpeechHighlight } from '@/lib/hooks/SpeechHighlight';
 import { useCourseAccess } from '@/lib/courseAccess';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { PaywallModal } from '../../courses/components/PaywallModal';
+import { GradeOutcome } from './GradeOutcome';
 import type { Test, TestAnswer, Question } from '@/types';
 import {
   Clock, CheckCircle, XCircle,
@@ -62,6 +63,8 @@ export default function ResultsPage() {
   // Ask AI on a quiz review is for paid students only (the server checks
   // too). On free access it opens the paywall instead.
   const [showAiPaywall, setShowAiPaywall] = useState(false);
+  // A free course's earned-but-locked grade (migration 042) opens the paywall too.
+  const [showGradePaywall, setShowGradePaywall] = useState(false);
   const [loadingAI, setLoadingAI] = useState<Set<string>>(new Set());
   const [openAI, setOpenAI] = useState<Set<string>>(new Set());
   const abortControllers = useRef<Record<string, AbortController>>({});
@@ -250,7 +253,7 @@ export default function ResultsPage() {
               : 'bg-gradient-to-br from-red-500 to-pink-500'
         } text-white`}>
           <p className="text-sm text-white/85">
-            {test.course?.course_code} · {test.test_type === 'exam_simulation' ? 'Mock exam' : test.test_type === 'battle' ? 'Class battle' : 'Practice'}
+            {test.course?.course_code} · {test.test_type === 'exam_simulation' ? 'Mock exam' : test.test_type === 'battle' ? 'Class battle' : test.test_type === 'climb' ? 'Climb round' : 'Practice'}
           </p>
           <p className="text-5xl sm:text-6xl font-extrabold tracking-tight mt-2 tabular-nums">
             {formatPercentage(test.percentage)}
@@ -279,6 +282,30 @@ export default function ResultsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {test.course_id && test.test_type !== 'battle' && (
+        <GradeOutcome
+          testId={testId}
+          courseId={test.course_id}
+          courseCode={test.course?.course_code ?? ''}
+          courseSlug={courseSlug}
+          isClimb={test.test_type === 'climb'}
+          onUnlock={() => setShowGradePaywall(true)}
+        />
+      )}
+      {showGradePaywall && (
+        <PaywallModal
+          courseName={test.course?.course_name ?? ''}
+          courseCode={test.course?.course_code ?? ''}
+          totalCourses={0}
+          level={test.course?.level}
+          semester={test.course?.semester}
+          heading="Unlock every topic to keep climbing"
+          blurb="Your free course goes up to D+. One payment opens every topic, so you can climb to C and on to A, in every course at this level."
+          onClose={() => setShowGradePaywall(false)}
+          onSuccess={() => { setShowGradePaywall(false); window.location.reload(); }}
+        />
+      )}
 
       {/* Actions */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3">

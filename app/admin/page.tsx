@@ -396,7 +396,7 @@ export default function AdminOverviewPage() {
                         {activity.user?.full_name || activity.user?.email}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Completed {activity.course?.course_code} {activity.test_type === 'exam_simulation' ? 'exam' : activity.test_type === 'battle' ? 'class battle' : 'practice'}
+                        Completed {activity.course?.course_code} {activity.test_type === 'exam_simulation' ? 'exam' : activity.test_type === 'battle' ? 'class battle' : activity.test_type === 'climb' ? 'climb round' : 'practice'}
                       </p>
                     </div>
                     <div className="text-right">

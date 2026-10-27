@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const { courseId, topicId, testType, timeTaken } = body;
   if (typeof courseId !== 'string' || !UUID.test(courseId)) return Response.json({ error: 'courseId is required' }, { status: 400 });
-  if (testType !== 'practice' && testType !== 'exam_simulation') return Response.json({ error: 'Unknown test type' }, { status: 400 });
+  if (testType !== 'practice' && testType !== 'exam_simulation' && testType !== 'climb') return Response.json({ error: 'Unknown test type' }, { status: 400 });
   if (!Array.isArray(body.answers) || body.answers.length === 0 || body.answers.length > 100) {
     return Response.json({ error: 'answers are required' }, { status: 400 });
   }

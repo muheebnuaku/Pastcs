@@ -6,7 +6,7 @@
 export interface TestSubmission {
   courseId: string;
   topicId: string | null;
-  testType: 'practice' | 'exam_simulation';
+  testType: 'practice' | 'exam_simulation' | 'climb';
   answers: { question_id: string; selected: string[]; confidence?: 'sure' | 'unsure' | null }[];
   timeTaken?: number | null;
 }

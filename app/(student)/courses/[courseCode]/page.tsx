@@ -12,6 +12,8 @@ import { COURSE_ICONS, QUESTIONS_PER_PRACTICE, QUESTIONS_PER_EXAM, EXAM_DURATION
 import { PaywallModal } from '../components/PaywallModal';
 import { courseCountForProgram } from '@/lib/programs';
 import { isTopicOpen, useCourseAccess } from '@/lib/courseAccess';
+import { useCourseGrade } from '@/lib/gradeLadder';
+import { GradeLadder } from './GradeLadder';
 import type { Course, Topic } from '@/types';
 import {
   ArrowLeft,
@@ -104,6 +106,8 @@ export default function CourseDetailPage() {
   // On free access only the first 2 topics are open (migration 038).
   const { access } = useCourseAccess(course?.id);
   const freeLimited = access?.access === 'free';
+  // The grade ladder (migration 042); null before it runs.
+  const { grade } = useCourseGrade(course?.id);
 
   // No free course picked yet: back to the course list to pick one. In an
   // effect, once sign-in has loaded — calling router.push during render
@@ -255,6 +259,8 @@ export default function CourseDetailPage() {
       )}
 
       {header}
+
+      {grade?.access === 'ok' && <GradeLadder grade={grade} slug={slug} onUnlock={() => setShowPaywall(true)} />}
 
       <section>
         <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">How do you want to study?</h2>
