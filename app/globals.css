@@ -142,6 +142,37 @@ body {
   animation: push-strain 0.7s ease-in-out infinite;
 }
 
+/* Exam Boss (components/boss) */
+.boss-float   { animation: boss-float 3.2s ease-in-out infinite; }
+.boss-tremble { animation: boss-tremble 0.18s linear infinite; }
+.boss-shake   { animation: boss-shake 0.5s ease-out; }
+.boss-lunge   { animation: boss-lunge 0.55s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.boss-ko      { transform: rotate(16deg) translateY(14px); filter: grayscale(0.7) brightness(0.85); transition: transform 0.8s cubic-bezier(0.3, 1.5, 0.5, 1), filter 0.8s; }
+.boss-blink   { animation: boss-blink 4.5s infinite; transform-box: fill-box; transform-origin: center; }
+.boss-aura    { animation: boss-aura 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.boss-flash   { animation: boss-flash 0.45s ease-out forwards; }
+.boss-pixel   { animation: boss-pixel 2.6s ease-in-out infinite; }
+.boss-stars   { animation: boss-spin 2.4s linear infinite; transform-origin: 120px 30px; }
+.boss-pop     { animation: boss-pop 1s ease-out forwards; }
+.boss-hit-screen { animation: boss-hit-screen 0.5s ease-out; }
+.boss-heart-lost { animation: boss-heart-lost 0.6s ease-out; }
+@keyframes boss-float   { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes boss-tremble { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-1.5px, 1px); } 50% { transform: translate(1.5px, -1px); } 75% { transform: translate(-1px, -1px); } }
+@keyframes boss-shake   { 0%, 100% { transform: translateX(0) rotate(0); } 15% { transform: translateX(-10px) rotate(-4deg); } 30% { transform: translateX(9px) rotate(3deg); } 45% { transform: translateX(-6px) rotate(-2deg); } 60% { transform: translateX(4px) rotate(1deg); } 80% { transform: translateX(-2px); } }
+@keyframes boss-lunge   { 0%, 100% { transform: scale(1); } 35% { transform: scale(1.18) translateY(10px); } }
+@keyframes boss-blink   { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes boss-aura    { 0%, 100% { opacity: 0.35; transform: scale(0.95); } 50% { opacity: 0.75; transform: scale(1.05); } }
+@keyframes boss-flash   { from { opacity: 0.85; } to { opacity: 0; } }
+@keyframes boss-pixel   { 0%, 100% { opacity: 0.9; transform: translate(0, 0); } 50% { opacity: 0.35; transform: translate(-4px, -3px); } }
+@keyframes boss-spin    { to { transform: rotate(360deg); } }
+@keyframes boss-pop     { 0% { opacity: 0; transform: translateY(6px) scale(0.7); } 20% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-30px) scale(1); } }
+@keyframes boss-hit-screen { from { box-shadow: inset 0 0 0 9999px rgba(239, 68, 68, 0.3); } to { box-shadow: inset 0 0 0 9999px rgba(239, 68, 68, 0); } }
+@keyframes boss-heart-lost { from { transform: scale(1.5); } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .boss-float, .boss-tremble, .boss-shake, .boss-lunge, .boss-blink, .boss-aura, .boss-pixel, .boss-stars, .boss-heart-lost { animation: none !important; }
+  .boss-ko { transition: none; }
+}
+
 /* Card hover effects */
 .card-hover {
   transition: all 0.2s ease-in-out;
