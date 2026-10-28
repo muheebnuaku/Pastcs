@@ -5161,3 +5161,25 @@ RETURNS INTEGER LANGUAGE sql IMMUTABLE AS $$
 $$;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
+-- COURSE ACCESS LIST — see migration 045
+-- ================================================================
+
+CREATE OR REPLACE FUNCTION public.get_my_course_access_list()
+RETURNS TABLE (course_id UUID, access TEXT)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT c.course_id, public.course_access_for(auth.uid(), c.course_id)
+  FROM (
+    SELECT cp.course_id FROM public.course_programs cp
+    JOIN public.users u ON u.id = auth.uid() AND u.program_id = cp.program_id
+    UNION
+    SELECT co.id FROM public.courses co
+    JOIN public.users u ON u.id = auth.uid() AND upper(co.course_code) = upper(u.free_course_code)
+  ) c
+  WHERE auth.uid() IS NOT NULL;
+$$;
+REVOKE EXECUTE ON FUNCTION public.get_my_course_access_list() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_course_access_list() TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
