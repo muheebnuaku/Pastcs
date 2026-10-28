@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -11,6 +11,7 @@ import { useAuth } from '@/components/providers';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessages';
 import { usePricing } from '@/lib/hooks/usePricing';
+import { setAppBadgeCount } from '@/lib/push';
 import {
   Home,
   BookOpen,
@@ -53,7 +54,12 @@ export function StudentSidebar() {
   const unreadMessages = useUnreadMessageCount(user?.id, pathname);
   const unreadClass = useClassroomUnreadStore(s => Object.values(s.counts).reduce((a, b) => a + b, 0));
 
+  // The count on the home-screen icon follows the bell (push sets it while
+  // the app is closed; reading them here clears it).
+  useEffect(() => { setAppBadgeCount(unreadCount); }, [unreadCount]);
+
   const handleSignOut = async () => {
+    setAppBadgeCount(0);
     await signOut().catch(() => {});
     router.replace('/login');
   };

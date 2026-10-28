@@ -6,6 +6,7 @@ import { useAuth } from '@/components/providers';
 import { StudentSidebar, ClassroomAlerts } from '@/components/layout';
 import { LevelSemesterModal } from './courses/components/LevelSemesterModal';
 import { PENDING_JOIN_KEY } from '@/lib/classrooms';
+import { PushSync } from '@/components/PushNotifications';
 
 export default function DashboardLayout({
   children,
@@ -52,6 +53,7 @@ export default function DashboardLayout({
       )}
       <StudentSidebar />
       <ClassroomAlerts />
+      {user && <PushSync />}
       <main className="lg:ml-64 min-h-screen">
         {/* Bottom padding below lg clears the fixed mobile tab bar
             (StudentSidebar) — assistant/page.tsx sizes itself against

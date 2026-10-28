@@ -2,9 +2,10 @@
 
 import { createClient } from '@/lib/supabase/client';
 
-// Web push for classroom calls and @mentions (migration 033). The browser
-// subscription goes to the database through save_push_subscription; the
-// pings themselves are sent by /api/classrooms/push.
+// Web push: phone notifications even when PastCS is closed. The browser
+// subscription goes to the database through save_push_subscription (033).
+// Classroom calls and @mentions are sent by /api/classrooms/push; every
+// other notification by /api/push/drain (046).
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
 
@@ -45,6 +46,49 @@ export async function currentPushSubscription(): Promise<PushSubscription | null
   }
 }
 
+export type PushDeviceState = 'unsupported' | 'blocked' | 'off' | 'on';
+
+export async function pushDeviceState(): Promise<PushDeviceState> {
+  if (!pushSupported()) return 'unsupported';
+  if (Notification.permission === 'denied') return 'blocked';
+  return (await currentPushSubscription()) ? 'on' : 'off';
+}
+
+async function save(sub: PushSubscription): Promise<boolean> {
+  const json = sub.toJSON();
+  const { error } = await createClient().rpc('save_push_subscription', {
+    p_endpoint: sub.endpoint,
+    p_p256dh: json.keys?.p256dh ?? '',
+    p_auth: json.keys?.auth ?? '',
+  });
+  return !error;
+}
+
+/**
+ * On each app open, where permission is already given: re-saves this
+ * browser for whoever is signed in now (another account may have used
+ * it), and quietly re-subscribes if the browser dropped the old one.
+ * Never asks for permission.
+ */
+export async function resyncPush(): Promise<void> {
+  if (!pushSupported() || Notification.permission !== 'granted') return;
+  try {
+    const reg = await registration();
+    await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription())
+      ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
+    await save(sub);
+  } catch { /* best effort */ }
+}
+
+/** The unread count on the home-screen icon; 0 clears it. */
+export function setAppBadgeCount(count: number) {
+  if (typeof navigator === 'undefined') return;
+  const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+  if (count > 0) nav.setAppBadge?.(count).catch(() => {});
+  else nav.clearAppBadge?.().catch(() => {});
+}
+
 /** Asks for permission and saves this browser. Returns whether it's now on. */
 export async function enablePush(): Promise<boolean> {
   if (!pushSupported()) return false;
@@ -54,13 +98,7 @@ export async function enablePush(): Promise<boolean> {
   await navigator.serviceWorker.ready;
   const sub = (await reg.pushManager.getSubscription())
     ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
-  const json = sub.toJSON();
-  const { error } = await createClient().rpc('save_push_subscription', {
-    p_endpoint: sub.endpoint,
-    p_p256dh: json.keys?.p256dh ?? '',
-    p_auth: json.keys?.auth ?? '',
-  });
-  return !error;
+  return save(sub);
 }
 
 export async function disablePush(): Promise<void> {

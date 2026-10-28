@@ -3,17 +3,9 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
-  currentPushSubscription, disablePush, enablePush, pushPromptSnoozed, pushSupported, snoozePushPrompt,
+  disablePush, enablePush, pushDeviceState, pushPromptSnoozed, snoozePushPrompt, type PushDeviceState,
 } from '@/lib/push';
 import { BellRing, Bell, BellOff, X } from 'lucide-react';
-
-type DeviceState = 'unsupported' | 'blocked' | 'off' | 'on';
-
-async function deviceState(): Promise<DeviceState> {
-  if (!pushSupported()) return 'unsupported';
-  if (Notification.permission === 'denied') return 'blocked';
-  return (await currentPushSubscription()) ? 'on' : 'off';
-}
 
 // Shown on a classroom page (so only once a student has joined one) until
 // they turn notifications on or say "Not now".
@@ -23,7 +15,7 @@ export function PushPrompt() {
 
   useEffect(() => {
     let cancelled = false;
-    deviceState().then(s => { if (!cancelled) setShow(s === 'off' && !pushPromptSnoozed()); });
+    pushDeviceState().then(s => { if (!cancelled) setShow(s === 'off' && !pushPromptSnoozed()); });
     return () => { cancelled = true; };
   }, []);
 
@@ -64,7 +56,7 @@ export function PushPrompt() {
 // and as push), and whether this device gets push notifications at all.
 export function AlertSettings({ classroomId, userId }: { classroomId: string; userId: string }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [device, setDevice] = useState<DeviceState | null>(null);
+  const [device, setDevice] = useState<PushDeviceState | null>(null);
   const [busy, setBusy] = useState<'class' | 'device' | null>(null);
   const [error, setError] = useState('');
 
@@ -80,7 +72,7 @@ export function AlertSettings({ classroomId, userId }: { classroomId: string; us
         // Before migration 033 the column doesn't exist: hide the switch.
         if (!cancelled) setEnabled(err || typeof data?.alerts_enabled !== 'boolean' ? null : data.alerts_enabled);
       });
-    deviceState().then(s => { if (!cancelled) setDevice(s); });
+    pushDeviceState().then(s => { if (!cancelled) setDevice(s); });
     return () => { cancelled = true; };
   }, [classroomId, userId]);
 
@@ -100,7 +92,7 @@ export function AlertSettings({ classroomId, userId }: { classroomId: string; us
     setError('');
     if (device === 'on') await disablePush().catch(() => {});
     else if (!(await enablePush().catch(() => false))) setError('Notifications weren’t turned on. Check your browser allows them for this site.');
-    setDevice(await deviceState());
+    setDevice(await pushDeviceState());
     setBusy(null);
   };
 

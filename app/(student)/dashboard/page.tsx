@@ -13,6 +13,7 @@ import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, ge
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
 import { InstallBanner } from '@/components/InstallApp';
+import { PushBanner } from '@/components/PushNotifications';
 import type { Course, Test, WeakTopic } from '@/types';
 
 import {
@@ -199,6 +200,7 @@ export default function DashboardPage() {
       </div>
 
       <InstallBanner />
+      <PushBanner />
 
       {/* ── Quick actions ── */}
       {quickActions.length > 0 && (

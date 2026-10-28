@@ -5,8 +5,8 @@ import { Check, Download, Share, SquarePlus, X } from 'lucide-react';
 
 // "Add to Home Screen". Android/Chrome hands us an install prompt to show
 // on a tap; iPhones have no prompt, so we show the three Safari steps. On
-// iPhone it's also what makes call and @mention alerts possible (Safari
-// only allows web push for home-screen apps).
+// iPhone it's also what makes notifications possible (Safari only allows
+// web push for home-screen apps).
 
 interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -100,7 +100,7 @@ export function InstallBanner() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Add PastCS to your home screen</p>
           <p className="text-xs text-gray-600 mt-0.5 dark:text-gray-400">
-            Opens like an app, full screen.{platform === 'ios' && ' On iPhone it’s also how you get class call and @mention alerts.'}
+            Opens like an app, full screen.{platform === 'ios' && ' On iPhone it’s also how you get notifications.'}
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             {platform === 'prompt' ? (
@@ -147,7 +147,7 @@ export function InstallCard() {
         )}
         {platform === 'ios' && (
           <div className="space-y-2">
-            <p>On iPhone, adding PastCS to your home screen also turns on class call and @mention alerts.</p>
+            <p>On iPhone, adding PastCS to your home screen is also what lets it send you notifications.</p>
             <IosSteps />
           </div>
         )}
