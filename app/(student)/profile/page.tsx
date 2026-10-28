@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { InstallCard } from '@/components/InstallApp';
+import { PushCard } from '@/components/PushNotifications';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
@@ -539,6 +540,8 @@ export default function ProfilePage() {
           )}
 
           <InstallCard />
+
+          <PushCard />
 
           {/* Appearance Card */}
           <Card>

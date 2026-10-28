@@ -6,7 +6,8 @@
 //     browsers require for "Add to Home Screen"), and
 //  2. show a friendly offline page instead of the browser's own error
 //     when a full page navigation fails with no network, and
-//  3. show web push notifications for classroom calls and @mentions.
+//  3. show web push notifications on the phone, even when the app is
+//     closed.
 // Anything already in flight (an open practice session) is unaffected —
 // that's the browser's normal HTTP cache and the app's own localStorage
 // pause/resume, not this worker.
@@ -36,26 +37,36 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Classroom calls and @mentions (sent by /api/classrooms/push). Tapping
-// one opens the classroom, reusing a PastCS tab if one is open.
+// Every notification: classroom calls and @mentions (sent by
+// /api/classrooms/push) and everything else in the bell (sent by
+// /api/push/drain). The phone shows it on the lock screen and as a
+// pop-up like any app's; badge-96.png is the white owl Android puts in
+// the status bar. Tapping one opens its page, reusing a PastCS window if
+// one is open.
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
-  const url = typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/classrooms';
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'PastCS', {
-      body: data.body || '',
-      icon: '/past.png',
-      badge: '/past.png',
-      tag: data.tag,
-      data: { url },
-    })
-  );
+  const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//') ? data.url : '/dashboard';
+  const shown = self.registration.showNotification(data.title || 'PastCS', {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-96.png',
+    tag: data.tag,
+    renotify: !!data.tag,
+    vibrate: [180, 80, 180],
+    timestamp: Date.now(),
+    data: { url },
+  });
+  // The unread count on the home-screen icon, like WhatsApp's.
+  const badge = typeof data.badgeCount === 'number' && self.navigator.setAppBadge
+    ? self.navigator.setAppBadge(data.badgeCount).catch(() => {})
+    : Promise.resolve();
+  event.waitUntil(Promise.all([shown, badge]));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = new URL((event.notification.data && event.notification.data.url) || '/classrooms', self.location.origin).href;
+  const url = new URL((event.notification.data && event.notification.data.url) || '/dashboard', self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const open = windows.find((w) => w.url.startsWith(self.location.origin));
