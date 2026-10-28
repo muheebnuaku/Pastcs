@@ -6,17 +6,21 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { QuestionContent } from '@/components/ui';
 import { BossOwl, type BossMood } from '@/components/boss/BossOwl';
+import { HIT_LANDS_MS, HitEffect } from '@/components/boss/HitEffect';
 import {
   BOSS_HEARTS, FIGHTS_BEFORE_BREAK, bossErrorMessage, bossShareUrl, buzz, formatFightTime,
-  isBossMuted, playBossSound, setBossMuted, type BossFight, type BossQuestion,
+  isBossMusicOff, isBossMuted, playBossSound, setBossMusicOff, setBossMusicRage, setBossMuted, startBossMusic, stopBossMusic,
+  type BossFight, type BossQuestion,
 } from '@/lib/examBoss';
-import { ArrowLeft, Check, Flame, Heart, Loader2, RotateCcw, Share2, Trophy, Volume2, VolumeX, X, Zap } from 'lucide-react';
+import { ArrowLeft, Check, Flame, Heart, Loader2, Music, RotateCcw, Share2, Trophy, Volume2, VolumeX, X, Zap } from 'lucide-react';
 
 // One Exam Boss fight (migration 043). The server keeps the clock: each
 // question has a start time (its text arrives only then) and a deadline,
 // and the server decides every hit, heart and KO. The page looks again
 // when a question starts and just after its deadline, and keeps the last
 // question on screen during the pause so the answer can be shown.
+// A right answer fires a bolt at the boss (HitEffect); background music
+// plays while the fight is live and speeds up when the boss is enraged.
 
 const STREAK_KEY = 'pastcs_boss_streak';
 const wallClock = () => Date.now();
@@ -36,6 +40,11 @@ export default function BossFightPage() {
   const [error, setError] = useState('');
   const [rematching, setRematching] = useState(false);
   const [inARow, setInARow] = useState(0);
+  const [musicOn, setMusicOn] = useState(false);
+  // The latest hit on the boss (its effects end invisible, so it stays
+  // mounted until the next one), and whether it has landed yet.
+  const [strike, setStrike] = useState<{ key: number; power: boolean; damage: number } | null>(null);
+  const [landed, setLanded] = useState(true);
 
   const offsetRef = useRef(0);
   const seenLastRef = useRef<number | null>(null);
@@ -43,7 +52,7 @@ export default function BossFightPage() {
   const endedRef = useRef(false);
   const tickRef = useRef(-1);
 
-  useEffect(() => { setMuted(isBossMuted()); }, []);
+  useEffect(() => { setMuted(isBossMuted()); setMusicOn(!isBossMusicOff()); }, []);
 
   const apply = useCallback((s: BossFight, sentAt: number) => {
     offsetRef.current = new Date(s.server_now).getTime() - (sentAt + Date.now()) / 2;
@@ -61,19 +70,21 @@ export default function BossFightPage() {
   useEffect(() => { fetchFight(); }, [fetchFight]);
 
   // Look again when the next question starts, and just after its deadline
-  // (the server marks a time-out then).
+  // (the server marks a time-out then). Re-armed after every answer from
+  // the server, so a look that lands a moment early (the clock estimate is
+  // off by a slow response) is simply tried again.
   const q = fight?.question ?? null;
   const startsAt = q ? new Date(q.starts_at).getTime() : null;
   const deadline = q ? new Date(q.deadline).getTime() : null;
   const started = !!q && q.text !== null;
   useEffect(() => {
-    if (!startsAt || !deadline || fight?.status !== 'live') return;
-    const local = (t: number) => Math.max(0, t - (Date.now() + offsetRef.current));
+    if (!fight || !startsAt || !deadline || fight.status !== 'live') return;
+    const local = (t: number) => Math.max(250, t - (Date.now() + offsetRef.current));
     const timer = started
-      ? window.setTimeout(fetchFight, local(deadline) + 1700)
-      : window.setTimeout(fetchFight, local(startsAt) + 60);
+      ? window.setTimeout(fetchFight, local(deadline + 1700))
+      : window.setTimeout(fetchFight, local(startsAt + 60));
     return () => window.clearTimeout(timer);
-  }, [startsAt, deadline, started, fight?.status, fetchFight]);
+  }, [fight, startsAt, deadline, started, fetchFight]);
 
   useEffect(() => {
     if (fight?.status !== 'live') return;
@@ -105,7 +116,13 @@ export default function BossFightPage() {
     }
     if (last && last.idx !== seenLastRef.current) {
       seenLastRef.current = last.idx;
-      if (last.correct) { playBossSound(last.damage >= 4 ? 'power' : 'hit'); buzz(30); }
+      if (last.correct) {
+        const power = last.damage >= 4;
+        setStrike({ key: last.idx, power, damage: last.damage });
+        setLanded(false);
+        playBossSound(power ? 'shootPower' : 'shoot');
+        window.setTimeout(() => { setLanded(true); playBossSound(power ? 'power' : 'hit'); buzz(power ? [40, 30, 90] : 35); }, HIT_LANDS_MS);
+      }
       else { playBossSound('hurt'); buzz([80, 40, 160]); }
     }
     if (fight.enraged && wasEnragedRef.current === false && fight.status === 'live') playBossSound('rage');
@@ -121,6 +138,15 @@ export default function BossFightPage() {
       } catch { /* private mode */ }
     }
   }, [fight, last]);
+
+  // Background music while the fight is live.
+  const live = fight?.status === 'live';
+  useEffect(() => {
+    if (live && musicOn && !muted) startBossMusic(!!fight?.enraged);
+    else stopBossMusic();
+  }, [live, musicOn, muted, fight?.enraged]);
+  useEffect(() => { setBossMusicRage(!!fight?.enraged); }, [fight?.enraged]);
+  useEffect(() => () => stopBossMusic(), []);
 
   // Tick in the last 3 seconds.
   const secondsLeft = started && deadline ? Math.max(0, (deadline - now) / 1000) : null;
@@ -157,6 +183,7 @@ export default function BossFightPage() {
   };
 
   const toggleMute = () => { setBossMuted(!muted); setMuted(!muted); };
+  const toggleMusic = () => { setBossMusicOff(musicOn); setMusicOn(!musicOn); };
 
   if (missing) {
     return (
@@ -171,7 +198,6 @@ export default function BossFightPage() {
     return <div className="max-w-xl mx-auto h-[28rem] rounded-3xl bg-gray-900 animate-pulse" />;
   }
 
-  const live = fight.status === 'live';
   // During the pause after an answer the last question stays up, marked.
   const revealing = live && !!shown && !!last && last.idx === shown.idx && (!q || q.idx !== shown.idx || !started);
   const waitingFirst = live && !shown && !!q && !started;
@@ -179,7 +205,7 @@ export default function BossFightPage() {
   const total = shown?.countdown ?? q?.countdown ?? 10;
   const charge = secondsLeft !== null && !revealing ? 1 - secondsLeft / total : 0;
 
-  const mood: BossMood = fight.status === 'won' ? 'ko'
+  const mood: BossMood = fight.status === 'won' ? (landed ? 'ko' : 'hurt')
     : fight.status === 'lost' ? 'taunt'
     : revealing ? (last?.correct ? 'hurt' : 'attack')
     : fight.enraged ? 'enraged'
@@ -202,10 +228,17 @@ export default function BossFightPage() {
           className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
           <ArrowLeft className="w-4 h-4 mr-1.5" />Exam Boss
         </Link>
-        <button onClick={toggleMute} aria-label={muted ? 'Turn sound on' : 'Mute sound'} aria-pressed={muted}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10">
-          {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={toggleMusic} disabled={muted} aria-label={musicOn ? 'Turn music off' : 'Turn music on'} aria-pressed={musicOn && !muted}
+            className={`relative w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-white/10 ${musicOn && !muted ? 'text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400'}`}>
+            <Music className="w-5 h-5" />
+            {(!musicOn || muted) && <span className="absolute w-6 h-0.5 bg-current rotate-45 rounded-full" aria-hidden="true" />}
+          </button>
+          <button onClick={toggleMute} aria-label={muted ? 'Turn sound on' : 'Mute sound'} aria-pressed={muted}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10">
+            {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* The arena */}
@@ -217,17 +250,23 @@ export default function BossFightPage() {
           {fight.enraged && live && <span className="flex-shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold text-red-300">ENRAGED</span>}
           <span className="ml-auto flex-shrink-0 text-xs text-gray-400">{fight.course_code}</span>
         </div>
-        <div className="mt-2 h-3 rounded-full bg-white/10 overflow-hidden" role="meter" aria-label="Boss health" aria-valuemin={0} aria-valuemax={fight.boss_max_hp} aria-valuenow={fight.boss_hp}>
-          <div className={`h-full rounded-full transition-[width] duration-500 ${fight.enraged ? 'bg-gradient-to-r from-red-600 to-orange-500' : 'bg-gradient-to-r from-green-500 to-emerald-400'}`} style={{ width: `${hpPct}%` }} />
+        {/* Health drops as the hit lands; a pale trail shows what it just lost, then catches up. */}
+        <div className="relative mt-2 h-3 rounded-full bg-white/10 overflow-hidden" role="meter" aria-label="Boss health" aria-valuemin={0} aria-valuemax={fight.boss_max_hp} aria-valuenow={fight.boss_hp}>
+          <div className="absolute inset-y-0 left-0 rounded-full bg-white/70 transition-[width] duration-700 delay-700 ease-in" style={{ width: `${hpPct}%` }} />
+          <div className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${fight.enraged ? 'bg-gradient-to-r from-red-600 to-orange-500' : 'bg-gradient-to-r from-green-500 to-emerald-400'}`}
+            style={{ width: `${hpPct}%`, transitionDelay: `${HIT_LANDS_MS}ms` }} />
         </div>
 
+        <div key={strike ? `hit-${strike.key}` : 'calm'} className={strike ? (strike.power ? 'boss-arena-hit-big' : 'boss-arena-hit') : ''}>
         <div className="relative mx-auto mt-2 w-36 sm:w-48">
           <BossOwl mood={mood} beat={last?.idx ?? -1} label={`${fight.boss_name}, ${mood === 'ko' ? 'knocked out' : mood}`} />
+          {strike && <HitEffect key={strike.key} power={strike.power} damage={strike.damage} />}
           {popup && (
-            <p key={`pop-${last?.idx}`} className={`boss-pop pointer-events-none absolute inset-x-0 top-1/3 text-center text-xl sm:text-2xl font-black tracking-wide drop-shadow ${popup.tone}`} aria-hidden="true">
+            <p key={`pop-${last?.idx}`} className={`boss-pop ${last?.correct ? 'boss-late' : ''} pointer-events-none absolute inset-x-0 top-1/3 text-center text-xl sm:text-2xl font-black tracking-wide drop-shadow ${popup.tone}`} aria-hidden="true">
               {popup.text}
             </p>
           )}
+        </div>
         </div>
 
         <div className="mt-1 flex items-center justify-between gap-2">
