@@ -248,11 +248,11 @@ function BossHub() {
             </button>
             {showHow && (
               <ul className="px-4 pb-4 space-y-1.5 text-sm text-gray-600 list-disc pl-8 dark:text-gray-400">
-                <li>Answer each question before the boss&rsquo;s attack bar fills. A right answer hits the boss; a quick one hits harder.</li>
+                <li>You have 20 seconds to answer each question (24 for multiple choice) before the boss&rsquo;s attack bar fills. A right answer hits the boss; a quick one hits harder.</li>
                 <li>Three right in a row charges a power strike: your next hit does double damage.</li>
                 <li>A wrong answer or a time-out costs one of your 3 hearts, and you&rsquo;ll see the right answer.</li>
                 <li>At half health the boss is enraged: less time to answer.</li>
-                <li>The boss learns how good you are. Win more and you face a higher level, with harder questions and less time. Struggle and it eases off.</li>
+                <li>The boss learns how good you are. Win more and you face a higher level: harder questions and a boss that takes more hits. Struggle and it eases off.</li>
                 <li>Fights earn XP and trophies. They don&rsquo;t change your course grade.</li>
               </ul>
             )}
