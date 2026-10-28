@@ -378,11 +378,15 @@ export default function AssistantPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    const query = user?.program_id
-      ? coursesForProgram(supabase, user.program_id).order('level')
-      : supabase.from('courses').select('*').order('level');
+    // Only the student's current level and semester: the courses they're
+    // actually taking, not every course in the programme.
+    let query = user?.program_id
+      ? coursesForProgram(supabase, user.program_id).order('course_code')
+      : supabase.from('courses').select('*').order('course_code');
+    if (user?.selected_level) query = query.eq('level', user.selected_level);
+    if (user?.selected_semester) query = query.eq('semester', user.selected_semester);
     query.then(({ data }: { data: Course[] | null }) => { if (data) setCourses(data); });
-  }, [user?.program_id]);
+  }, [user?.program_id, user?.selected_level, user?.selected_semester]);
 
   // Remember which course the student was studying, per user.
   const courseKey = user?.id ? `pastcs_tutor_course_${user.id}` : null;
@@ -1155,7 +1159,9 @@ export default function AssistantPage() {
     // off-screen / creates a second page-level scrollbar). 100dvh instead
     // of 100vh so mobile Safari/Chrome's address bar showing or hiding
     // doesn't make the layout jump.
-    <div className="flex flex-col h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-2rem)] max-h-[900px]">
+    // On phones the header is pulled up level with the menu button
+    // (-mt-12, 3rem), so the page is 3rem taller than the rule above.
+    <div className="-mt-12 lg:mt-0 flex flex-col h-[calc(100dvh-6rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-2rem)] max-h-[900px]">
 
       {showTutorPricing && (
         <TutorPricingModal
@@ -1230,11 +1236,11 @@ export default function AssistantPage() {
       />
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 pb-3">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="flex-shrink-0 pb-2 sm:pb-3">
+        <div className="flex items-center sm:items-start justify-between gap-3 min-h-[40px] pl-14 lg:pl-0">
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">
-              <BotMessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 flex-shrink-0" />
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-gray-100">
+              <BotMessageSquare className="w-5 h-5 sm:w-7 sm:h-7 text-blue-600 flex-shrink-0" />
               <span className="truncate">AI Tutor</span>
             </h1>
             <p className="hidden sm:block text-gray-500 text-sm mt-0.5 dark:text-gray-400">Ask anything, or turn your slides and notes into a full lesson.</p>
@@ -1265,15 +1271,15 @@ export default function AssistantPage() {
         </div>
 
         {/* Context bar */}
-        <div className="flex flex-wrap items-center gap-2 mt-3">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3">
           {/* Course picker */}
           <div className="relative">
             <button
               onClick={() => setShowCourseMenu(v => !v)}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm text-gray-700 hover:border-blue-400 transition-colors shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
-              <BookOpen className="w-4 h-4 text-blue-500" />
-              <span className="max-w-[160px] truncate">{selectedCourseObj ? selectedCourseObj.course_code : 'Pick a course'}</span>
+              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+              <span className="max-w-[110px] sm:max-w-[160px] truncate">{selectedCourseObj ? selectedCourseObj.course_code : 'Pick a course'}</span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
             </button>
             {showCourseMenu && (
@@ -1288,7 +1294,7 @@ export default function AssistantPage() {
                     if (!lc.length) return null;
                     return (
                       <div key={level}>
-                        <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50 dark:text-gray-500 dark:bg-white/[0.03]">Level {level}</p>
+                        <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50 dark:text-gray-500 dark:bg-white/[0.03]">Level {level}{user?.selected_semester ? ` · Semester ${user.selected_semester}` : ''}</p>
                         {lc.map(c => (
                           <button key={c.id} onClick={() => { setSelectedCourse(c.id); setShowCourseMenu(false); }}
                             className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors ${selectedCourse === c.id ? 'text-blue-600 font-medium bg-blue-50 dark:bg-blue-500/10' : 'text-gray-700 dark:text-gray-300'}`}>
@@ -1310,17 +1316,19 @@ export default function AssistantPage() {
             placeholder="Topic (optional)"
             value={topic}
             onChange={e => setTopic(e.target.value)}
-            className="hidden sm:block flex-1 min-w-[140px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
+            className="hidden sm:block flex-1 min-w-[140px] px-3 py-2 bg-white border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300 dark:placeholder-gray-500"
           />
 
+          {/* Upload, paste, my lessons: one even row on phones */}
+          <div className="flex w-full sm:w-auto gap-1.5 sm:gap-2">
           {/* Upload doc button */}
           {limitReached ? (
             <button
               onClick={() => setShowTutorPricing(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/15 transition-colors shadow-sm whitespace-nowrap"
+              className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg sm:rounded-xl text-xs sm:text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/15 transition-colors shadow-sm whitespace-nowrap"
               title="No lessons left — top up to make more"
             >
-              <Lock className="w-4 h-4" />
+              <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Get more lessons</span>
             </button>
           ) : (
@@ -1328,16 +1336,16 @@ export default function AssistantPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
               title="Upload PDF, Word, or PowerPoint to get a full AI lesson"
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+              className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
               {isProcessing
-                ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                : <Paperclip className="w-4 h-4" />}
+                ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-blue-500" />
+                : <Paperclip className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               <span>
-                {docStage === 'uploading' ? 'Reading…' : docStage === 'generating' ? 'Building lesson…' : 'Upload slides'}
+                {docStage === 'uploading' ? 'Reading…' : docStage === 'generating' ? 'Building…' : <><span className="sm:hidden">Upload</span><span className="hidden sm:inline">Upload slides</span></>}
               </span>
               {uploadChecked && (
-                <span className={`text-xs font-medium tabular-nums ${
+                <span className={`hidden sm:inline text-xs font-medium tabular-nums ${
                   uploadRemaining <= 2 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'
                 }`}>
                   {quota?.freeWindow && !quota.purchased
@@ -1354,10 +1362,10 @@ export default function AssistantPage() {
               onClick={() => setShowPasteModal(true)}
               disabled={isProcessing}
               title="Paste text — notes, an excerpt, anything — to get a full AI lesson"
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+              className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
-              <ClipboardPaste className="w-4 h-4" />
-              <span>Paste text</span>
+              <ClipboardPaste className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span><span className="sm:hidden">Paste</span><span className="hidden sm:inline">Paste text</span></span>
             </button>
           )}
 
@@ -1365,13 +1373,21 @@ export default function AssistantPage() {
             <button
               onClick={() => { loadLibrary(); setShowLibrary(true); }}
               title="Reopen lessons you've already made — free"
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
+              className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors shadow-sm whitespace-nowrap dark:bg-white/[0.04] dark:border-white/10 dark:text-gray-300"
             >
-              <Library className="w-4 h-4" />
-              <span>My lessons{libraryItems.length > 0 ? ` (${libraryItems.length})` : ''}</span>
+              <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span><span className="sm:hidden">Lessons</span><span className="hidden sm:inline">My lessons</span>{libraryItems.length > 0 ? ` (${libraryItems.length})` : ''}</span>
             </button>
           )}
+          </div>
         </div>
+
+        {/* Phones: the uploads count lives here, not in the button. */}
+        {uploadChecked && !limitReached && (!quota?.freeWindow || quota.freeWindow.used === 0) && (
+          <p className="sm:hidden mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+            {quota?.freeWindow ? `${quota.freeWindow.limit} of ${quota.freeWindow.limit} free uploads left` : `${uploadRemaining} ${uploadRemaining === 1 ? 'lesson' : 'lessons'} left`}
+          </p>
+        )}
 
         {/* Free accounts: uploads come back one at a time, 3 hours after use */}
         {quota?.freeWindow && quota.freeWindow.used > 0 && quota.freeWindow.nextAt && (

@@ -13,6 +13,7 @@ import { LevelSemesterModal } from './components/LevelSemesterModal';
 import { PaywallModal } from './components/PaywallModal';
 import { coursesForProgram } from '@/lib/programs';
 import type { Course } from '@/types';
+import { GRADE_LABELS } from '@/lib/gradeLadder';
 import {
   ArrowRight,
   Lock,
@@ -39,6 +40,16 @@ export default function CoursesPage() {
   const [freeCourseError, setFreeCourseError] = useState<string | null>(null);
   const [paywallCourse, setPaywallCourse] = useState<Course | null>(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
+  // Each course's grade on the ladder (migration 042). Null until it
+  // loads, and stays null if the ladder isn't set up yet (no badges then).
+  const [grades, setGrades] = useState<Record<string, { stage: number; label: string; next_label: string | null }> | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    createClient().rpc('get_my_course_grades')
+      .then(({ data, error: err }: { data: { course_id: string; stage: number; label: string; next_label: string | null }[] | null; error: unknown }) => {
+        if (!err && data) setGrades(Object.fromEntries(data.map(g => [g.course_id, g])));
+      });
+  }, [user?.id]);
 
   const level = user?.selected_level;
   const semester = user?.selected_semester;
@@ -241,7 +252,7 @@ export default function CoursesPage() {
         <div className="bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-2xl p-4 flex items-center gap-3">
           <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
           <p className="text-sm font-medium text-green-800 dark:text-green-400">
-            Full access — all {courses.length} courses unlocked this semester
+            Full access — {courses.length === 1 ? 'your course is' : `all ${courses.length} courses`} unlocked this semester
           </p>
         </div>
       )}
@@ -290,6 +301,10 @@ export default function CoursesPage() {
             const isFreeCourse = course.course_code === freeCourseCode;
             const isLocked = !isPaid && !isFreeCourse && !!freeCourseCode;
             const isPickable = !isPaid && !freeCourseCode;
+            // Every course starts at F until its first counted answers.
+            const grade = grades && !isLocked && !isPickable
+              ? grades[course.id] ?? { stage: 0, label: GRADE_LABELS[0], next_label: GRADE_LABELS[1] }
+              : null;
 
             const body = (
               <>
@@ -300,11 +315,18 @@ export default function CoursesPage() {
                       <Lock className="w-3 h-3" /> Locked
                     </span>
                   )}
-                  {isFreeCourse && !isPaid && (
-                    <span className="bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400 text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                      Free
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isFreeCourse && !isPaid && (
+                      <span className="bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400 text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                        Free
+                      </span>
+                    )}
+                    {grade && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full border border-blue-400 bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" aria-label={`Grade ${grade.label}`}>
+                        {grade.label}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className={`font-bold text-sm sm:text-base break-words ${isLocked ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
@@ -312,6 +334,11 @@ export default function CoursesPage() {
                   </h2>
                   <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 leading-snug line-clamp-2 mt-0.5">{course.course_name}</p>
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">{course.total_questions ?? 0} questions</p>
+                  {grade && (
+                    <p className="text-[11px] font-semibold text-blue-700 mt-0.5 dark:text-blue-300">
+                      {grade.next_label ? `Grade ${grade.label} · next ${grade.next_label}` : 'Grade A · top grade'}
+                    </p>
+                  )}
                 </div>
                 <div className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs sm:text-sm font-semibold transition-colors ${
                   isLocked
