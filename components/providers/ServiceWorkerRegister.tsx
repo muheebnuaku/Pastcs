@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
+// Loaded on every page so the browser's one-off install prompt is caught
+// early, for the Install button (components/InstallApp.tsx).
+import '@/components/InstallApp';
 
 /**
  * Registers the offline/installability service worker (public/sw.js).

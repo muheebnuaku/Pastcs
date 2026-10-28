@@ -24,14 +24,22 @@ export const metadata: Metadata = {
   description: "Exam practice platform for IT students at every level. Build your question bank, simulate exams, and track your progress.",
   keywords: ["exam practice", "University of Ghana", "IT students", "DCIT", "past questions"],
   manifest: "/manifest.json",
+  // Square icons (public/icons): the old ones were 864×724 but declared as
+  // 192 and 512, which stops Android offering "Install app" and gives
+  // iPhones a letterboxed home-screen icon.
   icons: {
     icon: [
-      { url: '/past.png', type: 'image/png', sizes: '32x32' },
-      { url: '/past.png', type: 'image/png', sizes: '192x192' },
-      { url: '/past.png', type: 'image/png', sizes: '512x512' },
+      { url: '/icons/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icons/icon-512.png', type: 'image/png', sizes: '512x512' },
     ],
-    apple: { url: '/past.png', sizes: '180x180' },
-    shortcut: '/past.png',
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180' },
+    shortcut: '/icons/icon-192.png',
+  },
+  // Opened from the iPhone home screen: full screen, named PastCS.
+  appleWebApp: {
+    capable: true,
+    title: 'PastCS',
+    statusBarStyle: 'default',
   },
   openGraph: {
     title: "PastCS - Exam Practice Platform",

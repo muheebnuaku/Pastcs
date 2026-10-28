@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { InstallCard } from '@/components/InstallApp';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/components/providers';
 import { createClient } from '@/lib/supabase/client';
@@ -341,22 +342,22 @@ export default function ProfilePage() {
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-lg">
-                    <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                    <div>
+                    <User className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500 dark:text-gray-400">Full Name</p>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{user.full_name || 'Not set'}</p>
+                      <p className="font-medium text-gray-900 break-words dark:text-gray-100">{user.full_name || 'Not set'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-lg">
-                    <Mail className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                    <div>
+                    <Mail className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{user.email}</p>
+                      <p className="font-medium text-gray-900 break-all dark:text-gray-100">{user.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-lg">
-                    <GraduationCap className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                    <div>
+                    <GraduationCap className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500 dark:text-gray-400">Programme</p>
                       <p className={`font-medium ${user.program_id || user.program ? 'text-gray-900 dark:text-gray-100' : 'text-amber-600 dark:text-amber-400'}`}>
                         {programs.find(p => p.id === user.program_id)?.name ?? user.program ?? 'Not set — use Change below'}
@@ -387,14 +388,14 @@ export default function ProfilePage() {
                   {programs.find(p => p.id === user.program_id)?.name ?? user.program ?? 'Not set'}
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-[#fde3da] dark:bg-[#e8603c]/10 rounded-xl text-center">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="p-3 sm:p-4 bg-[#fde3da] dark:bg-[#e8603c]/10 rounded-xl text-center min-w-0">
                   <p className="text-sm text-[#c94f2f] dark:text-[#f0906f] font-medium mb-1">Current Level</p>
-                  <p className="text-2xl font-bold text-[#a13f22] dark:text-[#f0906f]">{levelLabel}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-[#a13f22] dark:text-[#f0906f]">{levelLabel}</p>
                 </div>
-                <div className="p-4 bg-[#dcf1ee] dark:bg-[#2f9e8f]/10 rounded-xl text-center">
+                <div className="p-3 sm:p-4 bg-[#dcf1ee] dark:bg-[#2f9e8f]/10 rounded-xl text-center min-w-0">
                   <p className="text-sm text-[#227568] dark:text-[#5fc2b3] font-medium mb-1">Semester</p>
-                  <p className="text-2xl font-bold text-[#1a5850] dark:text-[#5fc2b3]">{semesterLabel}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-[#1a5850] dark:text-[#5fc2b3]">{semesterLabel}</p>
                 </div>
               </div>
 
@@ -536,6 +537,8 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           )}
+
+          <InstallCard />
 
           {/* Appearance Card */}
           <Card>

@@ -311,19 +311,19 @@ export default function ResultsPage() {
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {wrongCount > 0 ? (
           <Link href={`/practice/${courseSlug}?mode=mistakes`}>
-            <Button size="lg" className="w-full bg-amber-600 hover:bg-amber-700">
+            <Button size="lg" className="w-full px-3 text-sm sm:text-lg bg-amber-600 hover:bg-amber-700">
               <RotateCcw className="w-4 h-4 mr-2" />Fix my mistakes
             </Button>
           </Link>
         ) : (
           <Link href={`/exam/${courseSlug}`}>
-            <Button size="lg" className="w-full bg-purple-600 hover:bg-purple-700">
+            <Button size="lg" className="w-full px-3 text-sm sm:text-lg bg-purple-600 hover:bg-purple-700">
               <Clock className="w-4 h-4 mr-2" />Try a mock exam
             </Button>
           </Link>
         )}
         <Link href={`/courses/${courseSlug}`}>
-          <Button size="lg" variant="outline" className="w-full">
+          <Button size="lg" variant="outline" className="w-full px-3 text-sm sm:text-lg">
             <BookOpen className="w-4 h-4 mr-2" />Practise more
           </Button>
         </Link>

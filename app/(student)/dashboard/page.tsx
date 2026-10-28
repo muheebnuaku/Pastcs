@@ -12,6 +12,7 @@ import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, courseCodeSlug, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
 import { PaywallModal } from '../courses/components/PaywallModal';
+import { InstallBanner } from '@/components/InstallApp';
 import type { Course, Test, WeakTopic } from '@/types';
 
 interface CourseGradeBadge { course_id: string; label: string; next_label: string | null }
@@ -199,6 +200,8 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      <InstallBanner />
+
       {/* ── Quick actions ── */}
       {quickActions.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -320,7 +323,7 @@ export default function DashboardPage() {
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Avg. Score</p>
         </div>
 
-        {/* Courses Practiced */}
+        {/* Courses Practised */}
         <div className="bg-white dark:bg-white/[0.04] rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-white/10 shadow-sm">
           <div className="w-9 h-9 bg-[#fbe9b8] dark:bg-[#dba514]/15 rounded-xl flex items-center justify-center mb-3">
             <BookOpen className="w-5 h-5 text-[#b0842a] dark:text-[#dba514]" />
@@ -328,7 +331,7 @@ export default function DashboardPage() {
           <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 leading-none">
             {stats.coursesCount}/{courses.length || '—'}
           </p>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Courses Practiced</p>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Courses Practised</p>
         </div>
       </div>
 
