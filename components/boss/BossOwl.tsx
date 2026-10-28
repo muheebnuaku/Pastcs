@@ -31,7 +31,8 @@ export function BossOwl({ mood = 'idle', beat = 0, className = '', label }: {
   const angry = mood === 'enraged' || mood === 'attack' || mood === 'taunt';
   const ko = mood === 'ko';
   const eye = angry ? RED : GREEN;
-  const oneShot = mood === 'hurt' ? 'boss-shake' : mood === 'attack' ? 'boss-lunge' : '';
+  // The shake waits for the bolt to land (see HitEffect).
+  const oneShot = mood === 'hurt' ? 'boss-shake boss-late' : mood === 'attack' ? 'boss-lunge' : '';
   const body = ko ? 'boss-ko' : mood === 'enraged' ? 'boss-tremble' : 'boss-float';
 
   return (

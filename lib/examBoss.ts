@@ -160,12 +160,14 @@ function tone(freq: number, start: number, length: number, type: OscillatorType 
   osc.stop(t + length + 0.02);
 }
 
-export type BossSound = 'hit' | 'power' | 'hurt' | 'tick' | 'win' | 'lose' | 'start' | 'rage';
+export type BossSound = 'hit' | 'power' | 'hurt' | 'tick' | 'win' | 'lose' | 'start' | 'rage' | 'shoot' | 'shootPower';
 
 export function playBossSound(kind: BossSound) {
   if (isBossMuted()) return;
   switch (kind) {
-    case 'hit': tone(520, 0, 0.08); tone(780, 0.07, 0.12); break;
+    case 'hit': tone(520, 0, 0.08); tone(780, 0.07, 0.12); tone(160, 0, 0.18, 'sine', 0.12, 50); break;
+    case 'shoot': tone(300, 0, 0.22, 'sawtooth', 0.035, 1400); break;
+    case 'shootPower': tone(200, 0, 0.26, 'sawtooth', 0.05, 1800); tone(400, 0.02, 0.24, 'square', 0.03, 2400); break;
     case 'power': tone(330, 0, 0.1, 'sawtooth'); tone(660, 0.08, 0.1, 'sawtooth'); tone(990, 0.16, 0.22, 'sawtooth'); break;
     case 'hurt': tone(220, 0, 0.3, 'sawtooth', 0.08, 70); break;
     case 'tick': tone(1000, 0, 0.04, 'sine', 0.04); break;
@@ -179,4 +181,108 @@ export function playBossSound(kind: BossSound) {
 export function buzz(pattern: number | number[]) {
   if (isBossMuted()) return;
   try { navigator.vibrate?.(pattern); } catch { /* not supported */ }
+}
+
+// ── Background music ─────────────────────────────────────────────────
+// A small chiptune loop, played by a look-ahead scheduler: bass, an
+// arpeggio, kick and a noise snare. When the boss is enraged it speeds
+// up and moves to darker chords. Off when muted, or when music is
+// switched off (kept on this phone).
+
+const MUSIC_KEY = 'pastcs_boss_music_off';
+
+export function isBossMusicOff(): boolean {
+  try { return localStorage.getItem(MUSIC_KEY) === '1'; } catch { return false; }
+}
+
+export function setBossMusicOff(off: boolean) {
+  try { localStorage.setItem(MUSIC_KEY, off ? '1' : '0'); } catch { /* private mode */ }
+}
+
+const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+// Four bars each: a bass root and a chord to arpeggiate.
+const CALM = { bpm: 116, bass: [45, 41, 48, 43], chords: [[57, 60, 64], [53, 57, 60], [60, 64, 67], [55, 59, 62]], wave: 'triangle' as OscillatorType };
+const RAGE = { bpm: 148, bass: [45, 46, 45, 40], chords: [[57, 60, 64], [58, 62, 65], [57, 60, 64], [52, 56, 59]], wave: 'sawtooth' as OscillatorType };
+
+interface Music { timer: number; step: number; next: number; out: GainNode; rage: boolean; noise: AudioBuffer }
+let music: Music | null = null;
+
+function note(ac: AudioContext, out: AudioNode, freq: number, t: number, len: number, type: OscillatorType, vol: number, slideTo?: number) {
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + len);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  osc.connect(g).connect(out);
+  osc.start(t);
+  osc.stop(t + len + 0.02);
+}
+
+function playStep(ac: AudioContext, m: Music, step: number, t: number) {
+  const song = m.rage ? RAGE : CALM;
+  const bar = Math.floor(step / 16) % 4;
+  const s = step % 16;
+  const sixteenth = 60 / song.bpm / 4;
+  // Bass on the beat, octave bounce on the off-beat.
+  if (s % 4 === 0) note(ac, m.out, midi(song.bass[bar]), t, sixteenth * 3, song.wave, 0.09);
+  if (s % 4 === 2) note(ac, m.out, midi(song.bass[bar] + 12), t, sixteenth * 1.5, song.wave, 0.05);
+  // Arpeggio in eighths.
+  if (s % 2 === 0) {
+    const chord = song.chords[bar];
+    note(ac, m.out, midi(chord[(s / 2) % chord.length] + 12), t, sixteenth * 1.6, 'square', 0.022);
+  }
+  // Kick, and a noise snare on 2 and 4.
+  if (s === 0 || s === 8 || (m.rage && s % 4 === 0)) note(ac, m.out, 130, t, 0.14, 'sine', 0.22, 40);
+  if (s === 4 || s === 12) {
+    const src = ac.createBufferSource();
+    const g = ac.createGain();
+    src.buffer = m.noise;
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    src.connect(g).connect(m.out);
+    src.start(t);
+    src.stop(t + 0.13);
+  }
+}
+
+export function startBossMusic(rage = false) {
+  if (music || isBossMuted() || isBossMusicOff()) { if (music) music.rage = rage; return; }
+  const ac = ctx();
+  if (!ac) return;
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0.0001, ac.currentTime);
+  out.gain.exponentialRampToValueAtTime(0.5, ac.currentTime + 0.6);
+  out.connect(ac.destination);
+  const noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.15), ac.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const m: Music = { timer: 0, step: 0, next: ac.currentTime + 0.05, out, rage, noise };
+  m.timer = window.setInterval(() => {
+    if (ac.state !== 'running') { m.next = ac.currentTime + 0.05; return; }
+    while (m.next < ac.currentTime + 0.15) {
+      playStep(ac, m, m.step, m.next);
+      m.next += 60 / (m.rage ? RAGE : CALM).bpm / 4;
+      m.step = (m.step + 1) % 64;
+    }
+  }, 40);
+  music = m;
+}
+
+export function setBossMusicRage(rage: boolean) {
+  if (music) music.rage = rage;
+}
+
+export function stopBossMusic() {
+  if (!music) return;
+  const m = music;
+  music = null;
+  window.clearInterval(m.timer);
+  const ac = ctx();
+  if (!ac) return;
+  m.out.gain.cancelScheduledValues(ac.currentTime);
+  m.out.gain.setValueAtTime(m.out.gain.value, ac.currentTime);
+  m.out.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.4);
+  window.setTimeout(() => m.out.disconnect(), 500);
 }
