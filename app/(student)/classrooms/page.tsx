@@ -11,7 +11,7 @@ import { Button, Input, Modal, Select } from '@/components/ui';
 import { coursesForProgram } from '@/lib/programs';
 import { COURSE_ICONS } from '@/lib/utils';
 import { classroomErrorMessage, classroomsNotSetUp, type ClassroomRole } from '@/lib/classrooms';
-import type { Course } from '@/types';
+import type { Course, Subscription } from '@/types';
 import { Users, Plus, LogIn, Trophy, BarChart3, Swords, ChevronRight, Crown, Shield, Lock, Gift } from 'lucide-react';
 
 interface MyClassroom {
@@ -40,6 +40,9 @@ export default function ClassroomsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
+  // The server's answer per course (migration 045); null until it loads,
+  // or if 045 isn't run yet.
+  const [serverAccess, setServerAccess] = useState<Record<string, string> | null>(null);
 
   const [code, setCode] = useState('');
   const [joining, setJoining] = useState(false);
@@ -97,9 +100,25 @@ export default function ClassroomsPage() {
       });
   }, [showCreate, user?.program_id, user?.selected_level, user?.selected_semester, courses.length]);
 
-  // Same rule the database enforces (migration 030): your free course, a
-  // level you've paid for, or, before you've picked one, your free course.
+  // Each time the form opens, ask the server which courses are open. The
+  // subscriptions on this phone were loaded at sign-in, so a free pass or
+  // payment that came in since would otherwise still show as locked.
+  useEffect(() => {
+    if (!showCreate || !userId) return;
+    const supabase = createClient();
+    supabase.rpc('get_my_course_access_list')
+      .then(({ data, error }: { data: { course_id: string; access: string }[] | null; error: unknown }) => {
+        if (!error && data) setServerAccess(Object.fromEntries(data.map(r => [r.course_id, r.access])));
+      });
+    supabase.from('subscriptions').select('*').eq('user_id', userId).eq('status', 'active')
+      .then(({ data, error }: { data: Subscription[] | null; error: unknown }) => { if (!error && data) useSubscriptionStore.getState().setSubscriptions(data); });
+  }, [showCreate, userId]);
+
+  // Same rule the database enforces (course_access_for): your free course,
+  // a level you've paid for, or, before you've picked one, your free course.
   const accessFor = (c: Course): 'free' | 'paid' | 'claim' | 'locked' => {
+    const server = serverAccess?.[c.id];
+    if (server) return server === 'free' ? 'free' : server === 'paid' ? 'paid' : server === 'available_free' ? 'claim' : 'locked';
     if (user?.free_course_code && user.free_course_code.toUpperCase() === c.course_code.toUpperCase()) return 'free';
     if (hasActiveSub(c.level, c.semester, user?.program_id)) return 'paid';
     return user?.free_course_code ? 'locked' : 'claim';

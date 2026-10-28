@@ -69,9 +69,10 @@ export function ClassroomAlerts() {
         (payload: { new: { id: string; type: string; message: string; link: string | null; meta: { url?: string; classroom_id?: string } | null } }) => {
           window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
           const n = payload.new;
-          // A class rep just paid for this student (migration 036): pick up
-          // the new subscription so locked courses open without a reload.
-          if (n.type === 'group_payment') {
+          // A class rep just paid for this student (migration 036), or an
+          // admin granted a free pass: pick up the new subscription so locked
+          // courses open without a reload.
+          if (n.type === 'group_payment' || n.type === 'free_pass') {
             supabase.from('subscriptions').select('*').eq('user_id', userId).eq('status', 'active')
               .then(({ data, error }: { data: Subscription[] | null; error: unknown }) => { if (!error && data) useSubscriptionStore.getState().setSubscriptions(data); });
           }
