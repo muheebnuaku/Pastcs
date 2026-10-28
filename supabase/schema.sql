@@ -5151,3 +5151,13 @@ REVOKE EXECUTE ON FUNCTION public.get_daily_boss_board(UUID, UUID) FROM PUBLIC, 
 GRANT EXECUTE ON FUNCTION public.get_daily_boss_board(UUID, UUID) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
+-- EXAM BOSS TIMING — see migration 044
+-- ================================================================
+CREATE OR REPLACE FUNCTION public.boss_countdown(p_level INTEGER, p_enraged BOOLEAN, p_multi BOOLEAN)
+RETURNS INTEGER LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE WHEN p_enraged THEN 16 ELSE 20 END + CASE WHEN p_multi THEN 4 ELSE 0 END;
+$$;
+
+NOTIFY pgrst, 'reload schema';
