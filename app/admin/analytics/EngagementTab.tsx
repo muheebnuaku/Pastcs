@@ -271,10 +271,10 @@ create index on feature_events (user_id, created_at desc);`}</pre>
           { label: 'Avg Score (30d)', value: formatPercentage(avgScore), icon: <BookOpen className="w-5 h-5 text-orange-500 dark:text-orange-400" />, bg: 'bg-orange-50 dark:bg-orange-500/15' },
         ] as const).map(({ label, value, icon, bg }) => (
           <Card key={label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>{icon}</div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value}</p>
+            <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>{icon}</div>
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">{value}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
               </div>
             </CardContent>
@@ -314,7 +314,7 @@ create index on feature_events (user_id, created_at desc);`}</pre>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
               {typeStats.map(t => (
                 <div key={t.name} className="flex items-center gap-1.5 text-sm">
                   <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: t.color }} />

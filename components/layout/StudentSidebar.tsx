@@ -115,11 +115,14 @@ export function StudentSidebar() {
       )}
 
       {/* Mobile menu button — hidden once open: it sits right over the
-          drawer's own logo, and clicking the overlay already closes it. */}
+          drawer's own logo, and clicking the overlay already closes it.
+          Absolute, not fixed: it scrolls away with the top of the page
+          instead of floating over text (the tab bar's More opens the
+          same menu from anywhere). */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-[#1c1a15] text-gray-900 dark:text-gray-100 rounded-lg shadow-md border border-gray-200 dark:border-white/10"
+          className="lg:hidden absolute top-4 left-4 z-50 p-2 bg-white dark:bg-[#1c1a15] text-gray-900 dark:text-gray-100 rounded-lg shadow-md border border-gray-200 dark:border-white/10"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />

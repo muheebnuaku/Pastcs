@@ -143,10 +143,10 @@ export function ClassroomsTab() {
           { label: 'Members in total', value: stats.members_total.toLocaleString(), icon: <Users className="w-5 h-5 text-orange-500 dark:text-orange-400" />, bg: 'bg-orange-50 dark:bg-orange-500/15' },
         ] as const).map(({ label, value, icon, bg }) => (
           <Card key={label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>{icon}</div>
+            <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>{icon}</div>
               <div className="min-w-0">
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value}</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">{value}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
               </div>
             </CardContent>
