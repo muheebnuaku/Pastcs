@@ -26,11 +26,13 @@ import {
   Trash2,
   MessageSquare,
   Users,
+  Swords,
 } from 'lucide-react';
 
 const studentNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/courses', label: 'Courses', icon: BookOpen },
+  { href: '/boss', label: 'Exam Boss', icon: Swords },
   { href: '/assistant', label: 'AI Tutor', icon: BotMessageSquare },
   { href: '/classrooms', label: 'Classrooms', icon: Users },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
