@@ -15,12 +15,8 @@ import { PaywallModal } from '../courses/components/PaywallModal';
 import { InstallBanner } from '@/components/InstallApp';
 import type { Course, Test, WeakTopic } from '@/types';
 
-interface CourseGradeBadge { course_id: string; label: string; next_label: string | null }
 import {
-  Flame,
   Target,
-  BookOpen,
-  TrendingUp,
   Play,
   RotateCcw,
   MessageCircle,
@@ -34,6 +30,8 @@ import {
   CalendarClock,
   Pencil,
 } from 'lucide-react';
+
+interface CourseGradeBadge { course_id: string; label: string; next_label: string | null }
 
 // Colors the Exam Countdown card's motivation banner by urgency — calm
 // blue far out, escalating to red right before the exam.
@@ -62,7 +60,7 @@ export default function DashboardPage() {
   const [editingExamDate, setEditingExamDate] = useState(false);
   const [examDateInput, setExamDateInput] = useState('');
   // Each course's grade on the ladder (migration 042); empty before it runs.
-  const [grades, setGrades] = useState<Record<string, CourseGradeBadge>>({});
+  const [grades, setGrades] = useState<Record<string, CourseGradeBadge> | null>(null);
   useEffect(() => {
     if (!user?.id) return;
     createClient().rpc('get_my_course_grades')
@@ -288,53 +286,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Stats Cards — 2×2 on mobile, 4-col on lg ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Streak */}
-        <div className="bg-white dark:bg-white/[0.04] rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-white/10 shadow-sm">
-          <div className="w-9 h-9 bg-[#fde3da] dark:bg-[#e8603c]/15 rounded-xl flex items-center justify-center mb-3">
-            <Flame className="w-5 h-5 text-[#e8603c]" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 leading-none">
-            {user?.practice_streak || 0}
-          </p>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Day Streak</p>
-        </div>
-
-        {/* Tests Taken */}
-        <div className="bg-white dark:bg-white/[0.04] rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-white/10 shadow-sm">
-          <div className="w-9 h-9 bg-[#dcf1ee] dark:bg-[#2f9e8f]/15 rounded-xl flex items-center justify-center mb-3">
-            <Target className="w-5 h-5 text-[#2f9e8f]" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 leading-none">
-            {stats.totalTests}
-          </p>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Tests Taken</p>
-        </div>
-
-        {/* Avg Score */}
-        <div className="bg-white dark:bg-white/[0.04] rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-white/10 shadow-sm">
-          <div className="w-9 h-9 bg-green-100 dark:bg-green-500/15 rounded-xl flex items-center justify-center mb-3">
-            <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 leading-none">
-            {formatPercentage(stats.avgScore)}
-          </p>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Avg. Score</p>
-        </div>
-
-        {/* Courses Practised */}
-        <div className="bg-white dark:bg-white/[0.04] rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-white/10 shadow-sm">
-          <div className="w-9 h-9 bg-[#fbe9b8] dark:bg-[#dba514]/15 rounded-xl flex items-center justify-center mb-3">
-            <BookOpen className="w-5 h-5 text-[#b0842a] dark:text-[#dba514]" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 leading-none">
-            {stats.coursesCount}/{courses.length || '—'}
-          </p>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Courses Practised</p>
-        </div>
-      </div>
-
       {/* ── Main grid: Courses + Sidebar ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
         {/* Courses list + Recent Tests */}
@@ -351,7 +302,8 @@ export default function DashboardPage() {
             <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 p-3 sm:p-4">
               {courses.slice(0, 6).map((course) => {
                 const isLocked = !isPaid && course.course_code !== user?.free_course_code && !!user?.free_course_code;
-                const g = isLocked ? undefined : grades[course.id];
+                // Every course starts at F until its first counted answers.
+                const g = isLocked || !grades ? undefined : grades[course.id] ?? { course_id: course.id, label: 'F', next_label: 'E' };
                 return (
                   <Link
                     key={course.id}
