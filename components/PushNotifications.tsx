@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { BellRing, Check, X } from 'lucide-react';
 import {
-  disablePush, enablePush, pushDeviceState, pushPromptSnoozed, resyncPush, snoozePushPrompt, type PushDeviceState,
+  disablePush, pushDeviceState, pushPromptSnoozed, resyncPush, snoozePushPrompt, turnOnPush, type PushDeviceState,
 } from '@/lib/push';
 
 // Phone notifications for everything in the bell, like WhatsApp: on the
@@ -42,6 +42,7 @@ export function PushBanner() {
   const [state, setState] = useDeviceState();
   const [hidden, setHidden] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => { setHidden(pushPromptSnoozed()); }, []);
 
@@ -50,11 +51,10 @@ export function PushBanner() {
   const dismiss = () => { snoozePushPrompt(); setHidden(true); };
   const turnOn = async () => {
     setBusy(true);
-    const on = await enablePush().catch(() => false);
+    const result = await turnOnPush();
     setBusy(false);
     setState(await pushDeviceState());
-    // Whatever they chose in the browser's own prompt, don't ask again here.
-    if (!on) dismiss();
+    if (!result.on) setError(result.reason);
   };
 
   return (
@@ -74,6 +74,7 @@ export function PushBanner() {
             </button>
             <button onClick={dismiss} className="px-2 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400">Not now</button>
           </div>
+          {error && <p role="alert" className="text-xs text-red-600 mt-2 dark:text-red-400">{error}</p>}
         </div>
         <button onClick={dismiss} aria-label="Close" className="text-gray-400 hover:text-gray-600 flex-shrink-0"><X className="w-4 h-4" /></button>
       </div>
@@ -93,7 +94,10 @@ export function PushCard() {
     setBusy('toggle');
     setNote('');
     if (state === 'on') await disablePush().catch(() => {});
-    else if (!(await enablePush().catch(() => false))) setNote('Notifications weren’t turned on. Check PastCS is allowed to send them.');
+    else {
+      const result = await turnOnPush();
+      if (!result.on) setNote(result.reason);
+    }
     setState(await pushDeviceState());
     setBusy(null);
   };
