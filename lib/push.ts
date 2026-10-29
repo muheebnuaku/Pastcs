@@ -89,16 +89,55 @@ export function setAppBadgeCount(count: number) {
   else nav.clearAppBadge?.().catch(() => {});
 }
 
+function within<T>(ms: number, p: Promise<T>, reason: string): Promise<T> {
+  return Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(reason)), ms))]);
+}
+
+export type PushResult = { on: true } | { on: false; reason: string };
+
+/**
+ * Asks for permission and saves this browser. Each of the phone's own
+ * steps has a time limit: a browser that never answers (no Google push
+ * service, a stuck service worker) used to leave the button spinning.
+ */
+export async function turnOnPush(): Promise<PushResult> {
+  if (!pushSupported()) return { on: false, reason: 'This browser can’t show notifications. Open PastCS in Google Chrome.' };
+  let permission: NotificationPermission;
+  try {
+    permission = await within(60_000, Notification.requestPermission(), 'prompt');
+  } catch {
+    return { on: false, reason: 'The permission question didn’t appear. Close PastCS completely, open it again and retry.' };
+  }
+  if (permission === 'denied') return { on: false, reason: 'Notifications are blocked for PastCS. Allow them in your phone’s settings, then try again.' };
+  if (permission !== 'granted') return { on: false, reason: 'Tap again and choose Allow when your phone asks.' };
+
+  let reg: ServiceWorkerRegistration;
+  try {
+    reg = await within(25_000, registration(), 'worker');
+    await within(25_000, navigator.serviceWorker.ready, 'worker');
+  } catch {
+    return { on: false, reason: 'PastCS’s background helper didn’t start. Close PastCS completely, open it again and retry.' };
+  }
+
+  let sub: PushSubscription;
+  try {
+    sub = (await reg.pushManager.getSubscription())
+      ?? (await within(20_000, reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }), 'subscribe'));
+  } catch {
+    return { on: false, reason: 'This browser couldn’t sign up for notifications. Use Google Chrome: Brave, Opera Mini and some phone browsers block them.' };
+  }
+
+  try {
+    if (!(await within(15_000, save(sub), 'save'))) throw new Error('save');
+  } catch {
+    return { on: false, reason: 'Couldn’t save this phone. Check your connection and try again.' };
+  }
+  return { on: true };
+}
+
 /** Asks for permission and saves this browser. Returns whether it's now on. */
 export async function enablePush(): Promise<boolean> {
-  if (!pushSupported()) return false;
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return false;
-  const reg = await registration();
-  await navigator.serviceWorker.ready;
-  const sub = (await reg.pushManager.getSubscription())
-    ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
-  return save(sub);
+  return (await turnOnPush()).on;
 }
 
 export async function disablePush(): Promise<void> {
