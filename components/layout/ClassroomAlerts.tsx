@@ -9,6 +9,7 @@ import { NOTIFICATIONS_CHANGED } from '@/lib/hooks/useNotifications';
 import { rememberJoinedCall } from '@/lib/classroomLimits';
 import { PhoneCall, X } from 'lucide-react';
 import type { Subscription } from '@/types';
+import { playNotifySound } from '@/lib/notifySound';
 
 interface CallAlert {
   id: string;
@@ -69,6 +70,9 @@ export function ClassroomAlerts() {
         (payload: { new: { id: string; type: string; message: string; link: string | null; meta: { url?: string; classroom_id?: string } | null } }) => {
           window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
           const n = payload.new;
+          // Our chime, except mid-practice, exam, battle or Exam Boss fight.
+          const here = pathRef.current;
+          if (!/^\/(practice|exam|boss)\/|\/battles\//.test(here)) playNotifySound();
           // A class rep just paid for this student (migration 036), or an
           // admin granted a free pass: pick up the new subscription so locked
           // courses open without a reload.

@@ -23,6 +23,8 @@ interface Item {
   message: string;
   link: string | null;
   unread: number;
+  /** The daily nudge's own headline (migration 050). */
+  push_title?: string | null;
 }
 
 const TITLES: Record<string, string> = {
@@ -34,6 +36,9 @@ const TITLES: Record<string, string> = {
   streak_lost: 'Streak ended',
   milestone: 'Milestone reached',
   inactivity: 'Time for a quick quiz',
+  daily_nudge: 'PastCS',
+  rep_payout: 'Level Rep payout',
+  push_test: 'PastCS',
 };
 
 function secretMatches(given: string | null): boolean {
@@ -62,8 +67,10 @@ export async function POST(request: Request) {
 
   const db = serviceClient();
   let sent = 0;
-  // A few rounds, so a burst that arrives while this runs still goes out.
-  for (let round = 0; round < 5; round++) {
+  // Keep going while there's time, so a big batch (the daily nudge to
+  // everyone at once) and anything arriving meanwhile all go out.
+  const started = Date.now();
+  while (Date.now() - started < 20_000) {
     const { data, error } = await db.rpc('claim_push_batch', { p_limit: 100 });
     if (error) {
       console.error('[push drain] claim failed', error.message);
@@ -77,7 +84,7 @@ export async function POST(request: Request) {
         await webpush.sendNotification(
           { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
           JSON.stringify({
-            title: TITLES[t.type] ?? 'PastCS',
+            title: t.push_title || TITLES[t.type] || 'PastCS',
             body: t.message,
             url: pushUrl(t.type, t.link),
             tag: t.notification_id,

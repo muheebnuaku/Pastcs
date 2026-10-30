@@ -12,6 +12,7 @@ import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessages';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { setAppBadgeCount } from '@/lib/push';
+import { useRepStore } from '@/lib/referral';
 import { createClient } from '@/lib/supabase/client';
 import {
   Home,
@@ -30,6 +31,7 @@ import {
   Users,
   Swords,
   Megaphone,
+  RefreshCw,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -51,7 +53,21 @@ export function StudentSidebar() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { hasActiveSub } = useSubscriptionStore();
-  const { signOut } = useAuth();
+  const { signOut, refreshUser } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Home on the dashboard is also refresh: back to the top and reload
+  // your profile, unlocks and the dashboard's data (it reloads whenever
+  // the user does).
+  const homeTap = async (e: React.MouseEvent) => {
+    if (pathname !== '/dashboard') return;
+    e.preventDefault();
+    if (refreshing) return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setRefreshing(true);
+    await Promise.all([refreshUser().catch(() => {}), new Promise(r => setTimeout(r, 600))]);
+    setRefreshing(false);
+  };
   const [isOpen, setIsOpen] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
 
@@ -63,14 +79,37 @@ export function StudentSidebar() {
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
-    createClient().rpc('am_i_level_rep').then(({ data }: { data: unknown }) => { if (!cancelled) setIsRep(data === true); });
+    createClient().rpc('am_i_level_rep').then(({ data }: { data: unknown }) => {
+      // Also tells share links to carry this rep's code (lib/referral).
+      useRepStore.getState().setIsRep(data === true);
+      if (!cancelled) setIsRep(data === true);
+    });
     return () => { cancelled = true; };
   }, [user?.id]);
   const navItems = isRep ? [...studentNavItems.slice(0, -1), repNavItem, studentNavItems[studentNavItems.length - 1]] : studentNavItems;
 
-  // The count on the home-screen icon follows the bell (push sets it while
-  // the app is closed; reading them here clears it).
-  useEffect(() => { setAppBadgeCount(unreadCount); }, [unreadCount]);
+  // Everything unread, like WhatsApp's number: the bell, messages from
+  // PastCS and classroom chat. On the app icon (installed app on a phone,
+  // or the taskbar icon on a laptop) and in the browser tab's title, e.g.
+  // "(3) PastCS". Push sets the icon while the app is closed.
+  const unreadTotal = unreadCount + unreadMessages + unreadClass;
+  useEffect(() => { setAppBadgeCount(unreadTotal); }, [unreadTotal]);
+  useEffect(() => {
+    const apply = () => {
+      const base = document.title.replace(/^\(\d+\+?\) /, '');
+      const next = unreadTotal > 0 ? `(${unreadTotal > 99 ? '99+' : unreadTotal}) ${base}` : base;
+      if (document.title !== next) document.title = next;
+    };
+    apply();
+    // Each page sets its own title after navigating: put the count back.
+    const head = document.querySelector('title');
+    const watch = head ? new MutationObserver(apply) : null;
+    if (head && watch) watch.observe(head, { childList: true, characterData: true, subtree: true });
+    return () => {
+      watch?.disconnect();
+      document.title = document.title.replace(/^\(\d+\+?\) /, '');
+    };
+  }, [unreadTotal, pathname]);
 
   const handleSignOut = async () => {
     setAppBadgeCount(0);
@@ -97,7 +136,7 @@ export function StudentSidebar() {
   return (
     <>
       {!inTest && (
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-20 bg-white/95 dark:bg-[#1c1a15]/95 backdrop-blur border-t border-gray-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)]">
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-20 transform-gpu bg-white/95 dark:bg-[#1c1a15]/95 backdrop-blur border-t border-gray-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)]">
           <div className="grid grid-cols-5">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = pathname === href || pathname.startsWith(href + '/');
@@ -105,15 +144,19 @@ export function StudentSidebar() {
                 <Link
                   key={href}
                   href={href}
+                  onClick={href === '/dashboard' ? homeTap : undefined}
+                  aria-label={href === '/dashboard' && active ? (refreshing ? 'Refreshing' : 'Home: tap to refresh') : undefined}
                   className={cn(
-                    'flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors',
+                    'flex flex-col items-center gap-1 pt-2.5 pb-2 text-xs font-medium transition-colors',
                     active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
                   )}
                 >
                   <span className="relative">
-                    <Icon className="w-5 h-5" />
+                    {href === '/dashboard' && refreshing
+                      ? <RefreshCw className="w-6 h-6 animate-spin" />
+                      : <Icon className="w-6 h-6" />}
                     {href === '/classrooms' && unreadClass > 0 && (
-                      <span className="absolute -top-1.5 left-3 min-w-[1.125rem] h-[1.125rem] px-1 bg-red-500 text-white text-[10px] font-bold leading-none rounded-full flex items-center justify-center ring-2 ring-white dark:ring-[#1c1a15]">
+                      <span className="absolute -top-1.5 left-3.5 min-w-[1.125rem] h-[1.125rem] px-1 bg-red-500 text-white text-[10px] font-bold leading-none rounded-full flex items-center justify-center ring-2 ring-white dark:ring-[#1c1a15]">
                         {unreadLabel(unreadClass)}
                       </span>
                     )}
@@ -124,12 +167,12 @@ export function StudentSidebar() {
             })}
             <button
               onClick={() => setIsOpen(true)}
-              className="relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-gray-500 dark:text-gray-400"
+              className="relative flex flex-col items-center gap-1 pt-2.5 pb-2 text-xs font-medium text-gray-500 dark:text-gray-400"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-6 h-6" />
               More
               {(unreadMessages > 0 || unreadCount > 0) && (
-                <span className="absolute top-1.5 left-1/2 ml-2 w-2 h-2 bg-red-500 rounded-full" />
+                <span className="absolute top-2 left-1/2 ml-2.5 w-2 h-2 bg-red-500 rounded-full" />
               )}
             </button>
           </div>

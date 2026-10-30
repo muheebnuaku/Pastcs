@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BellRing, Check, X } from 'lucide-react';
+import { BellRing, Check, Volume2, VolumeX, X } from 'lucide-react';
+import { isNotifySoundOff, playNotifySound, setNotifySoundOff } from '@/lib/notifySound';
 import {
   disablePush, pushDeviceState, pushPromptSnoozed, resyncPush, snoozePushPrompt, turnOnPush, type PushDeviceState,
 } from '@/lib/push';
@@ -87,8 +88,17 @@ export function PushCard() {
   const [state, setState] = useDeviceState();
   const [busy, setBusy] = useState<'toggle' | 'test' | null>(null);
   const [note, setNote] = useState('');
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => { setSoundOn(!isNotifySoundOff()); }, []);
 
   if (!state) return null;
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setNotifySoundOff(!next);
+    setSoundOn(next);
+    if (next) playNotifySound();
+  };
 
   const toggle = async () => {
     setBusy('toggle');
@@ -151,6 +161,21 @@ export function PushCard() {
           </div>
         )}
         {note && <p role="status" className="text-xs mt-2 text-gray-600 dark:text-gray-400">{note}</p>}
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-white/10">
+          <div className="min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">PastCS sound</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Our chime when a notification arrives while the app is open. On the lock screen your phone plays its own sound.</p>
+          </div>
+          <button
+            onClick={toggleSound}
+            aria-pressed={soundOn}
+            className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium ${soundOn
+              ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300'
+              : 'border-gray-200 text-gray-600 dark:border-white/10 dark:text-gray-300'}`}
+          >
+            {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}{soundOn ? 'On' : 'Off'}
+          </button>
+        </div>
       </div>
     </div>
   );

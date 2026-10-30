@@ -8,6 +8,7 @@ import { usePricing } from '@/lib/hooks/usePricing';
 import { useCountdown } from '@/lib/hooks/useCountdown';
 import { createClient } from '@/lib/supabase/client';
 import { coursesForProgram } from '@/lib/programs';
+import { loadLevelCourses } from '@/lib/courseList';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { COURSE_ICONS, getStreakMessage, formatPercentage, getExamMotivation, getPerformanceNote, courseCodeSlug, QUESTIONS_PER_EXAM, EXAM_DURATION_MINUTES, type ExamUrgency } from '@/lib/utils';
 import { LevelSemesterModal } from '../courses/components/LevelSemesterModal';
@@ -102,20 +103,28 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
       const supabase = createClient();
 
-      let coursesQuery = user?.program_id
-        ? coursesForProgram(supabase, user.program_id).order('course_code')
-        : supabase.from('courses').select('*').order('course_code');
-      if (level && semester) {
-        coursesQuery = coursesQuery.eq('level', level).eq('semester', semester);
+      let coursesData: Course[] | null;
+      if (user?.program_id && level && semester) {
+        coursesData = (await loadLevelCourses(supabase, user.program_id, level, semester)).data;
+      } else {
+        const coursesQuery = user?.program_id
+          ? coursesForProgram(supabase, user.program_id).order('course_code')
+          : supabase.from('courses').select('*').order('course_code');
+        coursesData = (await coursesQuery).data;
       }
-      const { data: coursesData } = await coursesQuery;
 
-      const { data: testsData } = await supabase
+      // Recent tests from this level and semester only: last semester's
+      // results aren't what a student needs to see once they've moved on.
+      let testsQuery = supabase
         .from('tests')
         .select('*, course:courses(*)')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(5);
+      if (level && semester) {
+        testsQuery = testsQuery.in('course_id', (coursesData ?? []).map((c: Course) => c.id));
+      }
+      const { data: testsData } = await testsQuery;
 
       const { data: weakTopicsData } = await supabase
         .rpc('get_weak_topics', { p_user_id: user?.id, p_limit: 5 });
@@ -352,7 +361,9 @@ export default function DashboardPage() {
 
             {recentTests.length === 0 ? (
               <div className="px-4 py-10 text-center text-gray-500 dark:text-gray-400 text-sm">
-                No tests taken yet — start practising to see your results here!
+                {level && semester
+                  ? 'No tests this semester yet. Start practising to see your results here.'
+                  : 'No tests taken yet. Start practising to see your results here.'}
               </div>
             ) : (
               <>

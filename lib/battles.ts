@@ -1,6 +1,7 @@
 // Class battles (supabase/migrations/034_classroom_battles.sql).
 
 import { whatsappShareUrl } from '@/lib/share';
+import { shareLink } from '@/lib/referral';
 
 export type BattlePhase = 'lobby' | 'countdown' | 'question' | 'reveal' | 'finished' | 'cancelled';
 
@@ -96,6 +97,6 @@ export function ordinal(n: number): string {
 
 export function battleShareUrl(opts: { rank: number | null; players: number; correct: number; total: number; score: number; room: string; courseCode?: string }): string {
   const place = opts.rank ? `came ${ordinal(opts.rank)} of ${opts.players}` : 'took part';
-  const text = `I ${place} in a ${opts.courseCode ? `${opts.courseCode} ` : ''}class battle in "${opts.room}" on PastCS: ${opts.correct}/${opts.total} correct, ${opts.score.toLocaleString('en-GB')} points. Think you can beat me? ${typeof window !== 'undefined' ? window.location.origin : 'https://www.pastcs.com'}/classrooms`;
+  const text = `I ${place} in a ${opts.courseCode ? `${opts.courseCode} ` : ''}class battle in "${opts.room}" on PastCS: ${opts.correct}/${opts.total} correct, ${opts.score.toLocaleString('en-GB')} points. Think you can beat me? ${shareLink('/classrooms')}`;
   return whatsappShareUrl(text);
 }

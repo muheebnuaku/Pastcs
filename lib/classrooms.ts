@@ -1,6 +1,7 @@
 // Shared pieces for Classrooms (see supabase/migrations/028_classrooms.sql).
 
 import { whatsappShareUrl as whatsappTextUrl } from '@/lib/share';
+import { shareLink } from '@/lib/referral';
 
 export type ClassroomRole = 'owner' | 'leader' | 'member';
 export type ShareLevel = 'full' | 'totals' | 'hidden';
@@ -44,9 +45,9 @@ export interface ClassroomTopicStat {
 
 export const PENDING_JOIN_KEY = 'pastcs_pending_join';
 
+/** The invite link; a Level Rep's carries their code (lib/referral). */
 export function inviteUrl(code: string): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.pastcs.com';
-  return `${origin}/join/${code}`;
+  return shareLink(`/join/${code}`);
 }
 
 export function whatsappShareUrl(name: string, courseCode: string | undefined, code: string): string {
