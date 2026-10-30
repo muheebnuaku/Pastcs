@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ghc } from '@/lib/groupPayments';
+import { whatsappShareUrl } from '@/lib/share';
 import { Check, Copy, Loader2, Megaphone, Share2, Wallet } from 'lucide-react';
 
 // A Level Rep's page (migration 047): their code, who signed up with it,
@@ -118,7 +119,7 @@ export default function RepPage() {
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? 'Copied' : 'Copy link'}
           </button>
           <a
-            href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+            href={whatsappShareUrl(shareText)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1ebe5a]"

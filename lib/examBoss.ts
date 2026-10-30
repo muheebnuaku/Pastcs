@@ -1,6 +1,8 @@
 // Exam Boss (migration 043): types, messages, sharing, sound and buzz.
 // The server runs every fight; this file only describes what it sends.
 
+import { whatsappShareUrl } from '@/lib/share';
+
 export type FightStatus = 'live' | 'won' | 'lost' | 'abandoned';
 
 export interface BossQuestion {
@@ -114,7 +116,7 @@ export function bossShareUrl(f: Pick<BossFight, 'boss_name' | 'level' | 'course_
   const what = f.is_daily ? `today’s ${f.course_code} Daily Boss` : `${f.boss_name} (level ${f.level}) in ${f.course_code}`;
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.pastcs.com';
   const text = `I knocked out ${what} on PastCS in ${formatFightTime(f.time_ms)}${flawless}. Think you can beat it? ${origin}/boss`;
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  return whatsappShareUrl(text);
 }
 
 // ── Sound ────────────────────────────────────────────────────────────

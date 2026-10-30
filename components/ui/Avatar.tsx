@@ -19,7 +19,10 @@ export function Avatar({ src, alt, fallback, name, size = 'md', className }: Ava
     xl: 'w-16 h-16 text-lg',
   };
 
-  const initials = fallback?.charAt(0).toUpperCase() || name?.charAt(0).toUpperCase() || '?';
+  // The first letter or digit, so a name starting with an emoji doesn't
+  // show half a character.
+  const firstLetter = (s?: string | null) => s?.match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase();
+  const initials = firstLetter(fallback) || firstLetter(name) || '?';
 
   if (src) {
     return (

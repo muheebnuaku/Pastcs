@@ -1,1065 +1,315 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Avatar, Modal, Badge } from '@/components/ui';
-import { isAdminRole } from '@/lib/utils';
-import type { User, Subscription, UserRole, Program, AdminMessage } from '@/types';
-import { RepForm } from '@/components/admin/RepForm';
-import type { LevelRepRow } from '@/lib/levelReps';
+import { Avatar } from '@/components/ui';
 import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Target,
-  Flame,
-  Gift,
-  X,
-  Plus,
-  ShieldCheck,
-  Shield,
-  Users as UsersIcon,
-  GraduationCap,
-  Download,
-  Clock,
-  Ban,
-  RotateCcw,
-  AlertTriangle,
-  MessageSquare,
-  Send,
-  KeyRound,
-} from 'lucide-react';
+  USER_FILTERS, dateLabel, roleLabel, timeAgo, type AdminUserRow, type UserFilter,
+} from '@/lib/adminUsers';
+import type { Program } from '@/types';
+import { UserPanel, Chip } from './UserPanel';
+import { ChevronLeft, ChevronRight, Download, Loader2, Search, Trash2, X } from 'lucide-react';
 
-interface UserRow extends User {
-  total_tests: number;
-  avg_score: number;
+// Users, at any size: search, filters and paging run in the database
+// (admin_search_users, migration 049), 25 accounts at a time. Tapping an
+// account opens everything about it in a side panel.
+
+const PAGE_SIZE = 25;
+
+interface Counts { [filter: string]: number }
+
+function csvEscape(v: string) {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
-
-type RoleFilter = 'all' | UserRole;
-
-function levelLabel(level: number, semester: number) {
-  return `L${level} S${semester}`;
-}
-
-function isFreePass(sub: Subscription) {
-  return sub.payment_reference?.startsWith('free_pass_');
-}
-
-function timeAgo(iso: string | undefined) {
-  if (!iso) return 'Never';
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
-}
-
-function csvEscape(value: string) {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
-
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [subsMap, setSubsMap] = useState<Record<string, Subscription[]>>({});
-  const [lastActiveMap, setLastActiveMap] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<UserFilter>('all');
+  const [query, setQuery] = useState('');
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(0);
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Counts>({});
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
-  const [freePassOnly, setFreePassOnly] = useState(false);
-  const [sharedIpOnly, setSharedIpOnly] = useState(false);
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const [unreadReplyUserIds, setUnreadReplyUserIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
-
-  // Manage access modal state
-  const [modalUser, setModalUser] = useState<UserRow | null>(null);
+  const [error, setError] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNote, setBulkNote] = useState('');
+  const [confirmBulk, setConfirmBulk] = useState(false);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [grantLevel, setGrantLevel] = useState<number>(100);
-  const [grantSemester, setGrantSemester] = useState<number>(1);
-  const [grantProgramId, setGrantProgramId] = useState<string>('');
-  const [granting, setGranting] = useState(false);
-  const [revoking, setRevoking] = useState<string | null>(null); // subscriptionId being revoked
-  const [suspending, setSuspending] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const [passwordResetDone, setPasswordResetDone] = useState(false);
-  const [passwordResetFallback, setPasswordResetFallback] = useState('');
-  const [actionError, setActionError] = useState('');
-  const [messageText, setMessageText] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [messageError, setMessageError] = useState('');
-  const [threadMessages, setThreadMessages] = useState<AdminMessage[]>([]);
-  const [loadingThread, setLoadingThread] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const reqId = useRef(0);
 
-  // Level Reps (migration 047), by user. Missing before the migration:
-  // the section then offers nothing.
-  const [reps, setReps] = useState<Record<string, LevelRepRow>>({});
-  const [repsReady, setRepsReady] = useState(false);
-  const [editingRep, setEditingRep] = useState(false);
-
+  // Debounce typing into the search.
   useEffect(() => {
-    const supabase = createClient();
-    supabase.from('programs').select('*').order('name')
-      .then(({ data }: { data: Program[] | null }) => setPrograms(data ?? []));
-    supabase.rpc('admin_list_level_reps').then(({ data, error }: { data: LevelRepRow[] | null; error: unknown }) => {
-      if (error) return;
-      setReps(Object.fromEntries((data ?? []).map(r => [r.user_id, r])));
-      setRepsReady(true);
-    });
+    const t = setTimeout(() => { setQ(query.trim()); setPage(0); }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const loadCounts = useCallback(async () => {
+    const { data } = await createClient().rpc('admin_user_counts');
+    if (data) setCounts(data as Counts);
   }, []);
 
-  const openManageModal = (user: UserRow) => {
-    setModalUser(user);
-    setActionError('');
-    setMessageText('');
-    setMessageError('');
-    setThreadMessages([]);
-    setPasswordResetDone(false);
-    setPasswordResetFallback('');
-    setEditingRep(false);
-    // Default to the student's own program — that's what "grant access"
-    // means for them almost every time.
-    setGrantProgramId(user.program_id ?? programs[0]?.id ?? '');
-
-    setLoadingThread(true);
-    fetch(`/api/admin/messages?userId=${user.id}`)
-      .then(res => res.json())
-      .then(json => setThreadMessages(json.messages ?? []))
-      .finally(() => setLoadingThread(false));
-
-    // The GET above marks the student's messages read server-side —
-    // reflect that immediately instead of waiting on the next full
-    // fetchUsers() to clear their "unread reply" badge.
-    setUnreadReplyUserIds(prev => {
-      if (!prev.has(user.id)) return prev;
-      const next = new Set(prev);
-      next.delete(user.id);
-      return next;
-    });
-  };
-
-  // Live updates while the modal is open — without this, a reply the
-  // student sends mid-conversation doesn't appear until the modal is
-  // closed and reopened.
-  useEffect(() => {
-    if (!modalUser) return;
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`admin_messages_admin:${modalUser.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'admin_messages', filter: `user_id=eq.${modalUser.id}` },
-        (payload) => {
-          const incoming = payload.new as AdminMessage;
-          setThreadMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
-          if (incoming.sender_id === modalUser.id) {
-            supabase.from('admin_messages').update({ is_read: true }).eq('id', incoming.id);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [modalUser]);
-
-  const handleSendMessage = async () => {
-    if (!modalUser || !messageText.trim()) return;
-    setSendingMessage(true);
-    setMessageError('');
-    const res = await fetch('/api/admin/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: modalUser.id, message: messageText.trim() }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setMessageError(json.error ?? 'Failed to send message');
-    } else {
-      setMessageText('');
-      setThreadMessages(prev => [...prev, json.message]);
-    }
-    setSendingMessage(false);
-  };
-
-  const fetchUsers = useCallback(async () => {
+  const load = useCallback(async () => {
+    const id = ++reqId.current;
     setLoading(true);
-    const res = await fetch('/api/admin/users');
-    if (res.ok) {
-      const { users: rawUsers, subscriptions, lastActive, unreadReplyUserIds: unreadIds } = await res.json();
-
-      // Build subscriptions map
-      const map: Record<string, Subscription[]> = {};
-      for (const sub of subscriptions) {
-        if (!map[sub.user_id]) map[sub.user_id] = [];
-        map[sub.user_id].push(sub);
-      }
-      setSubsMap(map);
-      setLastActiveMap(lastActive ?? {});
-      setUnreadReplyUserIds(new Set(unreadIds ?? []));
-
-      setUsers(rawUsers.map((u: User) => ({
-        ...u,
-        total_tests: u.total_tests_taken ?? 0,
-        avg_score: 0,
-      })));
+    const { data, error: err } = await createClient().rpc('admin_search_users', {
+      p_q: q || null, p_filter: filter, p_limit: PAGE_SIZE, p_offset: page * PAGE_SIZE,
+    });
+    if (id !== reqId.current) return; // a newer search has started
+    if (err) {
+      setError(/admin_search_users|Could not find the function/.test(err.message)
+        ? 'The new Users page needs migration 049: run it in the Supabase SQL editor.'
+        : 'Couldn’t load users. Try again.');
+      setRows([]); setTotal(0);
+    } else {
+      const r = data as { total: number; rows: AdminUserRow[] } | null;
+      setRows(r?.rows ?? []); setTotal(r?.total ?? 0); setError('');
     }
     setLoading(false);
-  }, []);
+  }, [q, filter, page]);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    loadCounts();
+    createClient().from('programs').select('*').order('name')
+      .then(({ data }: { data: Program[] | null }) => setPrograms(data ?? []));
+  }, [loadCounts]);
 
-  // Live "new reply" badge/stat while just browsing the list — without
-  // this an admin only finds out about a reply on the next full
-  // fetchUsers() (page load or after some other action). Postgres
-  // realtime filters can't express "sender_id = user_id" (cross-column),
-  // so this listens to every insert and checks that client-side; message
-  // volume here is low (support messages, not a busy chat).
+  // A student's reply lights up "Needs a reply" without a reload.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel('admin_messages_list')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'admin_messages' },
-        (payload) => {
-          const row = payload.new as { user_id: string; sender_id: string };
-          if (row.sender_id !== row.user_id) return; // an admin's own message, not a reply
-          setUnreadReplyUserIds(prev => new Set(prev).add(row.user_id));
-        }
-      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_messages' }, (payload) => {
+        const row = payload.new as { user_id: string; sender_id: string };
+        if (row.sender_id === row.user_id) { loadCounts(); load(); }
+      })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [load, loadCounts]);
 
-  // Accounts that share a registration IP with at least one other account —
-  // the concrete, checkable signal behind "someone made several fake
-  // accounts to each claim a different free course." Doesn't prove abuse
-  // on its own (a shared campus/home network is common and innocent), but
-  // narrows down who's worth a manual look.
-  const sharedIpUserIds = useMemo(() => {
-    const ipCounts = new Map<string, number>();
-    for (const u of users) {
-      if (!u.registration_ip) continue;
-      ipCounts.set(u.registration_ip, (ipCounts.get(u.registration_ip) ?? 0) + 1);
-    }
-    return new Set(
-      users.filter(u => u.registration_ip && (ipCounts.get(u.registration_ip) ?? 0) > 1).map(u => u.id)
-    );
-  }, [users]);
+  const refresh = useCallback(() => { load(); loadCounts(); }, [load, loadCounts]);
+  const pickFilter = (f: UserFilter) => { setFilter(f); setPage(0); setSelected(new Set()); setBulkNote(''); };
 
-  const stats = useMemo(() => ({
-    total: users.length,
-    students: users.filter(u => u.role === 'student').length,
-    admins: users.filter(u => isAdminRole(u.role)).length,
-    freePasses: Object.values(subsMap).flat().filter(isFreePass).length,
-    sharedIp: sharedIpUserIds.size,
-    unreadReplies: unreadReplyUserIds.size,
-  }), [users, subsMap, sharedIpUserIds, unreadReplyUserIds]);
+  const toggle = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const allOnPage = rows.length > 0 && rows.every(r => selected.has(r.id));
+  const togglePage = () => setSelected(prev => {
+    const next = new Set(prev);
+    if (allOnPage) rows.forEach(r => next.delete(r.id)); else rows.forEach(r => next.add(r.id));
+    return next;
+  });
 
-  const filteredUsers = users
-    .filter(u => roleFilter === 'all' || (roleFilter === 'admin' ? isAdminRole(u.role) : u.role === roleFilter))
-    .filter(u => !freePassOnly || (subsMap[u.id] ?? []).some(isFreePass))
-    .filter(u => !sharedIpOnly || sharedIpUserIds.has(u.id))
-    .filter(u => !unreadOnly || unreadReplyUserIds.has(u.id))
-    .filter(u =>
-      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-  const totalPages = Math.ceil(filteredUsers.length / pageSize);
-  const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  const modalSubs = modalUser ? (subsMap[modalUser.id] ?? []) : [];
-  const modalIpSiblings = modalUser?.registration_ip
-    ? users.filter(u => u.id !== modalUser.id && u.registration_ip === modalUser.registration_ip)
-    : [];
-
-  const handleGrantFreePass = async () => {
-    if (!modalUser || !grantProgramId) return;
-    setGranting(true);
-    setActionError('');
-    const res = await fetch('/api/admin/free-pass', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: modalUser.id, level: grantLevel, semester: grantSemester, programId: grantProgramId }),
+  const bulkDelete = async () => {
+    setBulkBusy(true);
+    setBulkNote('');
+    const res = await fetch('/api/admin/users/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [...selected] }),
     });
-    const json = await res.json();
-    if (!res.ok) {
-      setActionError(json.error ?? 'Failed to grant free pass');
-    } else {
-      await fetchUsers();
-    }
-    setGranting(false);
+    const json = await res.json().catch(() => ({})) as { deleted?: string[]; skipped?: { id: string; reason: string }[]; error?: string };
+    setBulkBusy(false);
+    setConfirmBulk(false);
+    if (!res.ok) { setBulkNote(json.error ?? 'Nothing was deleted.'); return; }
+    const kept = json.skipped ?? [];
+    setBulkNote(`Deleted ${json.deleted?.length ?? 0} account${json.deleted?.length === 1 ? '' : 's'}.${kept.length ? ` Kept ${kept.length}: ${[...new Set(kept.map(k => k.reason))].join(' ')}` : ''}`);
+    setSelected(new Set(kept.map(k => k.id)));
+    refresh();
   };
 
-  const handleRevoke = async (sub: Subscription) => {
-    if (!modalUser) return;
-    setRevoking(sub.id);
-    setActionError('');
-    const res = await fetch('/api/admin/free-pass', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: sub.user_id, level: sub.level, semester: sub.semester, programId: sub.program_id }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setActionError(json.error ?? 'Failed to revoke');
-    } else {
-      await fetchUsers();
-      // Keep modal open & update it
-      setSubsMap(prev => ({
-        ...prev,
-        [sub.user_id]: (prev[sub.user_id] ?? []).filter(s => s.id !== sub.id),
-      }));
+  // Every account in the current filter and search, a page at a time.
+  const exportCsv = async () => {
+    setExporting(true);
+    const all: AdminUserRow[] = [];
+    for (let off = 0; off < total && off < 20000; off += 100) {
+      const { data } = await createClient().rpc('admin_search_users', { p_q: q || null, p_filter: filter, p_limit: 100, p_offset: off });
+      const r = data as { rows: AdminUserRow[] } | null;
+      if (!r?.rows?.length) break;
+      all.push(...r.rows);
     }
-    setRevoking(null);
-  };
-
-  const handleToggleSuspend = async () => {
-    if (!modalUser) return;
-    const nextSuspended = !modalUser.is_suspended;
-    if (nextSuspended && !confirm(`Suspend ${modalUser.full_name || modalUser.email}? They won't be able to sign in until reactivated — login will just show "account not found" with no explanation, so they won't know they've been flagged.`)) {
-      return;
-    }
-
-    setSuspending(true);
-    setActionError('');
-    const res = await fetch('/api/admin/users/suspend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: modalUser.id, suspended: nextSuspended }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setActionError(json.error ?? 'Failed to update suspension status');
-    } else {
-      setModalUser(prev => prev ? { ...prev, is_suspended: nextSuspended } : prev);
-      setUsers(prev => prev.map(u => u.id === modalUser.id ? { ...u, is_suspended: nextSuspended } : u));
-    }
-    setSuspending(false);
-  };
-
-  const handleResetPassword = async () => {
-    if (!modalUser) return;
-    if (!confirm(`Reset ${modalUser.full_name || modalUser.email}'s password? Their current password stops working immediately — a temporary one will be sent to them via the message thread.`)) {
-      return;
-    }
-    setResettingPassword(true);
-    setActionError('');
-    setPasswordResetDone(false);
-    setPasswordResetFallback('');
-    const res = await fetch('/api/admin/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: modalUser.id }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setActionError(json.error ?? 'Failed to reset password');
-    } else if (json.messageDelivered === false) {
-      // Password changed, but the thread message failed — hand the admin
-      // the password directly so it isn't lost.
-      setPasswordResetFallback(json.tempPassword ?? '');
-    } else {
-      // The new admin_messages row arrives in threadMessages via the
-      // realtime subscription above — no need to append it manually here.
-      setPasswordResetDone(true);
-    }
-    setResettingPassword(false);
-  };
-
-  const handleExportCsv = () => {
-    const headers = ['Name', 'Email', 'Role', 'Programme', 'Tests Taken', 'Streak', 'XP', 'Last Active'];
-    const rows = filteredUsers.map(u => [
-      u.full_name || '',
-      u.email,
-      u.role === 'super_admin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'Student',
-      u.program || '',
-      String(u.total_tests_taken ?? 0),
-      String(u.practice_streak),
-      String(u.xp),
-      lastActiveMap[u.id] ? new Date(lastActiveMap[u.id]).toISOString() : 'Never',
+    const header = ['Name', 'Email', 'Role', 'Programme', 'Level', 'Tests', 'Streak', 'XP', 'Access', 'Email confirmed', 'Suspended', 'Joined', 'Last active'];
+    const lines = all.map(u => [
+      u.full_name ?? '', u.email, roleLabel(u.role), u.program_code ?? '', u.selected_level ? String(u.selected_level) : '',
+      String(u.total_tests_taken ?? 0), String(u.practice_streak ?? 0), String(u.xp ?? 0), u.access,
+      u.email_confirmed ? 'yes' : 'no', u.is_suspended ? 'yes' : 'no', u.created_at, u.last_active ?? '',
     ]);
-    const csv = [headers, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const csv = [header, ...lines].map(l => l.map(csvEscape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pastcs-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `pastcs-users-${filter}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    setExporting(false);
   };
 
+  const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
+  const to = Math.min(total, (page + 1) * PAGE_SIZE);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Users</h1>
-          <p className="text-gray-600 dark:text-gray-400">{stats.total} registered accounts — students and admins</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{counts.all ?? '…'} accounts. Tap anyone to see everything about them.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredUsers.length === 0}>
-          <Download className="w-4 h-4 mr-2" />
-          Export CSV ({filteredUsers.length})
-        </Button>
-      </div>
-
-      {/* Stat summary — each is a filter shortcut into the table below */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <button
-          onClick={() => { setRoleFilter('all'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'all' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-gray-300 dark:ring-white/20' : ''}`}
+          onClick={exportCsv}
+          disabled={exporting || total === 0}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200"
         >
-          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0 dark:bg-white/10">
-              <UsersIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.total}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Total users</p>
-            </div>
-          </Card>
-        </button>
-        <button
-          onClick={() => { setRoleFilter('student'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'student' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-blue-300 dark:ring-blue-500/40' : ''}`}
-        >
-          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-              <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.students}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Students</p>
-            </div>
-          </Card>
-        </button>
-        <button
-          onClick={() => { setRoleFilter('admin'); setFreePassOnly(false); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${roleFilter === 'admin' && !freePassOnly && !sharedIpOnly && !unreadOnly ? 'ring-2 ring-purple-300 dark:ring-purple-500/40' : ''}`}
-        >
-          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.admins}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Admins</p>
-            </div>
-          </Card>
-        </button>
-        <button
-          onClick={() => { setFreePassOnly(v => !v); setSharedIpOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${freePassOnly ? 'ring-2 ring-green-400 dark:ring-green-500/40' : ''}`}
-          title="Show only users with an active free pass"
-        >
-          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-500/15 flex items-center justify-center flex-shrink-0">
-              <Gift className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.freePasses}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{freePassOnly ? 'Showing free passes' : 'Active free passes'}</p>
-            </div>
-          </Card>
-        </button>
-        <button
-          onClick={() => { setSharedIpOnly(v => !v); setFreePassOnly(false); setUnreadOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${sharedIpOnly ? 'ring-2 ring-amber-400 dark:ring-amber-500/40' : ''}`}
-          title="Accounts registered from the same IP as at least one other account"
-        >
-          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.sharedIp}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{sharedIpOnly ? 'Showing shared IPs' : 'Shared IP w/ another account'}</p>
-            </div>
-          </Card>
-        </button>
-        <button
-          onClick={() => { setUnreadOnly(v => !v); setFreePassOnly(false); setSharedIpOnly(false); setCurrentPage(1); }}
-          className={`text-left rounded-xl transition-shadow ${unreadOnly ? 'ring-2 ring-blue-400 dark:ring-blue-500/40' : ''}`}
-          title="Students who replied and are waiting on you"
-        >
-          <Card className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-              <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900 leading-tight dark:text-gray-100">{stats.unreadReplies}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{unreadOnly ? 'Showing unread replies' : 'Unread replies'}</p>
-            </div>
-          </Card>
+          <Download className="h-4 w-4" />{exporting ? 'Exporting…' : `Export ${total} to CSV`}
         </button>
       </div>
 
-      {freePassOnly && (
-        <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl px-4 py-2.5">
-          <Gift className="w-4 h-4 flex-shrink-0" />
-          Showing only users with an active free pass.
-          <button onClick={() => setFreePassOnly(false)} className="ml-auto text-green-800 dark:text-green-300 font-medium hover:underline">
-            Clear
-          </button>
-        </div>
-      )}
-
-      {sharedIpOnly && (
-        <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl px-4 py-2.5">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          Showing accounts that share a registration IP with at least one other account — not proof of abuse on its own (a shared campus/home network is common and innocent), just worth a manual look, especially if each has claimed a different free course.
-          <button onClick={() => setSharedIpOnly(false)} className="ml-auto text-amber-800 dark:text-amber-300 font-medium hover:underline flex-shrink-0">
-            Clear
-          </button>
-        </div>
-      )}
-
-      {unreadOnly && (
-        <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-2.5">
-          <MessageSquare className="w-4 h-4 flex-shrink-0" />
-          Showing students who&apos;ve replied and are waiting on a response.
-          <button onClick={() => setUnreadOnly(false)} className="ml-auto text-blue-800 dark:text-blue-300 font-medium hover:underline flex-shrink-0">
-            Clear
-          </button>
-        </div>
-      )}
-
-      {/* Search — role filtering is done by the stat cards above */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-        <Input
-          placeholder="Search by name or email..."
-          value={searchQuery}
-          onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-          className="pl-10"
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <label htmlFor="user-search" className="sr-only">Search by name or email</label>
+        <input
+          id="user-search"
+          type="search"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by name or email"
+          className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-100"
         />
       </div>
 
-      {/* Users */}
-      <Card>
-        {/* Phones: tappable list — each row opens the same Manage panel */}
-        <div className="md:hidden divide-y divide-gray-100 dark:divide-white/10">
-          {loading ? (
-            <p className="px-4 py-10 text-center text-gray-400 text-sm dark:text-gray-500">Loading users…</p>
-          ) : paginatedUsers.map((user) => {
-            const subs = subsMap[user.id] ?? [];
-            const isAdmin = isAdminRole(user.role);
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="group" aria-label="Filter users">
+        <div className="flex w-max gap-2 pb-1 sm:w-auto sm:flex-wrap">
+          {USER_FILTERS.map(([key, label]) => {
+            const n = counts[key];
+            const warn = (key === 'suspicious' || key === 'unread') && (n ?? 0) > 0;
             return (
               <button
-                key={user.id}
-                onClick={() => openManageModal(user)}
-                className="w-full text-left p-4 flex items-start gap-3 active:bg-gray-50 dark:active:bg-white/5"
+                key={key}
+                onClick={() => pickFilter(key)}
+                aria-pressed={filter === key}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ${filter === key
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-300'}`}
               >
-                <Avatar src={user.avatar_url} name={user.full_name || user.email} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-full">{user.full_name || 'No Name'}</p>
-                    {isAdmin && <Badge variant="info" size="sm">{user.role === 'super_admin' ? 'Super Admin' : 'Admin'}</Badge>}
-                    {reps[user.id] && <Badge variant="success" size="sm">Rep L{reps[user.id].level}</Badge>}
-                    {user.is_suspended && <Badge variant="danger" size="sm">Suspended</Badge>}
-                    {!user.is_suspended && sharedIpUserIds.has(user.id) && <Badge variant="warning" size="sm">Shared IP</Badge>}
-                    {unreadReplyUserIds.has(user.id) && <Badge variant="info" size="sm">New reply</Badge>}
-                  </div>
-                  <p className="text-sm text-gray-500 truncate dark:text-gray-400">{user.email}</p>
-                  <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">
-                    {[user.program, `${user.total_tests_taken ?? 0} tests`, timeAgo(lastActiveMap[user.id])].filter(Boolean).join(' · ')}
-                  </p>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {subs.length === 0 ? (
-                      <span className="text-xs text-gray-400 italic dark:text-gray-500">No access</span>
-                    ) : subs.map(sub => (
-                      <span
-                        key={sub.id}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                          isFreePass(sub)
-                            ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400'
-                            : 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                        }`}
-                      >
-                        {isFreePass(sub) ? <Gift className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-                        {levelLabel(sub.level, sub.semester)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0 mt-1" />
+                {label}
+                {n !== undefined && (
+                  <span className={`ml-1.5 tabular-nums ${filter === key ? 'opacity-70' : warn ? 'font-semibold text-red-600 dark:text-red-400' : 'text-gray-400'}`}>{n}</span>
+                )}
               </button>
             );
           })}
         </div>
+      </div>
 
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-white/10">
-                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Role</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Programme</th>
-                <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Tests</th>
-                <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Streak</th>
-                <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">XP</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Last Active</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Access</th>
-                <th className="text-center px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 text-sm dark:text-gray-500">
-                    Loading users…
-                  </td>
-                </tr>
-              ) : paginatedUsers.map((user) => {
-                const subs = subsMap[user.id] ?? [];
-                const isAdmin = isAdminRole(user.role);
-                const isSuperAdmin = user.role === 'super_admin';
-                return (
-                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.03]">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-shrink-0">
-                          <Avatar
-                            src={user.avatar_url}
-                            name={user.full_name || user.email}
-                            size="md"
-                          />
-                          {isAdmin && (
-                            <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${isSuperAdmin ? 'bg-amber-500' : 'bg-purple-600'}`}>
-                              <Shield className="w-2 h-2 text-white" />
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-medium text-gray-900 dark:text-gray-100">{user.full_name || 'No Name'}</p>
-                            {reps[user.id] && <Badge variant="success" size="sm">Rep L{reps[user.id].level}</Badge>}
-                            {user.is_suspended && (
-                              <Badge variant="danger" size="sm">
-                                <Ban className="w-3 h-3 mr-1" />
-                                Suspended
-                              </Badge>
-                            )}
-                            {!user.is_suspended && sharedIpUserIds.has(user.id) && (
-                              <Badge variant="warning" size="sm" title="Shares a registration IP with another account">
-                                <AlertTriangle className="w-3 h-3 mr-1" />
-                                Shared IP
-                              </Badge>
-                            )}
-                            {unreadReplyUserIds.has(user.id) && (
-                              <Badge variant="info" size="sm" title="Replied — waiting on a response">
-                                <MessageSquare className="w-3 h-3 mr-1" />
-                                New reply
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge
-                        variant={isAdmin ? 'info' : 'default'}
-                        className={isSuperAdmin ? '!bg-amber-100 dark:!bg-amber-500/15 !text-amber-700 dark:!text-amber-400' : isAdmin ? '!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400' : ''}
-                      >
-                        {isAdmin ? <Shield className="w-3 h-3 mr-1" /> : <GraduationCap className="w-3 h-3 mr-1" />}
-                        {isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Student'}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      {user.program ? (
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{user.program}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic dark:text-gray-500">{isAdmin ? '—' : 'Not set'}</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Target className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                        <span className="font-medium">{user.total_tests_taken ?? 0}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Flame className={`w-4 h-4 ${user.practice_streak > 0 ? 'text-orange-500' : 'text-gray-300 dark:text-white/15'}`} />
-                        <span className={`font-medium ${user.practice_streak > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                          {user.practice_streak}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="font-medium text-purple-600 dark:text-purple-400">{user.xp}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
-                        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                        {timeAgo(lastActiveMap[user.id])}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {subs.length === 0 ? (
-                          <span className="text-xs text-gray-400 italic dark:text-gray-500">No access</span>
-                        ) : subs.map(sub => (
-                          <span
-                            key={sub.id}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              isFreePass(sub)
-                                ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400'
-                                : 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                            }`}
-                          >
-                            {isFreePass(sub) && <Gift className="w-3 h-3" />}
-                            {!isFreePass(sub) && <ShieldCheck className="w-3 h-3" />}
-                            {levelLabel(sub.level, sub.semester)}
-                            {sub.program_id && (
-                              <span className="opacity-70">
-                                · {programs.find(p => p.id === sub.program_id)?.short_code ?? '?'}
-                              </span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openManageModal(user)}
-                      >
-                        <Gift className="w-3.5 h-3.5 mr-1" />
-                        Manage
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {filter === 'suspicious' && (counts.suspicious ?? 0) > 0 && (
+        <p className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
+          These names contain links or web addresses: almost always bots. Select them and delete. New sign-ups like this are now refused.
+        </p>
+      )}
+
+      {selected.size > 0 && (
+        <div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm lg:top-2 dark:border-white/10 dark:bg-[#1c1a15]">
+          <span className="px-1 text-sm font-medium text-gray-900 dark:text-gray-100">{selected.size} selected</span>
+          {!confirmBulk ? (
+            <button onClick={() => setConfirmBulk(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700">
+              <Trash2 className="h-4 w-4" />Delete
+            </button>
+          ) : (
+            <>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Delete {selected.size} for good?</span>
+              <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                {bulkBusy ? 'Deleting…' : 'Yes, delete'}
+              </button>
+              <button onClick={() => setConfirmBulk(false)} className="rounded-lg px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5">Cancel</button>
+            </>
+          )}
+          <button onClick={() => { setSelected(new Set()); setConfirmBulk(false); }} aria-label="Clear selection" className="ml-auto rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5">
+            <X className="h-4 w-4" />
+          </button>
         </div>
+      )}
+      {bulkNote && <p role="status" className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700 dark:bg-white/[0.04] dark:text-gray-300">{bulkNote}</p>}
 
-        {!loading && filteredUsers.length === 0 && (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">No users found</div>
-        )}
-      </Card>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-sm text-gray-600 dark:text-gray-400">Page {currentPage} of {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+      {error ? (
+        <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">{error}</p>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-white/[0.04]">
+          <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-2.5 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+            <input type="checkbox" checked={allOnPage} onChange={togglePage} aria-label="Select everyone on this page" className="h-4 w-4" />
+            <span className="flex-1">{loading ? 'Loading…' : total === 0 ? 'No accounts match.' : `${from}–${to} of ${total}`}</span>
+            <span className="hidden w-28 md:block">Programme</span>
+            <span className="hidden w-32 md:block">Activity</span>
+            <span className="hidden w-24 md:block">Access</span>
+            <span className="hidden w-24 text-right lg:block">Joined</span>
+          </div>
+          {loading && rows.length === 0 ? (
+            <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+          ) : (
+            <ul className={`divide-y divide-gray-100 dark:divide-white/10 ${loading ? 'opacity-60' : ''}`}>
+              {rows.map(u => (
+                <li key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/[0.03]">
+                  <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggle(u.id)} aria-label={`Select ${u.full_name || u.email}`} className="h-4 w-4 flex-shrink-0" />
+                  <button onClick={() => setOpenId(u.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                    <Avatar src={u.avatar_url} name={u.full_name || u.email} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className={`max-w-full truncate font-medium ${u.suspicious ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>{u.full_name || 'No name'}</span>
+                        {u.role !== 'student' && <Chip tone="purple">{roleLabel(u.role)}</Chip>}
+                        {u.rep_level && <Chip tone="green">Rep L{u.rep_level}</Chip>}
+                        {u.suspicious && <Chip tone="red">Suspicious</Chip>}
+                        {u.is_suspended && <Chip tone="red">Suspended</Chip>}
+                        {u.unread_reply && <Chip tone="amber">Needs a reply</Chip>}
+                        {!u.email_confirmed && <Chip tone="gray">Unconfirmed</Chip>}
+                        {u.shared_ip > 0 && <Chip tone="amber">Shared IP</Chip>}
+                      </div>
+                      <p className="truncate text-sm text-gray-500 dark:text-gray-400">{u.email}</p>
+                      <p className="truncate text-xs text-gray-500 md:hidden dark:text-gray-400">
+                        {[u.program_code, u.selected_level ? `L${u.selected_level}` : null].filter(Boolean).join(' · ') || 'No programme yet'} · {u.total_tests_taken ?? 0} tests · {timeAgo(u.last_active)}
+                        {u.access !== 'none' ? ` · ${u.access === 'paid' ? 'Paid' : 'Free pass'}` : ''}
+                      </p>
+                    </div>
+                    <span className="hidden w-28 truncate text-sm text-gray-700 md:block dark:text-gray-300">
+                      {u.program_code ? `${u.program_code}${u.selected_level ? ` · L${u.selected_level}` : ''}` : <span className="text-gray-400">Not chosen</span>}
+                    </span>
+                    <span className="hidden w-32 text-sm text-gray-700 md:block dark:text-gray-300">
+                      {u.total_tests_taken ?? 0} tests<br /><span className="text-xs text-gray-500 dark:text-gray-400">{timeAgo(u.last_active)}</span>
+                    </span>
+                    <span className="hidden w-24 md:block">
+                      {u.access === 'paid' ? <Chip tone="green">Paid</Chip> : u.access === 'free_pass' ? <Chip tone="purple">Free pass</Chip> : <span className="text-xs text-gray-400">Free course</span>}
+                    </span>
+                    <span className="hidden w-24 text-right text-xs text-gray-500 lg:block dark:text-gray-400">{dateLabel(u.created_at)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {pages > 1 && (
+            <div className="flex items-center justify-between gap-2 border-t border-gray-100 px-4 py-2.5 dark:border-white/10">
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-white/5">
+                <ChevronLeft className="h-4 w-4" />Previous
+              </button>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Page {page + 1} of {pages}</span>
+              <button onClick={() => setPage(p => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-white/5">
+                Next<ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Manage Access Modal */}
-      <Modal
-        isOpen={!!modalUser}
-        onClose={() => { setModalUser(null); setActionError(''); }}
-        title="Manage Access"
-      >
-        {modalUser && (
-          <div className="space-y-5">
-            {/* User identity */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl dark:bg-white/[0.03]">
-              <Avatar src={modalUser.avatar_url} name={modalUser.full_name || modalUser.email} size="md" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-gray-900 truncate dark:text-gray-100">{modalUser.full_name || 'No Name'}</p>
-                  <Badge
-                    size="sm"
-                    variant={isAdminRole(modalUser.role) ? 'info' : 'default'}
-                    className={
-                      modalUser.role === 'super_admin' ? '!bg-amber-100 dark:!bg-amber-500/15 !text-amber-700 dark:!text-amber-400'
-                        : modalUser.role === 'admin' ? '!bg-purple-100 dark:!bg-purple-500/15 !text-purple-700 dark:!text-purple-400' : ''
-                    }
-                  >
-                    {modalUser.role === 'super_admin' ? 'Super Admin' : modalUser.role === 'admin' ? 'Admin' : 'Student'}
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-500 truncate dark:text-gray-400">{modalUser.email}</p>
-              </div>
-            </div>
-
-            {repsReady && (() => {
-              const rep = reps[modalUser.id];
-              return (
-                <div className="p-3 rounded-xl border border-green-200 bg-green-50/60 dark:border-green-500/20 dark:bg-green-500/[0.06]">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Level Rep</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {rep
-                          ? `${rep.active ? '' : 'Paused · '}${rep.program_name ? `${rep.program_name} · ` : ''}Level ${rep.level} · ${Number(rep.commission_pct)}% commission · ${Number(rep.discount_pct)}% discount · ${rep.signups} sign-up${rep.signups === 1 ? '' : 's'}`
-                          : 'Earns commission on payments from students who sign up with their code.'}
-                      </p>
-                    </div>
-                    {!editingRep && (
-                      <Button size="sm" variant="outline" onClick={() => setEditingRep(true)} className="flex-shrink-0">
-                        {rep ? 'Edit' : 'Make Level Rep'}
-                      </Button>
-                    )}
-                  </div>
-                  {editingRep && (
-                    <div className="mt-3">
-                      <RepForm
-                        userId={modalUser.id}
-                        programs={programs}
-                        initial={rep
-                          ? { program_id: rep.program_id, level: rep.level, commission_pct: Number(rep.commission_pct), discount_pct: Number(rep.discount_pct), active: rep.active }
-                          : { program_id: modalUser.program_id ?? null, level: modalUser.selected_level ?? 100, commission_pct: 30, discount_pct: 10, active: true }}
-                        onCancel={() => setEditingRep(false)}
-                        onSaved={async () => {
-                          setEditingRep(false);
-                          const { data } = await createClient().rpc('admin_list_level_reps');
-                          setReps(Object.fromEntries(((data ?? []) as LevelRepRow[]).map(r => [r.user_id, r])));
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {isAdminRole(modalUser.role) && (
-              <div className="flex items-start gap-2 p-3 bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-500/20 rounded-xl text-xs text-purple-700 dark:text-purple-400">
-                <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>This is an admin account. You can still grant it a free pass to test or preview student-side course access.</span>
-              </div>
-            )}
-
-            {!isAdminRole(modalUser.role) && (
-              modalUser.is_suspended ? (
-                <div className="flex items-center justify-between gap-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-xl">
-                  <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-400">
-                    <Ban className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>This account is suspended — sign-in shows a generic error, not why.</span>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={handleToggleSuspend} disabled={suspending} className="flex-shrink-0">
-                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                    {suspending ? 'Working…' : 'Reactivate'}
-                  </Button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleToggleSuspend}
-                  disabled={suspending}
-                  className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium disabled:opacity-50"
-                >
-                  <Ban className="w-3.5 h-3.5" />
-                  {suspending ? 'Working…' : 'Suspend this account'}
-                </button>
-              )
-            )}
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleResetPassword}
-                disabled={resettingPassword}
-                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium disabled:opacity-50"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                {resettingPassword ? 'Working…' : 'Reset password'}
-              </button>
-              {passwordResetDone && (
-                <span className="text-xs text-green-600 dark:text-green-400">Sent via message thread ↓</span>
-              )}
-            </div>
-
-            {passwordResetFallback && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                <p className="font-semibold">Password reset, but the message couldn&apos;t be delivered.</p>
-                <p>Share this temporary password with them directly: <code className="font-mono bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 rounded">{passwordResetFallback}</code></p>
-              </div>
-            )}
-
-            {modalIpSiblings.length > 0 && (
-              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>
-                  Registered from {modalUser.registration_ip} — shared with {modalIpSiblings.length} other account{modalIpSiblings.length !== 1 ? 's' : ''}: {modalIpSiblings.map(s => s.full_name || s.email).join(', ')}.
-                </span>
-              </div>
-            )}
-
-            {/* Current subscriptions */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Current Access</h3>
-              {modalSubs.length === 0 ? (
-                <p className="text-sm text-gray-400 italic dark:text-gray-500">No active access</p>
-              ) : (
-                <div className="space-y-2">
-                  {modalSubs.map(sub => (
-                    <div key={sub.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg dark:bg-white/[0.03]">
-                      <div className="flex items-center gap-2">
-                        {isFreePass(sub) ? (
-                          <Gift className="w-4 h-4 text-green-600 dark:text-green-400" />
-                        ) : (
-                          <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        )}
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          Level {sub.level} — Semester {sub.semester}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                          isFreePass(sub) ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                        }`}>
-                          {isFreePass(sub) ? 'Free Pass' : 'Paid'}
-                        </span>
-                      </div>
-                      {isFreePass(sub) && (
-                        <button
-                          onClick={() => handleRevoke(sub)}
-                          disabled={revoking === sub.id}
-                          className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium disabled:opacity-50"
-                        >
-                          {revoking === sub.id ? 'Revoking…' : (
-                            <><X className="w-3.5 h-3.5" />Revoke</>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Grant free pass */}
-            <div className="border-t border-gray-100 pt-4 dark:border-white/10">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5 dark:text-gray-300">
-                <Plus className="w-4 h-4 text-green-600 dark:text-green-400" />
-                Grant Free Pass
-              </h3>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">Level</label>
-                  <select
-                    value={grantLevel}
-                    onChange={e => setGrantLevel(Number(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
-                  >
-                    {[100, 200, 300, 400].map(l => (
-                      <option key={l} value={l}>Level {l}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">Semester</label>
-                  <select
-                    value={grantSemester}
-                    onChange={e => setGrantSemester(Number(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
-                  >
-                    <option value={1}>Semester 1</option>
-                    <option value={2}>Semester 2</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">Program</label>
-                <select
-                  value={grantProgramId}
-                  onChange={e => setGrantProgramId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
-                >
-                  <option value="">Select program…</option>
-                  {programs.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {actionError && (
-                <p className="text-sm text-red-600 dark:text-red-400 mb-2">{actionError}</p>
-              )}
-
-              <Button
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleGrantFreePass}
-                disabled={granting || !grantProgramId}
-              >
-                <Gift className="w-4 h-4 mr-2" />
-                {granting ? 'Granting…' : 'Grant Free Pass'}
-              </Button>
-            </div>
-
-            {/* Message thread */}
-            <div className="border-t border-gray-100 pt-4 dark:border-white/10">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5 dark:text-gray-300">
-                <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                Messages
-              </h3>
-
-              <div className="border border-gray-200 dark:border-white/10 rounded-xl bg-gray-50 dark:bg-white/[0.02] mb-3">
-                <div className="max-h-56 overflow-y-auto p-3 space-y-2">
-                  {loadingThread ? (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-3">Loading…</p>
-                  ) : threadMessages.length === 0 ? (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-3">No messages yet</p>
-                  ) : (
-                    threadMessages.map(m => {
-                      const fromStudent = m.sender_id === modalUser.id;
-                      return (
-                        <div key={m.id} className={`flex ${fromStudent ? 'justify-start' : 'justify-end'}`}>
-                          <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
-                            fromStudent
-                              ? 'bg-white dark:bg-white/10 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-white/10'
-                              : 'bg-blue-600 text-white'
-                          }`}>
-                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                            <p className={`text-[10px] mt-1 ${fromStudent ? 'text-gray-400 dark:text-gray-500' : 'text-blue-100'}`}>
-                              {new Date(m.created_at).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <textarea
-                value={messageText}
-                onChange={e => { setMessageText(e.target.value); setMessageError(''); }}
-                rows={2}
-                maxLength={500}
-                placeholder={`Reply to ${modalUser.full_name || modalUser.email}…`}
-                className="w-full border border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-              <div className="flex items-center justify-between mt-1 mb-2">
-                <span className="text-xs text-gray-400 dark:text-gray-500">{messageText.length}/500</span>
-              </div>
-              {messageError && (
-                <p className="text-sm text-red-600 dark:text-red-400 mb-2">{messageError}</p>
-              )}
-              <Button
-                className="w-full"
-                onClick={handleSendMessage}
-                disabled={sendingMessage || !messageText.trim()}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                {sendingMessage ? 'Sending…' : 'Send'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {openId && (
+        <UserPanel
+          userId={openId}
+          programs={programs}
+          onClose={() => setOpenId(null)}
+          onChanged={refresh}
+          onDeleted={(id) => { setOpenId(null); setSelected(prev => { const n = new Set(prev); n.delete(id); return n; }); setBulkNote('Account deleted.'); refresh(); }}
+        />
+      )}
     </div>
   );
 }

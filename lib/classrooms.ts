@@ -1,5 +1,7 @@
 // Shared pieces for Classrooms (see supabase/migrations/028_classrooms.sql).
 
+import { whatsappShareUrl as whatsappTextUrl } from '@/lib/share';
+
 export type ClassroomRole = 'owner' | 'leader' | 'member';
 export type ShareLevel = 'full' | 'totals' | 'hidden';
 
@@ -49,7 +51,7 @@ export function inviteUrl(code: string): string {
 
 export function whatsappShareUrl(name: string, courseCode: string | undefined, code: string): string {
   const text = `Join our ${courseCode ? `${courseCode} ` : ''}classroom "${name}" on PastCS — practise past questions together, weekly battles and a class leaderboard: ${inviteUrl(code)} (code ${code})`;
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  return whatsappTextUrl(text);
 }
 
 const ERRORS: Record<string, string> = {
