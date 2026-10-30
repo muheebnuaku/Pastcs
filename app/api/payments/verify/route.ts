@@ -116,9 +116,22 @@ export async function POST(request: Request) {
       ({ error } = await adminSupabase.from('subscriptions').insert(row));
     }
 
+    // The Paystack webhook records the same payment at about the same
+    // moment. If it got there first, the reference is already saved
+    // (unique) and this insert is refused as a duplicate: that's success,
+    // not a failure. Telling the student "failed" here, after they'd been
+    // charged and unlocked, is what this used to do.
+    if (error?.code === '23505') {
+      const { data: saved } = await adminSupabase
+        .from('subscriptions').select('user_id, status').eq('payment_reference', reference).maybeSingle();
+      if (saved && saved.user_id === authUser.id && saved.status === 'active') return Response.json({ success: true });
+    }
+
     if (error) {
-      console.error('Subscription insert error:', error);
-      return Response.json({ error: 'Failed to save subscription' }, { status: 500 });
+      console.error('Subscription insert error:', error, { reference, userId: authUser.id });
+      return Response.json({
+        error: `Your payment went through, but we couldn't unlock your courses yet. Don't pay again: send us reference ${reference} in Messages and we'll unlock them.`,
+      }, { status: 500 });
     }
 
     return Response.json({ success: true });

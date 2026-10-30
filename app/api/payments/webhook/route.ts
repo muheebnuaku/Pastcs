@@ -116,6 +116,9 @@ export async function POST(request: Request) {
     ({ error } = await supabaseAdmin.from('subscriptions').insert(row));
   }
 
+  // Already recorded by /api/payments/verify a moment earlier: done.
+  if (error?.code === '23505') return Response.json({ received: true });
+
   if (error) {
     console.error('Paystack webhook: subscription insert failed', error, { reference, userId });
     // Non-2xx so Paystack retries — this is a transient DB error, not a
