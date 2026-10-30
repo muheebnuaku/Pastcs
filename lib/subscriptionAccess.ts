@@ -1,6 +1,29 @@
 import type { SemesterEndDate } from '@/types';
 
 /**
+ * A payment (or free pass) counts for a term if it was made no earlier
+ * than this many days before the term's start_date: early payers get in
+ * straight away, while last cycle's payments (months older) don't revive.
+ * Same window as public.paid_in_term (migration 048).
+ */
+export const EARLY_PAYMENT_DAYS = 120;
+
+/** The first moment a payment counts for this term, or null if any time does. */
+export function termOpensAt(startDate: string | null | undefined): Date | null {
+  if (!startDate) return null;
+  const d = new Date(`${startDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - EARLY_PAYMENT_DAYS);
+  return d;
+}
+
+/** When access for this term runs out: end_date's whole day, then grace_days more. */
+export function termCutoff(term: Pick<SemesterEndDate, 'end_date' | 'grace_days'>): Date {
+  const cutoff = new Date(`${term.end_date}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() + term.grace_days + 1);
+  return cutoff;
+}
+
+/**
  * Access purchased for a program+semester runs out grace_days after
  * that semester's admin-configured end_date — "pay for a course this
  * semester, when the semester ends the access ends [+ grace]." Used by
@@ -27,16 +50,14 @@ export function isSubscriptionCurrentlyActive(
 
   // end_date's whole day counts, then grace_days more full days —
   // cutoff is midnight UTC at the start of the day after that.
-  const cutoff = new Date(`${term.end_date}T00:00:00Z`);
-  cutoff.setUTCDate(cutoff.getUTCDate() + term.grace_days + 1);
-  if (Date.now() >= cutoff.getTime()) return false;
+  if (Date.now() >= termCutoff(term).getTime()) return false;
 
-  // A payment made before this term's start belongs to whatever cycle
-  // came before it — protects against an admin reusing this same row
-  // for a new academic cycle and silently reviving an old purchase.
-  if (term.start_date && sub.paid_at && new Date(sub.paid_at) < new Date(`${term.start_date}T00:00:00Z`)) {
-    return false;
-  }
+  // A payment made long before this term's start belongs to whatever
+  // cycle came before it — protects against an admin reusing this same
+  // row for a new academic cycle and silently reviving an old purchase.
+  // One made in the run-up to the start (EARLY_PAYMENT_DAYS) counts.
+  const opens = termOpensAt(term.start_date);
+  if (opens && sub.paid_at && new Date(sub.paid_at) < opens) return false;
 
   return true;
 }
