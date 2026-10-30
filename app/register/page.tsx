@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
 import { Home, User, Mail, Lock, Eye, EyeOff, Gift, Check, ArrowRight, BookOpen, Target, Trophy, Layers, ChevronDown, MailCheck } from 'lucide-react';
 import type { Program } from '@/types';
+import { clearSavedRefCode, savedRefCode } from '@/lib/referral';
 
 const OTHER_PROGRAM_VALUE = '__other__';
 
@@ -50,9 +51,11 @@ export default function RegisterPage() {
     }
   }, [user, isLoading, router]);
 
-  // Pick up a shared referral link, e.g. pastcs.com/register?ref=A3F9C21B
+  // Pick up a shared referral link, e.g. pastcs.com/register?ref=A3F9C21B,
+  // or a code saved from a link that opened another page first (a rep's
+  // classroom invite goes /join/… → here).
   useEffect(() => {
-    const ref = new URLSearchParams(window.location.search).get('ref');
+    const ref = new URLSearchParams(window.location.search).get('ref') ?? savedRefCode();
     if (ref) setReferralCode(ref.toUpperCase());
   }, []);
 
@@ -87,6 +90,7 @@ export default function RegisterPage() {
       setError(result.error);
       setSubmitting(false);
     } else {
+      clearSavedRefCode();
       setNeedsConfirmation(true);
       setConfirmationEmailSent(result.emailSent !== false);
       setSubmitting(false);

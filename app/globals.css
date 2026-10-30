@@ -25,6 +25,24 @@
   --font-jakarta: var(--font-plus-jakarta);
 }
 
+/* No overscroll bounce or stretch: on Android (stretch) and iPhone
+   (bounce) pulling past the top or bottom moved the whole page, the fixed
+   bottom tab bar with it, so the bar looked loose while scrolling. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Below lg the bottom tab bar covers the last 5rem of the screen. Anything
+   the browser scrolls into view (a focused field, a button a test or a
+   link jumps to) stops above it instead of underneath. Same height as the
+   page's bottom padding in app/(student)/layout.tsx. */
+@media (max-width: 1023.98px) {
+  html {
+    scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

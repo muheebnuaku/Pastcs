@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { whatsappShareUrl } from '@/lib/share';
+import { shareLink } from '@/lib/referral';
 
 // The grade ladder (migration 042): each course climbs F → A on the
 // University of Ghana scale. The database decides every promotion,
@@ -73,7 +74,7 @@ export function nextStepText(g: CourseGrade): string {
 }
 
 export function gradeShareUrl(label: string, courseCode: string): string {
-  const text = `I just reached ${label} in ${courseCode} on PastCS. Climbing to an A before the exam!`;
+  const text = `I just reached ${label} in ${courseCode} on PastCS. Climbing to an A before the exam! ${shareLink('/')}`;
   return whatsappShareUrl(text);
 }
 

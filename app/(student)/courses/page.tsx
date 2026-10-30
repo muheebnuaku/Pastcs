@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -11,7 +11,7 @@ import { Button, Modal } from '@/components/ui';
 import { COURSE_ICONS, courseCodeSlug } from '@/lib/utils';
 import { LevelSemesterModal } from './components/LevelSemesterModal';
 import { PaywallModal } from './components/PaywallModal';
-import { coursesForProgram } from '@/lib/programs';
+import { loadLevelCourses } from '@/lib/courseList';
 import type { Course } from '@/types';
 import { GRADE_LABELS } from '@/lib/gradeLadder';
 import {
@@ -60,22 +60,23 @@ export default function CoursesPage() {
     ? courses.filter(c => c.course_code !== freeCourseCode).length
     : 0;
 
+  // Only the latest request may set the list: an older one finishing
+  // last (after a level change or a payment refresh) used to win.
+  const latest = useRef(0);
   const fetchCourses = async () => {
     if (!level || !semester || !user?.program_id) return;
+    const id = ++latest.current;
     setIsLoading(true);
     setError(null);
     try {
-      const supabase = createClient();
-      const { data, error: fetchError } = await coursesForProgram(supabase, user.program_id)
-        .eq('level', level)
-        .eq('semester', semester)
-        .order('course_code');
-      if (fetchError) throw fetchError;
-      setCourses(data ?? []);
+      const { data, error: fetchError } = await loadLevelCourses(createClient(), user.program_id, level, semester);
+      if (id !== latest.current) return;
+      if (fetchError) setError(fetchError);
+      else setCourses(data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load courses.');
+      if (id === latest.current) setError(err instanceof Error ? err.message : 'Failed to load courses.');
     } finally {
-      setIsLoading(false);
+      if (id === latest.current) setIsLoading(false);
     }
   };
 
@@ -378,6 +379,9 @@ export default function CoursesPage() {
       {!isLoading && !error && level && courses.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">No courses available for Level {level} Semester {semester} yet.</p>
+          <button onClick={fetchCourses} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#e8603c] hover:underline">
+            <RefreshCw className="w-4 h-4" />Try again
+          </button>
         </div>
       )}
     </div>
