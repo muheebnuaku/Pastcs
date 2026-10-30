@@ -5,15 +5,18 @@ declare module 'next/server' {
   export interface NextRequest {
     cookies: {
       get(name: string): { value: string } | undefined;
+      getAll(): { name: string; value: string }[];
+      set(name: string, value: string): void;
       set(options: { name: string; value: string; [key: string]: unknown }): void;
     };
     headers: Headers;
     nextUrl: URL;
   }
   export class NextResponse {
-    static next(options?: { request?: { headers: Headers } }): NextResponse;
+    static next(options?: { request?: NextRequest | { headers: Headers } }): NextResponse;
     static redirect(url: string | URL): NextResponse;
     cookies: {
+      set(name: string, value: string, options?: object): void;
       set(options: { name: string; value: string; [key: string]: unknown }): void;
     };
   }
@@ -22,6 +25,8 @@ declare module 'next/image';
 declare module 'next/headers' {
   export function cookies(): Promise<{
     get(name: string): { value: string } | undefined;
+    getAll(): { name: string; value: string }[];
+    set(name: string, value: string, options?: object): void;
     set(options: { name: string; value: string; [key: string]: unknown }): void;
   }>;
 }
@@ -71,14 +76,15 @@ declare module '@supabase/ssr' {
     supabaseKey: string
   ): SupabaseClient;
   
+  // @supabase/ssr 0.6: cookies are read and written all at once, so a
+  // session renewal's cookies always reach the browser together.
   export function createServerClient(
     supabaseUrl: string,
     supabaseKey: string,
     options: {
       cookies: {
-        get(name: string): string | undefined;
-        set(name: string, value: string, options: CookieOptions): void;
-        remove(name: string, options: CookieOptions): void;
+        getAll(): { name: string; value: string }[];
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]): void;
       };
     }
   ): SupabaseClient;
