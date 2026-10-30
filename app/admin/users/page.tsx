@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
     if (err) {
       setError(/admin_search_users|Could not find the function/.test(err.message)
         ? 'The new Users page needs migration 049: run it in the Supabase SQL editor.'
-        : 'Couldn’t load users. Try again.');
+        : `Couldn’t load users: ${err.message}`);
       setRows([]); setTotal(0);
     } else {
       const r = data as { total: number; rows: AdminUserRow[] } | null;
