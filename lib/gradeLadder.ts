@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { whatsappShareUrl } from '@/lib/share';
 
 // The grade ladder (migration 042): each course climbs F → A on the
 // University of Ghana scale. The database decides every promotion,
@@ -73,7 +74,7 @@ export function nextStepText(g: CourseGrade): string {
 
 export function gradeShareUrl(label: string, courseCode: string): string {
   const text = `I just reached ${label} in ${courseCode} on PastCS. Climbing to an A before the exam!`;
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  return whatsappShareUrl(text);
 }
 
 /** The caller's grade in a course. Stays null before migration 042 (no ladder shown). */

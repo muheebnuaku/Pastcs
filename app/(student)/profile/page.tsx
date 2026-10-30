@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { InstallCard } from '@/components/InstallApp';
+import { NAME_REFUSED } from '@/lib/nameCheck';
 import { PushCard } from '@/components/PushNotifications';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/components/providers';
@@ -167,7 +168,7 @@ export default function ProfilePage() {
       .eq('id', user.id);
 
     if (error) {
-      setSaveError(error.message);
+      setSaveError(/spam_name/.test(error.message) ? NAME_REFUSED : error.message);
       setIsSaving(false);
       return;
     }

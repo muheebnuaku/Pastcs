@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { looksLikeSpamName, NAME_REFUSED } from '@/lib/nameCheck';
 
 // Best-effort client IP for the shared-IP abuse signal (see admin Users
 // page) — never blocks signup if it can't be determined. Checks the
@@ -17,6 +18,9 @@ export async function POST(request: Request) {
 
     if (!email || !password || !fullName) {
       return Response.json({ error: 'email, password and fullName are required' }, { status: 400 });
+    }
+    if (looksLikeSpamName(fullName)) {
+      return Response.json({ error: NAME_REFUSED }, { status: 400 });
     }
 
     const supabase = createClient(
