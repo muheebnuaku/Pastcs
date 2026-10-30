@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/adminAuth';
 import { logAudit } from '@/lib/auditLog';
-import { isSubscriptionCurrentlyActive } from '@/lib/subscriptionAccess';
+import { isSubscriptionCurrentlyActive, termCutoff, termOpensAt } from '@/lib/subscriptionAccess';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,14 +39,21 @@ export async function POST(req: Request) {
   }
 
   // A pass for a semester that has already ended (plus grace) would be
-  // expired the moment it's granted.
+  // expired the moment it's granted; one granted too long before it
+  // starts would count for the cycle before it.
   const { data: term } = await supabaseAdmin
     .from('semester_end_dates').select('program_id, semester, start_date, end_date, grace_days')
     .eq('program_id', programId).eq('semester', semester).maybeSingle();
   const now = new Date().toISOString();
-  if (term && !isSubscriptionCurrentlyActive({ status: 'active', paid_at: now, program_id: programId, semester }, [term])) {
+  if (term && Date.now() >= termCutoff(term).getTime()) {
     return Response.json({
       error: `Semester ${semester} for this programme ended on ${term.end_date} (plus ${term.grace_days} days' grace), so a pass for it would already be expired. Update the semester dates in Pricing first.`,
+    }, { status: 400 });
+  }
+  const opens = termOpensAt(term?.start_date);
+  if (opens && Date.now() < opens.getTime()) {
+    return Response.json({
+      error: `Semester ${semester} for this programme starts on ${term!.start_date}. Passes for it can be granted from ${opens.toISOString().slice(0, 10)}, or check its dates in Pricing.`,
     }, { status: 400 });
   }
 
