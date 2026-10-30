@@ -53,13 +53,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchOrCreateUser = useCallback(
     async (authUser: { id: string; email?: string; user_metadata?: Record<string, string> }) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
 
       if (data) return data;
+      // Only a genuinely missing row (PGRST116) is created. A network or
+      // server error is thrown, so the caller can retry rather than treat
+      // a valid login as signed out.
+      if (error && error.code !== 'PGRST116') throw error;
 
       // Profile row missing — create it (handles existing auth users + race conditions)
       const { data: created } = await supabase
@@ -95,11 +99,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    // Opening the app on a weak connection used to sign students out: one
+    // failed profile load at startup set the user to null and the layout
+    // sent them to /login, though their login was still good. Retry with
+    // a short backoff first (about 7s in all).
+    const withRetry = async <T,>(load: () => Promise<T>): Promise<T> => {
+      let lastError: unknown;
+      for (const wait of [0, 500, 1500, 2500, 3000]) {
+        if (wait) await new Promise(r => setTimeout(r, wait));
+        try { return await load(); } catch (e) { lastError = e; }
+      }
+      throw lastError;
+    };
+
     const init = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const session = await withRetry(async () => {
+          const { data, error } = await supabase.auth.getSession();
+          // A renewal that failed on the network (status 0) is worth
+          // retrying; anything else means there's no valid login.
+          if (error && (error as { status?: number }).status === 0) throw error;
+          return data.session;
+        });
         if (session?.user) {
-          const userData = await fetchOrCreateUser(session.user);
+          const userData = await withRetry(() => fetchOrCreateUser(session.user));
           // Covers a session that was already valid when the account got
           // suspended — caught here on next load, not just at the next
           // fresh login attempt.
