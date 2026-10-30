@@ -1,10 +1,10 @@
 import { requireUser, serviceClient } from '@/lib/apiAuth';
-import { coursePriceFor } from '@/lib/coursePricing';
+import { unlockPriceFor } from '@/lib/coursePricing';
 
 // GET /api/payments/quote — what this student pays to unlock their current
-// level+semester (or ?level=&semester=, e.g. a classroom's course). The
-// paywall charges exactly this, and /api/payments/verify checks the charge
-// against the same rule.
+// level+semester (or ?level=&semester=, e.g. a classroom's course), with
+// any Level Rep discount taken off. The paywall charges exactly this, and
+// /api/payments/verify checks the charge against the same rule.
 export async function GET(request: Request) {
   const auth = await requireUser();
   if (auth instanceof Response) return auth;
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const amount = await coursePriceFor(serviceClient(), p.program_id, level);
-    return Response.json({ amount, level, semester });
+    const price = await unlockPriceFor(serviceClient(), auth.userId, p.program_id, level);
+    return Response.json({ amount: price.amount, fullAmount: price.full, discountPct: price.discountPct, level, semester });
   } catch (err) {
     console.error('quote error:', err);
     return Response.json({ error: 'Could not load the price. Please try again.' }, { status: 500 });

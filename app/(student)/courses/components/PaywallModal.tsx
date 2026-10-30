@@ -32,6 +32,8 @@ declare global {
 
 interface Quote {
   amount: number;
+  fullAmount?: number;
+  discountPct?: number;
 }
 
 function ghc(pesewas: number): string {
@@ -231,8 +233,16 @@ export function PaywallModal({ totalCourses, onClose, onSuccess, level: levelPro
 
           {/* Price */}
           <div className="text-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 mb-3">
-<p className="text-3xl font-bold text-white">{quote ? priceLabel : '…'}</p>
+<p className="text-3xl font-bold text-white">
+              {quote ? priceLabel : '…'}
+              {quote && !!quote.discountPct && quote.fullAmount && quote.fullAmount > quote.amount && (
+                <span className="ml-2 align-middle text-base font-medium text-blue-200 line-through">{ghc(quote.fullAmount)}</span>
+              )}
+            </p>
             <p className="text-blue-100 text-sm mt-1">one payment · this semester · all courses</p>
+            {quote && !!quote.discountPct && (
+              <p className="text-white text-xs font-semibold mt-2 inline-block rounded-full bg-white/15 px-2.5 py-1">{quote.discountPct}% off with your Level Rep&rsquo;s code</p>
+            )}
           </div>
 
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-5 dark:text-gray-400">

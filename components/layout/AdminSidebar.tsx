@@ -12,6 +12,7 @@ import {
   BookOpen,
   FileQuestion,
   Users,
+  Megaphone,
   BarChart3,
   Sparkles,
   LogOut,
@@ -47,6 +48,7 @@ const adminNavSections = [
     label: 'People',
     items: [
       { href: '/admin/users', label: 'Users', icon: Users },
+      { href: '/admin/reps', label: 'Level Reps', icon: Megaphone },
       { href: '/admin/testimonials', label: 'Testimonials', icon: MessageSquareQuote },
     ],
   },
