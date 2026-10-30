@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { maybeRewardPendingReferrer } from '@/lib/referralReward';
 
 const VALID_LEVELS = [100, 200, 300, 400];
 const VALID_SEMESTERS = [1, 2];
@@ -51,11 +50,6 @@ export async function POST(request: Request) {
       .eq('id', authUser.id);
 
     if (error) throw error;
-
-    // If they referred someone who already finished their first test
-    // before this user had a level to grant a free pass against, catch
-    // that reward up now. Never let this block the selection itself.
-    maybeRewardPendingReferrer(authUser.id, level, semester, programId).catch(() => {});
 
     return Response.json({ success: true });
   } catch (error) {

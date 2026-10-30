@@ -75,7 +75,6 @@ export default function ExamPage() {
       });
 
       const supabase = createClient();
-      fetch('/api/referrals/complete', { method: 'POST' }).catch(() => {});
       if (user?.id) {
         updateReviewSchedule(supabase, user.id, result.marks.map(m => ({ questionId: m.question_id, correct: m.is_correct }))).catch(() => {});
         recordTestGamification(supabase, user.id, {

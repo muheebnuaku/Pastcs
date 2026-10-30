@@ -12,6 +12,7 @@ import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessages';
 import { usePricing } from '@/lib/hooks/usePricing';
 import { setAppBadgeCount } from '@/lib/push';
+import { createClient } from '@/lib/supabase/client';
 import {
   Home,
   BookOpen,
@@ -28,6 +29,7 @@ import {
   MessageSquare,
   Users,
   Swords,
+  Megaphone,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -41,6 +43,9 @@ const studentNavItems = [
   { href: '/profile', label: 'Profile', icon: User },
 ];
 
+// Only Level Reps (migration 047) see their page.
+const repNavItem = { href: '/rep', label: 'Level Rep', icon: Megaphone };
+
 export function StudentSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,6 +58,15 @@ export function StudentSidebar() {
   const { notifications, unreadCount, markAllRead, dismiss } = useNotifications(user?.id);
   const unreadMessages = useUnreadMessageCount(user?.id, pathname);
   const unreadClass = useClassroomUnreadStore(s => Object.values(s.counts).reduce((a, b) => a + b, 0));
+
+  const [isRep, setIsRep] = useState(false);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    createClient().rpc('am_i_level_rep').then(({ data }: { data: unknown }) => { if (!cancelled) setIsRep(data === true); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+  const navItems = isRep ? [...studentNavItems.slice(0, -1), repNavItem, studentNavItems[studentNavItems.length - 1]] : studentNavItems;
 
   // The count on the home-screen icon follows the bell (push sets it while
   // the app is closed; reading them here clears it).
@@ -245,7 +259,7 @@ export function StudentSidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-          {studentNavItems.map((item) => {
+          {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link

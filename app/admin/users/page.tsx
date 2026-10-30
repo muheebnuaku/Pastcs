@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Avatar, Modal, Badge } from '@/components/ui';
 import { isAdminRole } from '@/lib/utils';
 import type { User, Subscription, UserRole, Program, AdminMessage } from '@/types';
+import { RepForm } from '@/components/admin/RepForm';
+import type { LevelRepRow } from '@/lib/levelReps';
 import {
   Search,
   ChevronLeft,
@@ -97,10 +99,21 @@ export default function AdminUsersPage() {
   const [threadMessages, setThreadMessages] = useState<AdminMessage[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
 
+  // Level Reps (migration 047), by user. Missing before the migration:
+  // the section then offers nothing.
+  const [reps, setReps] = useState<Record<string, LevelRepRow>>({});
+  const [repsReady, setRepsReady] = useState(false);
+  const [editingRep, setEditingRep] = useState(false);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.from('programs').select('*').order('name')
       .then(({ data }: { data: Program[] | null }) => setPrograms(data ?? []));
+    supabase.rpc('admin_list_level_reps').then(({ data, error }: { data: LevelRepRow[] | null; error: unknown }) => {
+      if (error) return;
+      setReps(Object.fromEntries((data ?? []).map(r => [r.user_id, r])));
+      setRepsReady(true);
+    });
   }, []);
 
   const openManageModal = (user: UserRow) => {
@@ -111,6 +124,7 @@ export default function AdminUsersPage() {
     setThreadMessages([]);
     setPasswordResetDone(false);
     setPasswordResetFallback('');
+    setEditingRep(false);
     // Default to the student's own program — that's what "grant access"
     // means for them almost every time.
     setGrantProgramId(user.program_id ?? programs[0]?.id ?? '');
@@ -553,6 +567,7 @@ export default function AdminUsersPage() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-full">{user.full_name || 'No Name'}</p>
                     {isAdmin && <Badge variant="info" size="sm">{user.role === 'super_admin' ? 'Super Admin' : 'Admin'}</Badge>}
+                    {reps[user.id] && <Badge variant="success" size="sm">Rep L{reps[user.id].level}</Badge>}
                     {user.is_suspended && <Badge variant="danger" size="sm">Suspended</Badge>}
                     {!user.is_suspended && sharedIpUserIds.has(user.id) && <Badge variant="warning" size="sm">Shared IP</Badge>}
                     {unreadReplyUserIds.has(user.id) && <Badge variant="info" size="sm">New reply</Badge>}
@@ -630,6 +645,7 @@ export default function AdminUsersPage() {
                         <div>
                           <div className="flex items-center gap-1.5">
                             <p className="font-medium text-gray-900 dark:text-gray-100">{user.full_name || 'No Name'}</p>
+                            {reps[user.id] && <Badge variant="success" size="sm">Rep L{reps[user.id].level}</Badge>}
                             {user.is_suspended && (
                               <Badge variant="danger" size="sm">
                                 <Ban className="w-3 h-3 mr-1" />
@@ -780,6 +796,46 @@ export default function AdminUsersPage() {
                 <p className="text-sm text-gray-500 truncate dark:text-gray-400">{modalUser.email}</p>
               </div>
             </div>
+
+            {repsReady && (() => {
+              const rep = reps[modalUser.id];
+              return (
+                <div className="p-3 rounded-xl border border-green-200 bg-green-50/60 dark:border-green-500/20 dark:bg-green-500/[0.06]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Level Rep</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {rep
+                          ? `${rep.active ? '' : 'Paused · '}${rep.program_name ? `${rep.program_name} · ` : ''}Level ${rep.level} · ${Number(rep.commission_pct)}% commission · ${Number(rep.discount_pct)}% discount · ${rep.signups} sign-up${rep.signups === 1 ? '' : 's'}`
+                          : 'Earns commission on payments from students who sign up with their code.'}
+                      </p>
+                    </div>
+                    {!editingRep && (
+                      <Button size="sm" variant="outline" onClick={() => setEditingRep(true)} className="flex-shrink-0">
+                        {rep ? 'Edit' : 'Make Level Rep'}
+                      </Button>
+                    )}
+                  </div>
+                  {editingRep && (
+                    <div className="mt-3">
+                      <RepForm
+                        userId={modalUser.id}
+                        programs={programs}
+                        initial={rep
+                          ? { program_id: rep.program_id, level: rep.level, commission_pct: Number(rep.commission_pct), discount_pct: Number(rep.discount_pct), active: rep.active }
+                          : { program_id: modalUser.program_id ?? null, level: modalUser.selected_level ?? 100, commission_pct: 30, discount_pct: 10, active: true }}
+                        onCancel={() => setEditingRep(false)}
+                        onSaved={async () => {
+                          setEditingRep(false);
+                          const { data } = await createClient().rpc('admin_list_level_reps');
+                          setReps(Object.fromEntries(((data ?? []) as LevelRepRow[]).map(r => [r.user_id, r])));
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {isAdminRole(modalUser.role) && (
               <div className="flex items-start gap-2 p-3 bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-500/20 rounded-xl text-xs text-purple-700 dark:text-purple-400">

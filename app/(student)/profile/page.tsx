@@ -59,7 +59,7 @@ export default function ProfilePage() {
   const [testimonialDone, setTestimonialDone] = useState(false);
   const [testimonialError, setTestimonialError] = useState('');
 
-  const [referralStats, setReferralStats] = useState({ referred: 0, rewarded: 0 });
+  const [referralStats, setReferralStats] = useState({ referred: 0 });
   const [codeCopied, setCodeCopied] = useState(false);
 
   const [newPassword, setNewPassword] = useState('');
@@ -123,14 +123,9 @@ export default function ProfilePage() {
     try {
       const { data } = await supabase
         .from('referrals')
-        .select('referred_rewarded_at')
+        .select('id')
         .eq('referrer_id', user.id);
-      if (data) {
-        setReferralStats({
-          referred: data.length,
-          rewarded: data.filter((r: { referred_rewarded_at: string | null }) => r.referred_rewarded_at).length,
-        });
-      }
+      if (data) setReferralStats({ referred: data.length });
     } catch {
       // referrals table not migrated on this environment yet
     }
@@ -517,7 +512,7 @@ export default function ProfilePage() {
               </div>
               <CardContent className="space-y-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Share your link. When a friend joins and finishes their first test, you <strong>both</strong> get a free pass.
+                  Share your link to invite your coursemates to PastCS.
                 </p>
                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-xl">
                   <code className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate">
@@ -532,7 +527,6 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <Share2 className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                     {referralStats.referred} friend{referralStats.referred !== 1 ? 's' : ''} joined with your code
-                    {referralStats.rewarded > 0 && ` · ${referralStats.rewarded} free pass${referralStats.rewarded !== 1 ? 'es' : ''} earned`}
                   </div>
                 )}
               </CardContent>

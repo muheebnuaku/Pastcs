@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-import { coursePriceFor } from '@/lib/coursePricing';
+import { unlockPriceFor } from '@/lib/coursePricing';
 import { GROUP_REFERENCE_PREFIX } from '@/lib/groupPaymentsServer';
 
 export async function POST(request: Request) {
@@ -77,8 +77,8 @@ export async function POST(request: Request) {
     // The amount and level used to be trusted as sent by the browser, so a
     // tampered checkout could pay a few pesewas (or a cheaper level's price)
     // and still unlock. Check what Paystack actually charged against the
-    // server's own price for this level, and that the
-    // payment was made for this account.
+    // server's own price for this level (less any Level Rep discount), and
+    // that the payment was made for this account.
     const paidFor = paystackData.data?.metadata?.userId;
     // A tutor credit purchase is a different product: it mustn't also
     // unlock a level just because it cost as much.
@@ -88,7 +88,8 @@ export async function POST(request: Request) {
     if (paidFor && paidFor !== authUser.id) {
       return Response.json({ error: 'This payment belongs to a different account.' }, { status: 400 });
     }
-    const expected = await coursePriceFor(adminSupabase, userData.program_id, Number(level));
+    const price = await unlockPriceFor(adminSupabase, authUser.id, userData.program_id, Number(level));
+    const expected = price.amount;
     const charged = Number(paystackData.data?.amount);
     if (paystackData.data?.currency !== 'GHS' || !Number.isFinite(charged) || charged < expected) {
       console.error('Payment amount mismatch', { reference, userId: authUser.id, level, semester, charged, expected, currency: paystackData.data?.currency });
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       status: 'active',
       paid_at: new Date().toISOString(),
     };
-    let { error } = await adminSupabase.from('subscriptions').insert({ ...row, full_amount: expected });
+    let { error } = await adminSupabase.from('subscriptions').insert({ ...row, full_amount: price.full });
     // Before migration 032 the full_amount column doesn't exist — never let
     // analytics bookkeeping lose a payment.
     if (error && /full_amount/.test(error.message)) {
