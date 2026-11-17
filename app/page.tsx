@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui';
 import { Navbar, Footer } from '@/components/layout';
 import { createClient } from '@/lib/supabase/server';
+import { SkillCard } from '@/components/skills/SkillCard';
+import { getSkillCourses } from '@/lib/skillsData';
 import {
   GraduationCap,
   BookOpen,
@@ -111,7 +113,7 @@ async function getTestimonials(): Promise<Testimonial[]> {
 }
 
 export default async function HomePage() {
-  const testimonials = await getTestimonials();
+  const [testimonials, skills] = await Promise.all([getTestimonials(), getSkillCourses()]);
   return (
     <div className="font-jakarta min-h-screen bg-[#fdf8f2] overflow-x-hidden">
       <Navbar />
@@ -387,6 +389,27 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+
+      {/* ── Skills ── */}
+      {skills.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 pb-24">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-11">
+            <div className="max-w-xl">
+              <p className="text-[13px] font-bold text-[#e8603c] uppercase tracking-wide mb-3">New &middot; PastCS Skills</p>
+              <h2 className="text-3xl md:text-[34px] font-extrabold text-[#2b2420] tracking-tight">Learn a skill people will pay you for.</h2>
+            </div>
+            <p className="text-[14.5px] text-[#8a7f6f] max-w-xs">Hands-on courses in building with AI, taught live. Pay once and learn with a teacher.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {skills.slice(0, 3).map((c, i) => <SkillCard key={c.id} course={c} index={i} compact />)}
+          </div>
+          <div className="mt-6 text-center">
+            <Link href="/skills" className="inline-flex items-center gap-1.5 text-sm font-bold text-[#e8603c] hover:underline">
+              See all skills <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ── Features ── */}
       <section className="bg-[#f7ede1] py-24 px-4">

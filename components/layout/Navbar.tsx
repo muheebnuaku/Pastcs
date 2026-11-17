@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { cn, isAdminRole } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
-import { Menu, X, Home, BookOpen, Trophy } from 'lucide-react';
+import { Menu, X, Home, BookOpen, Trophy, Rocket } from 'lucide-react';
 
 export function Navbar() {
   const pathname = usePathname();
@@ -17,6 +17,7 @@ export function Navbar() {
   const navLinks = [
     { href: '/',            label: 'Home',        icon: Home },
     { href: '/courses',     label: 'Courses',     icon: BookOpen },
+    { href: '/skills',      label: 'Skills',      icon: Rocket },
     { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
 
@@ -38,7 +39,7 @@ export function Navbar() {
                 href={link.href}
                 className={cn(
                   'text-sm font-semibold transition-colors',
-                  pathname === link.href ? 'text-[#e8603c]' : 'text-[#8a7f6f] hover:text-[#2b2420]'
+                  (pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href + '/'))) ? 'text-[#e8603c]' : 'text-[#8a7f6f] hover:text-[#2b2420]'
                 )}
               >
                 {link.label}
@@ -111,7 +112,7 @@ export function Navbar() {
               onClick={() => setIsMobileMenuOpen(false)}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold transition-colors',
-                pathname === link.href
+                (pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href + '/')))
                   ? 'bg-[#fde3da] text-[#e8603c]'
                   : 'text-[#8a7f6f] hover:bg-[#f7ede1]'
               )}

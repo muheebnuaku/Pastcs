@@ -32,6 +32,7 @@ import {
   Swords,
   Megaphone,
   RefreshCw,
+  Rocket,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -42,6 +43,7 @@ const studentNavItems = [
   { href: '/classrooms', label: 'Classrooms', icon: Users },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { href: '/skills', label: 'Skills', icon: Rocket },
   { href: '/profile', label: 'Profile', icon: User },
 ];
 

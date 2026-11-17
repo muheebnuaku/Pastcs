@@ -23,6 +23,7 @@ import {
   ChevronRight,
   MessageSquareQuote,
   Radar,
+  Rocket,
 } from 'lucide-react';
 
 // Programs (merged into Courses as a tab), Activity (merged into
@@ -42,6 +43,7 @@ const adminNavSections = [
       { href: '/admin/courses', label: 'Courses', icon: BookOpen },
       { href: '/admin/questions', label: 'Questions', icon: FileQuestion },
       { href: '/admin/generate', label: 'AI Generator', icon: Sparkles },
+      { href: '/admin/skills', label: 'Skills', icon: Rocket },
     ],
   },
   {
