@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Navbar, Footer } from '@/components/layout';
-import { SkillIcon, skillAccent } from '@/components/skills/SkillCard';
+import { skillAccent } from '@/components/skills/SkillCard';
+import { SkillArt } from '@/components/skills/SkillArt';
+import { SampleShowcase } from '@/components/skills/SampleShowcase';
 import { getSkillCourses } from '@/lib/skillsData';
 import { weeksLabel } from '@/lib/skills';
 import { ArrowLeft, Check } from 'lucide-react';
@@ -29,30 +31,34 @@ export default async function SkillPage({ params }: Props) {
   const a = skillAccent(index);
 
   return (
-    <div className="font-jakarta min-h-screen bg-[#fdf8f2] overflow-x-hidden">
+    <div className="font-jakarta min-h-screen bg-[#fdf8f2] overflow-x-hidden pb-20 lg:pb-0">
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-4 pt-10 pb-20">
-        <Link href="/skills" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#8a7f6f] hover:text-[#2b2420] mb-8">
+        <Link href="/skills" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#8a7f6f] hover:text-[#2b2420] mb-6">
           <ArrowLeft className="w-4 h-4" /> All skills
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 lg:gap-12 items-start">
-          <div className="min-w-0">
-            <div className="flex items-center gap-4 mb-5">
-              <SkillIcon slug={course.slug} index={index} size="lg" />
-              <span className="text-[12px] font-bold px-2.5 py-1 rounded-full" style={{ background: a.bg, color: a.fg }}>
+          <div className="min-w-0 space-y-8">
+            <div>
+              <div className="rounded-[24px] overflow-hidden border border-[#efe2d0] mb-7">
+                <SkillArt slug={course.slug} title={course.title} imageUrl={course.image_url} size="hero" />
+              </div>
+              <span className="inline-block text-[12px] font-bold px-2.5 py-1 rounded-full mb-4" style={{ background: a.bg, color: a.fg }}>
                 {weeksLabel(course.duration_days)} of live teaching
               </span>
+              <h1 className="text-3xl md:text-[42px] font-extrabold text-[#2b2420] leading-[1.12] tracking-tight mb-3">{course.title}</h1>
+              <p className="text-lg text-[#8a7f6f] leading-relaxed">{course.tagline}</p>
             </div>
-            <h1 className="text-3xl md:text-[42px] font-extrabold text-[#2b2420] leading-[1.12] tracking-tight mb-3">{course.title}</h1>
-            <p className="text-lg text-[#8a7f6f] leading-relaxed mb-8">{course.tagline}</p>
 
             {course.description && (
-              <div className="space-y-4 text-[15.5px] text-[#4a4038] leading-relaxed mb-10">
+              <div className="space-y-4 text-[15.5px] text-[#4a4038] leading-relaxed">
                 {course.description.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)}
               </div>
             )}
+
+            {course.sample_url && <SampleShowcase url={course.sample_url} label={course.sample_label} />}
 
             {course.outcomes.length > 0 && (
               <section className="bg-[#fffdf9] border border-[#efe2d0] rounded-[20px] p-6">

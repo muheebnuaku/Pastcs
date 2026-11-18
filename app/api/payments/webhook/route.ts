@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { unlockPriceFor } from '@/lib/coursePricing';
 import { fulfilGroupPayment, GROUP_REFERENCE_PREFIX } from '@/lib/groupPaymentsServer';
-import { recordSkillEnrolment } from '@/lib/skillsServer';
+import { buyerFromPaystack, recordSkillEnrolment } from '@/lib/skillsServer';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -59,11 +59,12 @@ export async function POST(request: Request) {
   // A skill course (migration 052). The database checks the amount against
   // the course price and ignores a reference it has already recorded.
   if (metadata?.product === 'skill') {
-    if (!metadata.userId || typeof metadata.skill !== 'string') {
-      console.error('Paystack webhook: skill payment missing userId/skill', { reference, metadata });
+    const buyer = buyerFromPaystack(metadata, event.data?.customer?.email);
+    if (typeof metadata.skill !== 'string' || (!buyer.userId && !buyer.email)) {
+      console.error('Paystack webhook: skill payment missing course or buyer', { reference, metadata });
       return Response.json({ received: true });
     }
-    const result = await recordSkillEnrolment(supabaseAdmin, String(metadata.userId), metadata.skill, String(reference), Number(amount), String(event.data?.currency ?? ''));
+    const result = await recordSkillEnrolment(supabaseAdmin, buyer, metadata.skill, String(reference), Number(amount), String(event.data?.currency ?? ''));
     if (result.ok) return Response.json({ received: true });
     console.error('Paystack webhook: skill enrolment not recorded', result.message, { reference, metadata, amount });
     // A permanent refusal (underpaid, unknown course): 200 so Paystack
