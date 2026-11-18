@@ -4,11 +4,18 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ghc } from '@/lib/groupPayments';
-import { skillErrorMessage, weeksLabel, type AdminSkillCourse, type AdminSkillEnrolment } from '@/lib/skills';
-import { ExternalLink, Loader2, Pencil, Plus, Rocket } from 'lucide-react';
+import { accessLink, skillErrorMessage, weeksLabel, type AdminSkillCourse, type AdminSkillEnrolment } from '@/lib/skills';
+import { Copy, ExternalLink, FileArchive, ImageUp, Loader2, Pencil, Plus, Rocket, Trash2, Upload } from 'lucide-react';
 
-// Skills (migration 052): the paid practical courses, their class links,
-// and who has paid.
+// Skills (migrations 052–053): the paid practical courses, their class
+// links, pictures, examples and sample files, and who has paid (with or
+// without an account).
+
+// Ghana numbers typed as 024… become 23324… for a wa.me link.
+const waNumber = (p: string) => {
+  const d = p.replace(/[^\d]/g, '');
+  return d.startsWith('0') && d.length === 10 ? `233${d.slice(1)}` : d;
+};
 
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -102,7 +109,12 @@ export default function AdminSkillsPage() {
                   <div><dt className="text-xs text-gray-500 dark:text-gray-400">Running / all</dt><dd className="font-semibold text-gray-900 dark:text-gray-100">{c.running} / {c.students}</dd></div>
                   <div><dt className="text-xs text-gray-500 dark:text-gray-400">Revenue</dt><dd className="font-semibold text-gray-900 dark:text-gray-100">{ghc(Number(c.revenue))}</dd></div>
                 </dl>
-                <p className="mt-3 text-sm">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{c.image_url ? 'Own picture' : 'Drawn picture'}</span>
+                  <span>{c.sample_url ? 'Example link set' : 'No example link'}</span>
+                  <span className="break-all">{c.sample_file_path ? `Sample file: ${c.sample_file_name ?? 'uploaded'} (${c.sample_file_public ? 'anyone' : 'paid students'})` : 'No sample file'}</span>
+                </div>
+                <p className="mt-2 text-sm">
                   {c.class_link ? (
                     <a href={c.class_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400 break-all">
                       Class link <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
@@ -140,7 +152,7 @@ export default function AdminSkillsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
+                <table className="w-full min-w-[840px] text-sm">
                   <thead>
                     <tr className="border-y border-gray-100 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
                       <th className="px-4 py-2 font-medium">Student</th>
@@ -167,6 +179,14 @@ export default function AdminSkillsPage() {
 function EnrolmentRow({ row, onChanged }: { row: AdminSkillEnrolment; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(accessLink(window.location.origin, row.course_slug, row.access_token));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* no clipboard */ }
+  };
   const extend = async () => {
     setBusy(true);
     setError('');
@@ -178,8 +198,16 @@ function EnrolmentRow({ row, onChanged }: { row: AdminSkillEnrolment; onChanged:
   return (
     <tr className="border-b border-gray-50 last:border-0 align-top dark:border-white/5">
       <td className="px-4 py-2.5">
-        <p className="font-medium text-gray-900 dark:text-gray-100">{row.full_name || 'No name'}</p>
+        <p className="font-medium text-gray-900 dark:text-gray-100">
+          {row.full_name || 'No name'}
+          {!row.has_account && <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">Guest</span>}
+        </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">{row.email}</p>
+        {row.phone && (
+          <a href={`https://wa.me/${waNumber(row.phone)}`} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-green-700 hover:underline dark:text-green-400">
+            WhatsApp {row.phone}
+          </a>
+        )}
       </td>
       <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{row.course_title}</td>
       <td className="px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{ghc(row.amount)}</td>
@@ -189,7 +217,14 @@ function EnrolmentRow({ row, onChanged }: { row: AdminSkillEnrolment; onChanged:
         {!row.is_active && <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">ended</span>}
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </td>
-      <td className="px-4 py-2.5 text-right">
+      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+        <button
+          onClick={copyLink}
+          title="Copy this buyer's access link, to send them if they lose it"
+          className="mr-1.5 inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+        >
+          <Copy className="w-3 h-3" /> {copied ? 'Copied' : 'Access link'}
+        </button>
         <button
           onClick={extend}
           disabled={busy}
@@ -215,8 +250,50 @@ function CourseForm({ course, onDone, onCancel }: { course: AdminSkillCourse | n
   const [note, setNote] = useState(course?.cohort_note ?? '');
   const [active, setActive] = useState(course?.is_active ?? true);
   const [order, setOrder] = useState(String(course?.sort_order ?? 0));
+  const [imageUrl, setImageUrl] = useState(course?.image_url ?? '');
+  const [sampleUrl, setSampleUrl] = useState(course?.sample_url ?? '');
+  const [sampleLabel, setSampleLabel] = useState(course?.sample_label ?? '');
+  const [filePublic, setFilePublic] = useState(course?.sample_file_public ?? false);
+  const [fileName, setFileName] = useState(course?.sample_file_path ? (course.sample_file_name ?? 'sample.zip') : '');
+  const [uploading, setUploading] = useState<'' | 'image' | 'file'>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const folder = () => (slug.trim() || 'course').replace(/[^a-z0-9-]/g, '-');
+
+  const uploadImage = async (file: File) => {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { setError('Pictures must be JPG, PNG or WebP.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setError('Pictures must be under 5 MB.'); return; }
+    setUploading('image'); setError('');
+    const supabase = createClient();
+    const path = `${folder()}/${Date.now()}.${file.type.split('/')[1].replace('jpeg', 'jpg')}`;
+    const { error: err } = await supabase.storage.from('skill-images').upload(path, file, { contentType: file.type });
+    setUploading('');
+    if (err) { setError(`Upload failed: ${err.message}`); return; }
+    setImageUrl(supabase.storage.from('skill-images').getPublicUrl(path).data.publicUrl);
+  };
+
+  const uploadFile = async (file: File) => {
+    if (!course) return;
+    if (file.size > 50 * 1024 * 1024) { setError('The file must be under 50 MB.'); return; }
+    setUploading('file'); setError('');
+    const supabase = createClient();
+    const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '-').slice(-80) || 'sample.zip';
+    const path = `${folder()}/${Date.now()}-${safe}`;
+    const { error: upErr } = await supabase.storage.from('skill-files').upload(path, file, { contentType: file.type || 'application/zip' });
+    if (upErr) { setUploading(''); setError(`Upload failed: ${upErr.message}`); return; }
+    const { error: err } = await supabase.rpc('admin_set_skill_file', { p_id: course.id, p_path: path, p_name: file.name });
+    setUploading('');
+    if (err) setError(skillErrorMessage(err.message));
+    else setFileName(file.name);
+  };
+
+  const removeFile = async () => {
+    if (!course) return;
+    const { error: err } = await createClient().rpc('admin_set_skill_file', { p_id: course.id, p_path: null, p_name: null });
+    if (err) setError(skillErrorMessage(err.message));
+    else setFileName('');
+  };
 
   const autoSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 
@@ -239,6 +316,10 @@ function CourseForm({ course, onDone, onCancel }: { course: AdminSkillCourse | n
       p_cohort_note: note,
       p_active: active,
       p_sort_order: Math.round(Number(order) || 0),
+      p_image_url: imageUrl,
+      p_sample_url: sampleUrl,
+      p_sample_label: sampleLabel,
+      p_sample_file_public: filePublic,
     });
     setBusy(false);
     if (err) setError(skillErrorMessage(err.message));
@@ -285,6 +366,65 @@ function CourseForm({ course, onDone, onCancel }: { course: AdminSkillCourse | n
         <div className="sm:col-span-2">
           <label className={label} htmlFor="sk-note">Next class note (shown to everyone)</label>
           <input id="sk-note" className={input} placeholder="Next class starts Monday 1 December" value={note} onChange={e => setNote(e.target.value)} />
+        </div>
+        <div className="sm:col-span-2">
+          <span className={label}>Picture (shown on the card and course page; leave empty for the drawn one)</span>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            {imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="" className="h-20 w-32 rounded-lg object-cover border border-gray-200 dark:border-white/10" />
+            )}
+            <div className="flex flex-wrap gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
+                {uploading === 'image' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageUp className="w-4 h-4" />}
+                {imageUrl ? 'Change picture' : 'Upload picture'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={!!uploading}
+                  onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadImage(f); }} />
+              </label>
+              {imageUrl && (
+                <button type="button" onClick={() => setImageUrl('')} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">Use drawn picture</button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={label} htmlFor="sk-sample">Example link (a website, or https://wa.me/233… for a WhatsApp bot)</label>
+          <input id="sk-sample" className={input} type="url" placeholder="https://pastcs.com" value={sampleUrl} onChange={e => setSampleUrl(e.target.value)} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={label} htmlFor="sk-sample-label">What the example is (one sentence)</label>
+          <input id="sk-sample-label" className={input} value={sampleLabel} onChange={e => setSampleLabel(e.target.value)} />
+        </div>
+        <div className="sm:col-span-2 rounded-xl border border-gray-200 p-3 dark:border-white/10">
+          <span className={label}>Sample project file (a .zip of the project folder, up to 50 MB)</span>
+          {!course ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Save the course first, then upload its file.</p>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {fileName && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1.5 text-sm text-gray-700 break-all dark:bg-white/10 dark:text-gray-200">
+                    <FileArchive className="w-4 h-4 flex-shrink-0" /> {fileName}
+                  </span>
+                )}
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
+                  {uploading === 'file' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {uploading === 'file' ? 'Uploading…' : fileName ? 'Replace file' : 'Upload file'}
+                  <input type="file" accept=".zip,application/zip,application/x-zip-compressed" className="sr-only" disabled={!!uploading}
+                    onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadFile(f); }} />
+                </label>
+                {fileName && (
+                  <button type="button" onClick={removeFile} className="inline-flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-white/10 dark:text-red-400 dark:hover:bg-red-500/10">
+                    <Trash2 className="w-4 h-4" /> Remove
+                  </button>
+                )}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={filePublic} onChange={e => setFilePublic(e.target.checked)} className="h-4 w-4 rounded" />
+                Anyone can download it (otherwise only students who paid). Click Save to apply.
+              </label>
+            </div>
+          )}
         </div>
         <div>
           <label className={label} htmlFor="sk-order">Order on the page (lower first)</label>

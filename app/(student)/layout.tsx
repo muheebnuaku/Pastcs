@@ -6,7 +6,6 @@ import { useAuth } from '@/components/providers';
 import { StudentSidebar, ClassroomAlerts } from '@/components/layout';
 import { LevelSemesterModal } from './courses/components/LevelSemesterModal';
 import { PENDING_JOIN_KEY } from '@/lib/classrooms';
-import { PENDING_SKILL_KEY, SKILL_SLUG } from '@/lib/skills';
 import { PushSync } from '@/components/PushNotifications';
 
 export default function DashboardLayout({
@@ -34,15 +33,6 @@ export default function DashboardLayout({
     router.replace(`/join/${code}`);
   }, [user, isLoading, router]);
 
-  // Same for a skill course they tapped Enrol on while signed out.
-  useEffect(() => {
-    if (isLoading || !user) return;
-    let slug: string | null = null;
-    try { slug = localStorage.getItem(PENDING_SKILL_KEY); } catch { /* storage unavailable */ }
-    if (!slug) return;
-    try { localStorage.removeItem(PENDING_SKILL_KEY); } catch { /* storage unavailable */ }
-    if (SKILL_SLUG.test(slug)) router.replace(`/skills/${slug}`);
-  }, [user, isLoading, router]);
 
   // A student without a real program_id can't access or pay for courses
   // (verify/route.ts requires it) — a student who picked "Other — not
