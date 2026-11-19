@@ -25,6 +25,12 @@ export async function submitTest(submission: TestSubmission): Promise<TestResult
     body: JSON.stringify(submission),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.testId) throw new Error(data.error || 'Could not save your results. Please try again.');
+  if (!res.ok || !data.testId) {
+    // No JSON back means the server gave up before answering (a timeout).
+    const fallback = res.status === 504 || res.status === 502
+      ? 'Saving took too long. Your answers are still here: tap Finish again.'
+      : `Could not save your results (error ${res.status}). Your answers are still here: please try again.`;
+    throw new Error(data.error || fallback);
+  }
   return data as TestResult;
 }
