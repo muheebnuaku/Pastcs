@@ -11,10 +11,12 @@ declare module 'next/server' {
     };
     headers: Headers;
     nextUrl: URL;
+    url: string;
   }
   export class NextResponse {
     static next(options?: { request?: NextRequest | { headers: Headers } }): NextResponse;
-    static redirect(url: string | URL): NextResponse;
+    static redirect(url: string | URL, status?: number): NextResponse;
+    static rewrite(url: string | URL): NextResponse;
     cookies: {
       set(name: string, value: string, options?: object): void;
       set(options: { name: string; value: string; [key: string]: unknown }): void;
