@@ -8,6 +8,7 @@ import { cn, isAdminRole } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
 import { Menu, X, Home, BookOpen, Trophy, Rocket } from 'lucide-react';
+import { StatusBanner } from '@/components/StatusBanner';
 
 export function Navbar() {
   const pathname = usePathname();
@@ -23,6 +24,7 @@ export function Navbar() {
 
   return (
     <>
+      <div className="font-jakarta"><StatusBanner /></div>
       <div className="font-jakarta sticky top-4 z-50 flex justify-center px-4">
         <nav className="flex items-center gap-7 bg-[#fdf8f2]/85 backdrop-blur-md border border-[#efe2d0] rounded-full pl-[18px] pr-[10px] py-[9px] shadow-[0_8px_24px_rgba(43,36,32,0.06)] max-w-3xl w-full">
           {/* Logo */}

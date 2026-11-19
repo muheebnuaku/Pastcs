@@ -7,6 +7,7 @@ import { StudentSidebar, ClassroomAlerts } from '@/components/layout';
 import { LevelSemesterModal } from './courses/components/LevelSemesterModal';
 import { PENDING_JOIN_KEY } from '@/lib/classrooms';
 import { PushSync } from '@/components/PushNotifications';
+import { StatusBanner } from '@/components/StatusBanner';
 
 export default function DashboardLayout({
   children,
@@ -60,6 +61,7 @@ export default function DashboardLayout({
             (StudentSidebar) — assistant/page.tsx sizes itself against
             these exact values. */}
         <div className="pt-16 lg:pt-0 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8">
+          <div className="rounded-xl overflow-hidden mt-2 lg:mt-0 empty:hidden mb-4 lg:mb-6"><StatusBanner /></div>
           {children}
         </div>
       </main>

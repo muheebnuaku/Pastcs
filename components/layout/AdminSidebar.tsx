@@ -24,6 +24,7 @@ import {
   MessageSquareQuote,
   Radar,
   Rocket,
+  Activity,
 } from 'lucide-react';
 
 // Programs (merged into Courses as a tab), Activity (merged into
@@ -59,6 +60,7 @@ const adminNavSections = [
     items: [
       { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
       { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },
+      { href: '/admin/status', label: 'Status', icon: Activity },
     ],
   },
 ];
