@@ -7,6 +7,12 @@ import { fillAnswerCorrect, normAnswer } from '@/lib/checkAnswer';
 // can't be made up from the console. This route's one job beyond that is
 // the AI check for typed answers that don't match word for word.
 
+// The AI checks wait on OpenAI; the save must never wait on them past
+// this, or Vercel cuts the whole request off and the student loses the
+// session. Answers still unchecked by then are marked as typed.
+export const maxDuration = 60;
+const AI_BUDGET_MS = 8000;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_AI_CHECKS = 20;
 
@@ -58,31 +64,54 @@ export async function POST(request: Request) {
     .map(q => ({ q, typed: answers.find(a => a.question_id === q.id)?.selected[0] ?? '' }))
     .filter(({ q, typed }) => typed.trim() && !(q.correct_answers ?? []).some(c => normAnswer(c) === normAnswer(typed)))
     .slice(0, MAX_AI_CHECKS);
-  await Promise.all(toCheck.map(async ({ q, typed }) => {
-    try {
-      if (await fillAnswerCorrect(q.question_text, q.correct_answers?.[0] ?? '', typed, auth.userId)) fillOk.push(q.id);
-    } catch (err) {
-      console.error('[tests/submit] fill check failed', err);
-    }
-  }));
+  const started = Date.now();
+  await Promise.race([
+    Promise.all(toCheck.map(async ({ q, typed }) => {
+      try {
+        if (await fillAnswerCorrect(q.question_text, q.correct_answers?.[0] ?? '', typed, auth.userId)) fillOk.push(q.id);
+      } catch (err) {
+        console.error('[tests/submit] fill check failed', err);
+      }
+    })),
+    new Promise(resolve => setTimeout(resolve, AI_BUDGET_MS)),
+  ]);
+  const accepted = [...fillOk];
+  const aiMs = Date.now() - started;
 
-  const { data, error } = await db.rpc('record_test', {
+  const args = {
     p_user: auth.userId,
     p_course: courseId,
     p_topic: typeof topicId === 'string' && UUID.test(topicId) ? topicId : null,
     p_type: testType,
     p_answers: answers,
     p_time_taken: typeof timeTaken === 'number' && Number.isFinite(timeTaken) ? Math.round(timeTaken) : null,
-    p_fill_ok: fillOk,
-  });
-  if (error) {
-    const code = Object.keys(ERRORS).find(k => error.message?.includes(k));
-    if (!code) console.error('[tests/submit] record_test failed', error.message);
-    return Response.json({ error: code ? ERRORS[code] : 'Could not save your results. Please try again.' }, { status: code ? 400 : 500 });
+    p_fill_ok: accepted,
+  };
+  let { data, error } = await db.rpc('record_test', args);
+  // A known refusal is final. Anything else (a dropped connection, a
+  // deadlock with another save) gets one more try before giving up.
+  const known = (e: typeof error) => !!e && Object.keys(ERRORS).some(k => e.message?.includes(k));
+  if (error && !known(error)) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    ({ data, error } = await db.rpc('record_test', args));
   }
-
   const row = (data as { test_id: string; score: number; total: number }[] | null)?.[0];
-  if (!row) return Response.json({ error: 'Could not save your results. Please try again.' }, { status: 500 });
+
+  if (error || !row) {
+    const code = error ? Object.keys(ERRORS).find(k => error.message?.includes(k)) : undefined;
+    if (code) return Response.json({ error: ERRORS[code] }, { status: 400 });
+    // Keep the real reason where we can read it later: Vercel's logs only
+    // last an hour. Admins: feature_events where event = 'test_save_failed'.
+    const ref = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const detail = error ? { message: error.message, code: error.code, details: error.details, hint: error.hint } : { message: 'record_test returned no row' };
+    console.error('[tests/submit] record_test failed', ref, detail);
+    await db.from('feature_events').insert({
+      user_id: auth.userId,
+      event: 'test_save_failed',
+      metadata: { ref, ...detail, course_id: courseId, test_type: testType, answers: answers.length, ai_checks: toCheck.length, ai_ms: aiMs },
+    }).then(() => {}, () => {});
+    return Response.json({ error: `Could not save your results (ref ${ref}). Please try again.` }, { status: 500 });
+  }
 
   // Per-question marks, so the page can update spaced repetition without
   // re-marking anything itself.
